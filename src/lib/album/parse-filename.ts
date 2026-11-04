@@ -134,6 +134,14 @@ export function canonicalTakeProblem(filename: string): string | null {
   return 'the slug must be lowercase letters and digits joined by single dashes';
 }
 
+export function letterConflictMessage(
+  take: Pick<CanonicalTake, 'setId' | 'trackNumber' | 'letter'>,
+  existing: string
+): string {
+  const track = String(take.trackNumber).padStart(2, '0');
+  return `Take ${take.letter} of track ${track} in set ${take.setId} already exists as ${existing}. Letters are never reused, so give this file the next free letter.`;
+}
+
 export function canonicalTakeFilename(parts: CanonicalTake): string {
   const track = String(parts.trackNumber).padStart(2, '0');
   return `${parts.setId}-${track}-${parts.slug}-p${parts.promptLane}-take${parts.letter.toLowerCase()}.mp3`;

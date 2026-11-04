@@ -117,6 +117,11 @@ function fakeBlob(initial: string[]) {
     async find(pathname) {
       return files.has(pathname) ? { url: `https://store.test/${pathname}` } : null;
     },
+    async list(filenamePrefix) {
+      return [...files]
+        .map(pathname => pathname.slice('takes/'.length))
+        .filter(name => name.startsWith(filenamePrefix));
+    },
     async copy(fromUrl, toPathname) {
       const fromPathname = fromUrl.replace('https://store.test/', '');
       if (!files.has(fromPathname)) {
@@ -335,11 +340,63 @@ describe('moveTake', () => {
 
     const result = await moveTake(
       { db: fakeDb(tables), blob },
-      { from: FROM, to: renamed, replace: true, keepSource: true }
+      { from: FROM, to: renamed, replace: true }
     );
 
     expect(result.status).toBe(200);
     expect(result.body).toMatchObject({ votesMoved: 0, deleted: { votes: 0, downloads: 0 } });
     expect(tables.votes.filter(row => sameKey(row, FROM_KEY))).toHaveLength(2);
+  });
+
+  it('refuses keepSource on an in-place rename, which would leave two files with one letter', async () => {
+    const renamed = 'v1-03-track-three-new-name-p2-taked.mp3';
+    const { blob, files, removed } = fakeBlob([FROM]);
+    const before = structuredClone(tables);
+
+    const result = await moveTake(
+      { db: fakeDb(tables), blob },
+      { from: FROM, to: renamed, keepSource: true }
+    );
+
+    expect(result).toEqual({
+      status: 400,
+      body: {
+        error:
+          'This rename keeps take D of track 03 in set v1, so keepSource would leave two files with one letter. Leave keepSource off.',
+      },
+    });
+    expect([...files]).toEqual([`takes/${FROM}`]);
+    expect(removed).toEqual([]);
+    expect(tables).toEqual(before);
+  });
+
+  it('refuses a destination letter that another file already holds', async () => {
+    const holder = 'v1-12-track-twelve-p2-takea.mp3';
+    const { blob, files, removed } = fakeBlob([FROM, holder]);
+    const before = structuredClone(tables);
+
+    for (const replace of [false, true]) {
+      const result = await moveTake({ db: fakeDb(tables), blob }, { from: FROM, to: TO, replace });
+
+      expect(result).toEqual({
+        status: 409,
+        body: {
+          error: `Take A of track 12 in set v1 already exists as ${holder}. Letters are never reused, so give this file the next free letter.`,
+        },
+      });
+    }
+    expect(files.has(`takes/${TO}`)).toBe(false);
+    expect(removed).toEqual([]);
+    expect(tables).toEqual(before);
+  });
+
+  it('does not count the source as a holder of its own letter', async () => {
+    const renamed = 'v1-03-track-three-new-name-p2-taked.mp3';
+    const other = 'v1-03-track-three-p1-takea.mp3';
+    const { blob } = fakeBlob([FROM, other]);
+
+    const result = await moveTake({ db: fakeDb(tables), blob }, { from: FROM, to: renamed });
+
+    expect(result.status).toBe(200);
   });
 });

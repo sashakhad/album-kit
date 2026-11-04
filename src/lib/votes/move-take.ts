@@ -1,4 +1,9 @@
-import { parseCanonicalTake, type CanonicalTake } from '@/lib/album/parse-filename';
+import {
+  letterConflictMessage,
+  parseCanonicalTake,
+  parseTakeLabel,
+  type CanonicalTake,
+} from '@/lib/album/parse-filename';
 
 type TakeKey = {
   versionSlug: string;
@@ -39,6 +44,7 @@ export type MoveTakeDb = MoveTakeTx & {
 
 export type MoveTakeBlob = {
   find(pathname: string): Promise<{ url: string } | null>;
+  list(filenamePrefix: string): Promise<string[]>;
   copy(fromUrl: string, toPathname: string): Promise<void>;
   remove(urlOrPathname: string): Promise<void>;
 };
@@ -92,6 +98,9 @@ export async function moveTake(
   const from: TakeFile = { filename: request.from, take: fromTake };
   const to: TakeFile = { filename: request.to, take: toTake };
   const replace = request.replace === true;
+  if (isSameTake(from.take, to.take) && request.keepSource === true) {
+    return { status: 400, body: { error: keepSourceRenameMessage(to.take) } };
+  }
 
   const source = await deps.blob.find(takePathname(from.filename));
   if (source === null) {
@@ -99,6 +108,14 @@ export async function moveTake(
   }
   if ((await deps.blob.find(takePathname(to.filename))) !== null) {
     return { status: 409, body: { error: 'destination file exists' } };
+  }
+
+  // Letters are never reused, so no other file may already hold the destination's letter.
+  const holder = (await deps.blob.list(trackPrefix(to.take))).find(
+    name => name !== from.filename && parseTakeLabel(name) === to.take.letter
+  );
+  if (holder !== undefined) {
+    return { status: 409, body: { error: letterConflictMessage(to.take, holder) } };
   }
 
   if (!isSameTake(from.take, to.take)) {
@@ -180,6 +197,15 @@ async function moveParkedRow(tx: MoveTakeTx, source: TakeKey, destination: TakeK
     return (await tx.parkedTake.deleteMany({ where: source })).count;
   }
   return (await tx.parkedTake.updateMany({ where: source, data: destination })).count;
+}
+
+function trackPrefix(take: CanonicalTake): string {
+  return `${take.setId}-${String(take.trackNumber).padStart(2, '0')}-`;
+}
+
+function keepSourceRenameMessage(take: CanonicalTake): string {
+  const track = String(take.trackNumber).padStart(2, '0');
+  return `This rename keeps take ${take.letter} of track ${track} in set ${take.setId}, so keepSource would leave two files with one letter. Leave keepSource off.`;
 }
 
 function takeKey(take: CanonicalTake): TakeKey {

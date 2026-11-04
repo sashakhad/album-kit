@@ -72,15 +72,6 @@ export async function findLetterConflict(
 
   return null;
 }
-
-export function letterConflictMessage(
-  take: Pick<CanonicalTake, 'setId' | 'trackNumber' | 'letter'>,
-  existing: string
-): string {
-  const track = String(take.trackNumber).padStart(2, '0');
-  return `Take ${take.letter} of track ${track} in set ${take.setId} already exists as ${existing}. Letters are never reused, so give this file the next free letter.`;
-}
-
 function isSet(value: string | undefined): boolean {
   return value !== undefined && value.length > 0;
 }
