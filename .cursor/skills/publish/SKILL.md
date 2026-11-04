@@ -17,7 +17,7 @@ Every album change goes live the same way. Publishing is part of each change, so
 
 - `~/album`, set up by `start-here`, with `.album-site.json`.
 - For a GitHub home: access to the user's GitHub account, through the GitHub plugin or a signed-in `gh` command.
-- For an Origin home: the `origin` command.
+- For an Origin home: the `origin` command, or the user's help to create the repo at cursor.com/codebase, which also shows how to install it.
 
 ## Steps
 
@@ -88,22 +88,26 @@ gh repo create <project> --private --source . --remote origin --push
 
 With the GitHub plugin instead, create the private repo there, then run `git remote add origin <repo URL>` and `git push -u origin main`. Keep `"deploy": "cli"`: the site still deploys with the Vercel CLI, and every publish now pushes too.
 
-**Cursor Origin.** The user takes over the browser for the sign-in.
+**Cursor Origin.** Check whether the Origin command is on this computer with `command -v origin`.
 
-```bash
-origin auth login
-origin auth setup-git
-origin repo create <project> --visibility private
-```
+- **If it prints a path,** run these. `origin auth login` opens a sign-in, so ask the user to take over the browser for it:
 
-`origin repo create` prints the repo's full name, `<namespace>/<project>`. Then:
+  ```bash
+  origin auth login
+  origin auth setup-git
+  origin repo create <project> --visibility private
+  ```
 
-```bash
-git remote add origin "$(origin repo view <namespace>/<project> --json cloneUrl | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).cloneUrl')"
-git push -u origin main
-```
+  `origin repo create` prints the repo's full name, `<namespace>/<project>`. Then:
 
-Keep `"deploy": "cli"`. Origin repos only deploy on push with Vercel Pro.
+  ```bash
+  git remote add origin "$(origin repo view <namespace>/<project> --json cloneUrl | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).cloneUrl')"
+  git push -u origin main
+  ```
+
+- **If it prints nothing,** open https://cursor.com/codebase in your browser and ask the user to take over, sign in, click **+New** and create a private repo named `<project>`. The page then shows the command that installs `origin` and the commands that push to the new repo. Run them exactly as the page shows them, from `~/album`. When `origin auth login` runs, ask the user to take over the browser for the sign-in.
+
+Keep `"deploy": "cli"`. Origin repos only deploy on push with Vercel Pro. If the install or the sign-in fails, tell the user, remove any `origin` remote you added with `git remote remove origin`, and leave the album as it was.
 
 ### Pick up kit updates
 

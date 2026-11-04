@@ -106,22 +106,27 @@ One folder and one site hold one album. For a second album, ask the user before 
    - On path (b), if `.album-key` is missing, ask the user for the passcode they picked on the Deploy page and save it with `printf '%s\n' '<passcode>' > .album-key`. Then set `"deploy": "git"` in `.album-site.json`.
    - Give the user the site URL and the key. The key is how they vote: they open `<siteUrl>/key` once in each browser they use and paste it there. You never type the key into a web page.
 
-9. **Path (c) only: give the album its Origin home.** The user takes over the browser for the sign-in.
+9. **Path (c) only: give the album its Origin home.** Check whether the Origin command is on this computer with `command -v origin`.
+   - **If it prints a path,** run these. `origin auth login` opens a sign-in, so ask the user to take over the browser for it:
 
-   ```bash
-   origin auth login
-   origin auth setup-git
-   origin repo create <name> --visibility private
-   ```
+     ```bash
+     origin auth login
+     origin auth setup-git
+     origin repo create <name> --visibility private
+     ```
 
-   `origin repo create` prints the repo's full name, `<namespace>/<name>`. Add it as `origin` and push:
+     `origin repo create` prints the repo's full name, `<namespace>/<name>`. Add it as `origin` and push:
 
-   ```bash
-   git remote add origin "$(origin repo view <namespace>/<name> --json cloneUrl | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).cloneUrl')"
-   git push -u origin main
-   ```
+     ```bash
+     git remote add origin "$(origin repo view <namespace>/<name> --json cloneUrl | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).cloneUrl')"
+     git push -u origin main
+     ```
+
+   - **If it prints nothing,** open https://cursor.com/codebase in your browser and ask the user to take over, sign in, click **+New** and create a private repo named `<name>`. The page then shows the command that installs `origin` and the commands that push to the new repo. Run them exactly as the page shows them, from `~/album`. When `origin auth login` runs, ask the user to take over the browser for the sign-in.
 
    Keep `"deploy": "cli"` in `.album-site.json`. Origin repos only deploy on push with Vercel Pro, and the CLI works on the free plan.
+
+   If the install or the sign-in fails, tell the user and fall back to path (a): remove any `origin` remote you added with `git remote remove origin`, and go on. They can add the Origin home later by saying "back up my album".
 
 10. **Connect Suno.** Add a custom MCP server named `Suno` with the URL `https://api.suno.com/mcp`, the way your app adds MCP servers. In Cursor, that's an entry in `~/.cursor/mcp.json`:
 
@@ -165,7 +170,7 @@ One folder and one site hold one album. For a second album, ask the user before 
 
 ## Check before you say done
 
-- `git -C ~/album remote -v` shows `kit` at the public kit on paths (a) and (c), no `origin` on path (a), the user's repo as `origin` on path (b) and the Origin repo as `origin` on path (c).
+- `git -C ~/album remote -v` shows `kit` at the public kit on paths (a) and (c), no `origin` on path (a), the user's repo as `origin` on path (b) and the Origin repo as `origin` on path (c), unless you fell back to path (a).
 - `git -C ~/album log -1 --format='%an <%ae>'` shows the user.
 - `.album-site.json` has a `siteUrl` that starts with `https://`, a `project`, and `deploy` set to `git` on path (b) or `cli` otherwise.
 - `.album-key` exists and holds one line.
@@ -175,7 +180,7 @@ One folder and one site hold one album. For a second album, ask the user before 
 ## Tell the user
 
 - The site URL and the album key, and that they vote by pasting the key at `<siteUrl>/key` once in each browser.
-- Where the album lives: only on your computer (a), in their GitHub repo (b), or in their private Origin repo (c).
+- Where the album lives: only on your computer (a), in their GitHub repo (b), or in their private Origin repo (c). If the Origin setup failed, say so, and that "back up my album" adds the Origin home later.
 - What's next: pick a first track, and you'll write its prompts with `album-track`.
 
 ## Stop and ask when
@@ -184,6 +189,5 @@ One folder and one site hold one album. For a second album, ask the user before 
 - A page asks for anything beyond signing in or signing up: a payment, a plan, or another account.
 - A captcha shows up. The user takes over the browser; never solve it yourself.
 - The user's repo doesn't look like the kit, because it has no `.cursor/skills/` or `album/album.json`.
-- The `origin` command isn't installed (path c).
 - The site name is already taken by a project that isn't this album.
 - A push to the user's repo asks for credentials (path b).
