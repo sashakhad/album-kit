@@ -4,9 +4,11 @@ import { useState, type ChangeEvent, type DragEvent } from 'react';
 import { upload } from '@vercel/blob/client';
 import { Upload } from 'lucide-react';
 
-import { canonicalTakeProblem } from '@/lib/album/parse-filename';
+import { canonicalTakeProblem, parseCanonicalTake } from '@/lib/album/parse-filename';
 import { formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+
+const UPLOAD_ROUTE = '/api/owner/upload';
 
 type IntakeState = 'rejected' | 'uploading' | 'uploaded' | 'failed';
 
@@ -37,29 +39,41 @@ export function IntakeDropzone() {
     try {
       await upload(`takes/${file.name}`, file, {
         access: 'public',
-        handleUploadUrl: '/api/owner/upload',
+        handleUploadUrl: UPLOAD_ROUTE,
         contentType: 'audio/mpeg',
         onUploadProgress: progress => updateRow(id, { percentage: progress.percentage }),
       });
       updateRow(id, { state: 'uploaded', percentage: 100 });
     } catch (error) {
-      updateRow(id, {
-        state: 'failed',
-        message: error instanceof Error ? error.message : 'Upload failed',
-      });
+      updateRow(id, { state: 'failed', message: await uploadErrorMessage(file, error) });
     }
   }
 
   function addFiles(files: readonly File[]) {
     const added: IntakeRow[] = [];
     const accepted: { id: string; file: File }[] = [];
+    const letters = new Map<string, string>();
     for (const file of files) {
       const id = crypto.randomUUID();
-      const problem = canonicalTakeProblem(file.name);
-      if (problem !== null) {
+      const take = parseCanonicalTake(file.name);
+      if (take === null) {
+        const problem = canonicalTakeProblem(file.name) ?? 'not a canonical take name';
         added.push({ id, name: file.name, state: 'rejected', percentage: 0, message: problem });
         continue;
       }
+      const key = `${take.setId}-${take.trackNumber}-${take.letter}`;
+      const earlier = letters.get(key);
+      if (earlier !== undefined && earlier !== file.name) {
+        added.push({
+          id,
+          name: file.name,
+          state: 'rejected',
+          percentage: 0,
+          message: `uses the same set, track and letter as ${earlier}`,
+        });
+        continue;
+      }
+      letters.set(key, file.name);
       added.push({ id, name: file.name, state: 'uploading', percentage: 0, message: null });
       accepted.push({ id, file });
     }
@@ -142,4 +156,36 @@ export function IntakeDropzone() {
       ) : null}
     </div>
   );
+}
+
+// The Blob client replaces the upload route's error with a generic one, so ask the route for its reason.
+async function uploadErrorMessage(file: File, error: unknown): Promise<string> {
+  const fallback = error instanceof Error ? error.message : 'Upload failed';
+  if (!(error instanceof Error) || !/client token/i.test(error.message)) {
+    return fallback;
+  }
+
+  try {
+    const response = await fetch(UPLOAD_ROUTE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'blob.generate-client-token',
+        payload: { pathname: `takes/${file.name}`, clientPayload: null, multipart: false },
+      }),
+    });
+    const body: unknown = await response.json();
+    if (
+      !response.ok &&
+      typeof body === 'object' &&
+      body !== null &&
+      'error' in body &&
+      typeof body.error === 'string'
+    ) {
+      return body.error;
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
 }

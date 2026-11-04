@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { BlobNotFoundError, head, put } from '@vercel/blob';
+import { BlobNotFoundError, head, list, put } from '@vercel/blob';
 import NodeID3 from 'node-id3';
 
 const CANONICAL_TAKE =
@@ -31,6 +31,23 @@ if (rejects.length > 0) {
 const token = process.env.BLOB_READ_WRITE_TOKEN;
 if (token === undefined || token.length === 0) {
   console.error('BLOB_READ_WRITE_TOKEN is missing from .env.local. Run pnpm setup:site first.');
+  process.exit(1);
+}
+
+let conflicts;
+try {
+  conflicts = await letterConflicts(takes);
+} catch (error) {
+  console.error(
+    `Couldn't check Blob for existing takes: ${error instanceof Error ? error.message : error}`
+  );
+  process.exit(1);
+}
+if (conflicts.length > 0) {
+  console.error('Nothing uploaded. These letters are already taken:');
+  for (const conflict of conflicts) {
+    console.error(`  ${conflict}`);
+  }
   process.exit(1);
 }
 
@@ -114,9 +131,50 @@ function retag(take) {
   return NodeID3.write(tags, untagged);
 }
 
+// Letters are never reused, so a second file for the same set, track and letter is refused.
+async function letterConflicts(checked) {
+  const existingByPrefix = new Map();
+  const found = [];
+  for (const take of checked) {
+    const number = String(take.track.number).padStart(2, '0');
+    const prefix = `takes/${take.set.id}-${number}-`;
+    if (!existingByPrefix.has(prefix)) {
+      existingByPrefix.set(prefix, await listFilenames(prefix));
+    }
+    const existing = existingByPrefix
+      .get(prefix)
+      .find(name => name !== take.filename && takeLetter(name) === take.letter);
+    if (existing !== undefined) {
+      found.push(
+        `${take.file}: take ${take.letter} of track ${number} in set ${take.set.id} already exists as ${existing}. Letters are never reused, so give this file the next free letter.`
+      );
+    }
+  }
+  return found;
+}
+
+async function listFilenames(prefix) {
+  const filenames = [];
+  let cursor;
+  do {
+    const result = await list(cursor === undefined ? { prefix, token } : { prefix, cursor, token });
+    for (const blob of result.blobs) {
+      filenames.push(blob.pathname.slice('takes/'.length));
+    }
+    cursor = result.hasMore ? result.cursor : undefined;
+  } while (cursor !== undefined);
+  return filenames;
+}
+
+function takeLetter(filename) {
+  const base = filename.replace(/\.[^.]+$/, '');
+  return /-take([a-z]{1,2})(?:[-_]|$)/i.exec(base)?.[1]?.toUpperCase() ?? null;
+}
+
 function checkFiles(paths) {
   const checked = [];
   const problems = [];
+  const letters = new Map();
   for (const file of paths) {
     const filename = path.basename(file);
     const match = CANONICAL_TAKE.exec(filename);
@@ -142,6 +200,13 @@ function checkFiles(paths) {
       problems.push(`${file}: file not found`);
       continue;
     }
+    const key = `${setId}-${trackNumber}-${letter}`;
+    const earlier = letters.get(key);
+    if (earlier !== undefined && earlier !== filename) {
+      problems.push(`${file}: uses the same set, track and letter as ${earlier}`);
+      continue;
+    }
+    letters.set(key, filename);
     checked.push({ file, filename, set, track, letter: letter.toUpperCase() });
   }
   return { takes: checked, rejects: problems };

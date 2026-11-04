@@ -1,6 +1,7 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
 import { NextResponse } from 'next/server';
 
+import { findLetterConflict, letterConflictMessage } from '@/lib/album/blob-audio';
 import { parseCanonicalTake } from '@/lib/album/parse-filename';
 import { isOwnerRequest } from '@/lib/owner/auth';
 
@@ -12,7 +13,7 @@ const MAX_TAKE_BYTES = 52428800;
 class UploadRejected extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 401
+    readonly status: 400 | 401 | 409
   ) {
     super(message);
   }
@@ -33,11 +34,16 @@ export async function POST(request: Request) {
           throw new UploadRejected('Owner key required', 401);
         }
         const filename = pathname.startsWith('takes/') ? pathname.slice('takes/'.length) : '';
-        if (parseCanonicalTake(filename) === null) {
+        const take = parseCanonicalTake(filename);
+        if (take === null) {
           throw new UploadRejected(
             'Pathname must be takes/ plus a canonical take filename, like takes/v1-07-track-seven-p3-takee.mp3',
             400
           );
+        }
+        const existing = await findLetterConflict(take, filename);
+        if (existing !== null) {
+          throw new UploadRejected(letterConflictMessage(take, existing), 409);
         }
         return {
           allowedContentTypes: ['audio/mpeg'],

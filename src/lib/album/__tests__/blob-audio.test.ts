@@ -8,7 +8,13 @@ vi.mock('@vercel/blob', () => ({
   head: (pathname: string) => headMock(pathname),
 }));
 
-import { canUseBlob, listBlobTakeFilenames, resolveBlobAudioUrl } from '../blob-audio';
+import {
+  canUseBlob,
+  findLetterConflict,
+  letterConflictMessage,
+  listBlobTakeFilenames,
+  resolveBlobAudioUrl,
+} from '../blob-audio';
 
 describe('blob audio', () => {
   beforeEach(() => {
@@ -65,6 +71,45 @@ describe('blob audio', () => {
       'https://store.example/takes/v1-01-track-one-p1-takea.mp3'
     );
     expect(headMock).toHaveBeenCalledWith('takes/v1-01-track-one-p1-takea.mp3');
+  });
+
+  it('finds another file that already uses the letter', async () => {
+    listMock
+      .mockResolvedValueOnce({
+        blobs: [{ pathname: 'takes/v1-07-track-seven-p1-takea.mp3' }],
+        hasMore: true,
+        cursor: 'page-2',
+      })
+      .mockResolvedValueOnce({
+        blobs: [{ pathname: 'takes/v1-07-track-seven-p2-takee.mp3' }],
+        hasMore: false,
+      });
+
+    const take = { setId: 'v1', trackNumber: 7, letter: 'E' };
+    expect(await findLetterConflict(take, 'v1-07-track-seven-p3-takee.mp3')).toBe(
+      'v1-07-track-seven-p2-takee.mp3'
+    );
+    expect(listMock).toHaveBeenNthCalledWith(1, { prefix: 'takes/v1-07-' });
+    expect(listMock).toHaveBeenNthCalledWith(2, { prefix: 'takes/v1-07-', cursor: 'page-2' });
+    expect(letterConflictMessage(take, 'v1-07-track-seven-p2-takee.mp3')).toBe(
+      'Take E of track 07 in set v1 already exists as v1-07-track-seven-p2-takee.mp3. Letters are never reused, so give this file the next free letter.'
+    );
+  });
+
+  it('ignores the same filename and other letters', async () => {
+    listMock.mockResolvedValue({
+      blobs: [
+        { pathname: 'takes/v1-07-track-seven-p3-takee.mp3' },
+        { pathname: 'takes/v1-07-track-seven-p1-takeaa.mp3' },
+      ],
+      hasMore: false,
+    });
+
+    const take = { setId: 'v1', trackNumber: 7, letter: 'E' };
+    expect(await findLetterConflict(take, 'v1-07-track-seven-p3-takee.mp3')).toBeNull();
+    expect(
+      await findLetterConflict({ ...take, letter: 'A' }, 'v1-07-track-seven-p4-takea.mp3')
+    ).toBeNull();
   });
 
   it('returns null when the take is missing', async () => {
