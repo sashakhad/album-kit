@@ -1,0 +1,32 @@
+# pnpm 11 project settings (single-package scaffold).
+# Build scripts are denied by default; allow only packages we need.
+allowBuilds:
+  '@prisma/engines': true
+  # Cypress binary is large and often stalls installs; install on demand via
+  # `pnpm exec cypress install` (CI already does this before e2e).
+  cypress: false
+  esbuild: true
+  prisma: true
+  sharp: true
+  unrs-resolver: true
+
+# Scaffold intentionally tracks current stable releases.
+minimumReleaseAge: 0
+
+# Keep typescript-eslint on a release that supports TypeScript 6 + ESLint 9.
+overrides:
+  typescript-eslint: 8.64.0
+  '@typescript-eslint/eslint-plugin': 8.64.0
+  '@typescript-eslint/parser': 8.64.0
+  '@typescript-eslint/typescript-estree': 8.64.0
+  '@typescript-eslint/utils': 8.64.0
+  '@typescript-eslint/type-utils': 8.64.0
+  '@typescript-eslint/project-service': 8.64.0
+  '@typescript-eslint/tsconfig-utils': 8.64.0
+  '@typescript-eslint/scope-manager': 8.64.0
+  '@typescript-eslint/types': 8.64.0
+  '@typescript-eslint/visitor-keys': 8.64.0
+  # Transitive security pins
+  'hono@<4.12.25': 4.12.25
+  'flatted@<3.4.0': 3.4.0
+  'lodash@<=4.17.22': 4.17.23

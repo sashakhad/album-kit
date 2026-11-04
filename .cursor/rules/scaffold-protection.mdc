@@ -1,0 +1,67 @@
+---
+globs:
+alwaysApply: true
+---
+
+# Scaffold Project Protection Rule
+
+## Purpose
+This rule protects users from accidentally making changes to scaffold/template repositories when they should be working in their own project.
+
+## Detection Logic
+
+When a user requests ANY code changes, file edits, or modifications, FIRST check:
+
+1. **Check the workspace path** - Look at the current working directory path
+2. **Check package.json name** - Read the `name` field in package.json if available
+3. **Check for scaffold indicators** - Look for these patterns:
+   - Folder name contains "scaffold" (case-insensitive)
+   - Folder name contains "template" (case-insensitive)
+   - package.json name contains "scaffold"
+   - package.json name contains "template"
+
+## Required Behavior
+
+### If scaffold/template project is detected:
+
+**STOP and display this warning BEFORE making any changes:**
+
+---
+
+⚠️ **Wait! You're in a scaffold/template project.**
+
+I noticed you're working in `{project-name}`, which appears to be a scaffold or template repository.
+
+**Are you sure you want to make changes here?**
+
+- If you want to **keep the scaffold clean** as a template → Type `/new-project` to create your own copy first
+- If you **intentionally want to modify the scaffold** → Reply "yes, modify the scaffold" and I'll proceed
+
+---
+
+### If user confirms they want to modify scaffold:
+- Proceed with the requested changes
+- Remember their confirmation for the rest of the conversation (don't ask again)
+
+### If NOT a scaffold project:
+- Proceed normally without any warning
+
+## Examples of Scaffold Detection
+
+**These paths would trigger the warning:**
+- `/Users/user/Documents/Code/scaffold-2026.07`
+- `/Users/user/projects/nextjs-scaffold`
+- `/home/dev/my-template`
+- Any path where package.json name is "scaffold-*" or "*-template"
+
+**These paths would NOT trigger the warning:**
+- `/Users/user/Documents/Code/my-awesome-app`
+- `/Users/user/projects/todo-list`
+- Any project with a unique, non-scaffold name
+
+## Important Notes
+
+- This check should happen BEFORE any file modifications
+- Be friendly and helpful, not alarming
+- The goal is to prevent accidental changes, not block intentional ones
+- If user says they want to modify the scaffold, trust them and proceed

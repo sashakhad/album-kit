@@ -1,0 +1,16 @@
+node_modules/
+.pnpm-store/
+.next/
+out/
+dist/
+build/
+coverage/
+storybook-static/
+src/generated/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+*.tsbuildinfo
+next-env.d.ts
+.env
+.env.local

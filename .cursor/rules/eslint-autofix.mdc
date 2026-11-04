@@ -1,0 +1,26 @@
+---
+globs:
+alwaysApply: true
+---
+
+# ESLint Autofix-First Workflow
+
+When fixing lint errors, always let ESLint's autofix handle what it can before making manual changes.
+
+## Process
+
+1. **Run autofix first**: `pnpm run lint:fix` (or `pnpm eslint --fix <file>` for a single file)
+2. **Check what remains**: `pnpm run lint` to see any errors that autofix couldn't resolve
+3. **Manually fix only the remaining errors** that ESLint could not auto-fix
+
+## Why
+
+- ESLint's fixer produces consistent, predictable output
+- Manual edits risk introducing formatting drift or style inconsistencies
+- Autofix handles the mechanical stuff (semicolons, quotes, spacing, import order) so you focus on the real issues (unused vars, type errors, logic bugs)
+
+## Important
+
+- Do NOT manually fix errors that ESLint can auto-fix (formatting, trailing commas, etc.)
+- Do NOT skip the autofix step and jump straight to manual edits
+- After manual fixes, run `pnpm run lint` again to confirm zero remaining errors
