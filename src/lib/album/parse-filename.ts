@@ -112,6 +112,28 @@ export function parseCanonicalTake(filename: string): CanonicalTake | null {
   };
 }
 
+export function canonicalTakeProblem(filename: string): string | null {
+  if (parseCanonicalTake(filename) !== null) {
+    return null;
+  }
+  if (!filename.endsWith('.mp3')) {
+    return 'must end in .mp3';
+  }
+  if (/[A-Z]/.test(filename)) {
+    return 'must be all lowercase';
+  }
+  if (!/^v\d+-/.test(filename)) {
+    return 'must start with the set id, like v1-';
+  }
+  if (!/^v\d+-\d{2}-/.test(filename)) {
+    return 'needs a two-digit track number after the set, like v1-07-';
+  }
+  if (!/-p\d{1,2}-take[a-z]{1,2}\.mp3$/.test(filename)) {
+    return 'must end with the prompt lane and take letter, like -p3-takee.mp3';
+  }
+  return 'the slug must be lowercase letters and digits joined by single dashes';
+}
+
 export function canonicalTakeFilename(parts: CanonicalTake): string {
   const track = String(parts.trackNumber).padStart(2, '0');
   return `${parts.setId}-${track}-${parts.slug}-p${parts.promptLane}-take${parts.letter.toLowerCase()}.mp3`;

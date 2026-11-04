@@ -28,6 +28,13 @@ export function formatNumberExact(value: number): string {
   return value.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
+export function formatSignedScore(value: number): string {
+  if (value > 0) {
+    return `+${formatNumberExact(value)}`;
+  }
+  return formatNumberExact(value);
+}
+
 /**
  * Compact currency with $ prefix.
  * Under $1k: full. $1k–$9.9k: 1 decimal k. $10k+: whole k. $1M+: 1 decimal M. $1B+: 1 decimal B.
@@ -72,4 +79,18 @@ export function formatPercent(value: number, alreadyPercent: boolean = false): s
   const percentValue = alreadyPercent ? value : value * 100;
   const formatted = percentValue % 1 === 0 ? percentValue.toFixed(0) : percentValue.toFixed(1);
   return `${formatted}%`;
+}
+
+/**
+ * Audio clock as m:ss. Hours collapse into minutes (61:01).
+ */
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0:00';
+  }
+
+  const total = Math.floor(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
 }

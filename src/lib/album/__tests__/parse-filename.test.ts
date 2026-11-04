@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canonicalTakeFilename,
+  canonicalTakeProblem,
   contentTypeForFilename,
   isAudioFilename,
   parseCanonicalTake,
@@ -91,6 +92,29 @@ describe('parseCanonicalTake', () => {
     for (const name of rejects) {
       expect(parseCanonicalTake(name), name).toBeNull();
     }
+  });
+});
+
+describe('canonicalTakeProblem', () => {
+  it('says nothing about a canonical name', () => {
+    expect(canonicalTakeProblem('v1-07-track-seven-p3-takee.mp3')).toBeNull();
+  });
+
+  it('says what is wrong with a bad name', () => {
+    expect(canonicalTakeProblem('v1-07-track-seven-p3-takee.wav')).toBe('must end in .mp3');
+    expect(canonicalTakeProblem('v1-07-Track-Seven-p3-takee.mp3')).toBe('must be all lowercase');
+    expect(canonicalTakeProblem('07-track-seven-p3-takee.mp3')).toBe(
+      'must start with the set id, like v1-'
+    );
+    expect(canonicalTakeProblem('v1-7-track-seven-p3-takee.mp3')).toBe(
+      'needs a two-digit track number after the set, like v1-07-'
+    );
+    expect(canonicalTakeProblem('v1-07-track-seven-takee.mp3')).toBe(
+      'must end with the prompt lane and take letter, like -p3-takee.mp3'
+    );
+    expect(canonicalTakeProblem('v1-07-track--seven-p3-takee.mp3')).toBe(
+      'the slug must be lowercase letters and digits joined by single dashes'
+    );
   });
 });
 
