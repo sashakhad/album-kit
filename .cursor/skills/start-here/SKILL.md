@@ -5,7 +5,7 @@ description: Use for the first run of a new album, when someone says let's make 
 
 # Start here
 
-The first run for a new album. At the end the user has a live album site, a key to vote with, a Suno tab you can drive and an album brief.
+The first run for a new album. At the end the user has a live album site, a key to vote with, Suno connected to their own account and an album brief.
 
 ## When to use
 
@@ -121,7 +121,15 @@ One folder and one site hold one album. For a second album, ask the user before 
 
    Keep `"deploy": "cli"` in `.album-site.json`. Origin repos only deploy on push with Vercel Pro, and the CLI works on the free plan.
 
-10. **Sign in to Suno.** Open https://suno.com in your browser and ask the user to take over and sign in. Leave that tab open for `suno-run`. If Suno asks for a plan or a payment, stop: the kit needs Suno Premium, and the user buys it themselves.
+10. **Connect Suno.** Add a custom MCP server named `Suno` with the URL `https://api.suno.com/mcp`, the way your app adds MCP servers. In Cursor, that's an entry in `~/.cursor/mcp.json`:
+
+    ```json
+    { "mcpServers": { "Suno": { "url": "https://api.suno.com/mcp" } } }
+    ```
+
+    Connecting opens Suno's sign-in. Ask the user to take over the browser, sign in with their own Suno account and approve the access it asks for, which includes downloading songs and spending credits. Runs spend their own plan's credits, and the songs land in their Suno library. Use only Suno's own server, never a third-party Suno API.
+
+    If you can't add MCP servers, open https://suno.com in your browser instead, ask the user to take over and sign in, and leave that tab open for `suno-run`. Either way, if Suno asks for a plan or a payment, stop: the kit needs Suno Premium, and the user buys it themselves.
 
 11. **Interview the user.** One question at a time:
     - the artist name
@@ -159,6 +167,7 @@ One folder and one site hold one album. For a second album, ask the user before 
 - `git -C ~/album log -1 --format='%an <%ae>'` shows the user.
 - `.album-site.json` has a `siteUrl` that starts with `https://`, a `project`, and `deploy` set to `git` on path (b) or `cli` otherwise.
 - `.album-key` exists and holds one line.
+- Suno is connected: you can list the Suno MCP server's tools, or, on the browser fallback, the Suno tab shows the user signed in.
 - `curl -sS -o /dev/null -w '%{http_code}\n' "$(node -p 'require("./.album-site.json").siteUrl')"` prints `200`, and the home page shows the album title when you open it.
 
 ## Tell the user
