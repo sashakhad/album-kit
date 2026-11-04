@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   deployAsAccountOwner,
+  disconnectKitRepo,
   EXIT,
   ExitError,
   generateAlbumKey,
@@ -116,6 +117,80 @@ describe('deployAsAccountOwner', () => {
       'git config user.name <account name>',
       'git config user.email <account email>',
       'git commit --allow-empty -m album: deploy as <username>',
+    ]);
+  });
+});
+
+describe('disconnectKitRepo', () => {
+  const API = 'npx --yes vercel@65.11.0 api /v9/projects/prj_album --raw';
+  const DISCONNECT = 'npx --yes vercel@65.11.0 git disconnect --yes';
+
+  async function linkedFolder(): Promise<{ root: string; cleanup: () => Promise<void> }> {
+    const { mkdir, mkdtemp, rm, writeFile } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const root = await mkdtemp(path.join(os.tmpdir(), 'album-link-'));
+    await mkdir(path.join(root, '.vercel'));
+    await writeFile(
+      path.join(root, '.vercel', 'project.json'),
+      JSON.stringify({ projectId: 'prj_album', projectName: 'my-album' })
+    );
+    return { root, cleanup: () => rm(root, { recursive: true, force: true }) };
+  }
+
+  function projectLinkedTo(org: string, repo: string): Partial<Result> {
+    return { stdout: JSON.stringify({ id: 'prj_album', link: { type: 'github', org, repo } }) };
+  }
+
+  it.each([
+    'https://github.com/sashakhad/album-kit',
+    'https://github.com/sashakhad/album-kit.git',
+    'git@github.com:sashakhad/album-kit.git',
+  ])('disconnects a project connected to the kit remote at %s', async kitUrl => {
+    const { root, cleanup } = await linkedFolder();
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kitUrl}\n` },
+      [API]: projectLinkedTo('SashaKhad', 'album-kit'),
+    });
+
+    disconnectKitRepo(runner, root);
+
+    expect(calls).toEqual(['git remote get-url kit', API, DISCONNECT]);
+    await cleanup();
+  });
+
+  it("keeps a project connected to the album's own repo", async () => {
+    const { root, cleanup } = await linkedFolder();
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: 'https://github.com/sashakhad/album-kit\n' },
+      [API]: projectLinkedTo('someone', 'my-album'),
+    });
+
+    disconnectKitRepo(runner, root);
+
+    expect(calls).not.toContain(DISCONNECT);
+    await cleanup();
+  });
+
+  it('does nothing without a kit remote', async () => {
+    const { root, cleanup } = await linkedFolder();
+    const { runner, calls } = fakeRunner({ 'git remote get-url kit': { status: 2 } });
+
+    disconnectKitRepo(runner, root);
+
+    expect(calls).toEqual(['git remote get-url kit']);
+    await cleanup();
+  });
+
+  it('lists both steps in a dry run', () => {
+    const { runner, calls } = fakeRunner({}, true);
+
+    disconnectKitRepo(runner, '/nowhere');
+
+    expect(calls).toEqual([
+      'git remote get-url kit',
+      'npx --yes vercel@65.11.0 api /v9/projects/<project id> --raw',
+      DISCONNECT,
     ]);
   });
 });
