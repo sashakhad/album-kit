@@ -151,6 +151,14 @@ export function generateAlbumKey() {
   return `${words.join('-')}-${String(randomInt(100)).padStart(2, '0')}`;
 }
 
+// vercel env pull can't read a Secret back, and writes this placeholder in its place.
+const SENSITIVE_PLACEHOLDER = '[SENSITIVE]';
+
+export function usableAlbumKey(value) {
+  const key = value?.trim() ?? '';
+  return key.length > 0 && key !== SENSITIVE_PLACEHOLDER ? key : null;
+}
+
 export function readEnvFile(filePath) {
   const values = {};
   for (const line of (readText(filePath) ?? '').split('\n')) {
@@ -302,7 +310,7 @@ function setup(options) {
   }
 
   const keyFile = path.join(root, '.album-key');
-  let albumKey = readText(keyFile)?.trim() || null;
+  let albumKey = usableAlbumKey(readText(keyFile));
   if (!keys.has('ALBUM_KEY')) {
     const generated = options.dryRun ? '<new album key>' : generateAlbumKey();
     runner.must(
@@ -319,10 +327,13 @@ function setup(options) {
 
   runner.must(runner.vercel(['env', 'pull', '.env.local', '--environment', 'production', '--yes']));
   if (!options.dryRun && albumKey === null) {
-    const pulled = readEnvFile(path.join(root, '.env.local')).ALBUM_KEY ?? '';
-    if (pulled.length > 0) {
-      writeFileSync(keyFile, `${pulled}\n`);
-      albumKey = pulled;
+    albumKey = usableAlbumKey(readEnvFile(path.join(root, '.env.local')).ALBUM_KEY);
+    if (albumKey === null) {
+      console.log(
+        "Vercel keeps ALBUM_KEY secret, so setup can't read it back. Ask the owner for the album key, then save it: printf '%s\\n' '<album key>' > .album-key"
+      );
+    } else {
+      writeFileSync(keyFile, `${albumKey}\n`);
     }
   }
 

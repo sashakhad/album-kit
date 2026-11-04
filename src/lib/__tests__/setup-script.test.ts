@@ -8,6 +8,7 @@ import {
   generateAlbumKey,
   readEnvFile,
   slugify,
+  usableAlbumKey,
 } from '../../../scripts/setup.mjs';
 
 type Result = { status: number; stdout: string; stderr: string; shown: string };
@@ -151,5 +152,14 @@ describe('setup helpers', () => {
     });
     expect(readEnvFile(path.join(dir, 'missing'))).toEqual({});
     await rm(dir, { recursive: true, force: true });
+  });
+
+  it("never takes vercel env pull's placeholder for a Secret as the album key", () => {
+    expect(usableAlbumKey('plum-river-quiet-42\n')).toBe('plum-river-quiet-42');
+    expect(usableAlbumKey('[SENSITIVE]')).toBeNull();
+    expect(usableAlbumKey('[SENSITIVE]\n')).toBeNull();
+    expect(usableAlbumKey('  ')).toBeNull();
+    expect(usableAlbumKey(undefined)).toBeNull();
+    expect(usableAlbumKey(null)).toBeNull();
   });
 });
