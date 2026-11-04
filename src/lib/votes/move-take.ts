@@ -46,8 +46,8 @@ export type MoveTakeBlob = {
 export type MoveTakeRequest = {
   from: string;
   to: string;
-  keepSource?: boolean;
-  replace?: boolean;
+  keepSource?: boolean | undefined;
+  replace?: boolean | undefined;
 };
 
 export type MoveTakeCounts = {
