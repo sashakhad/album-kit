@@ -79,16 +79,17 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    1. Agree on the new title. Get the new slug with the command in step 6.
    2. Change the track's `title` and `slug` in `album/album.json`. Rename its sheet and synthesis note with `git mv` to the new slug, then change the sheet's heading, its Title field and every filename in its table to the new slug.
    3. Follow the `publish` skill with the message `rename track <NN> to <title>`.
-   4. Move each take from its old name to its new name with a plain move. Never add `replace` to a rename:
+   4. Move each take from its old name to its new name with a plain move. Never add `replace` or `keepSource` to a rename. The route refuses `keepSource` on a rename with 400, because a rename always moves the file:
 
       ```bash
       curl -sS -X POST -H "Authorization: Bearer $(cat .album-key)" -H 'Content-Type: application/json' -d '{"from":"v1-08-old-title-p1-takea.mp3","to":"v1-08-new-title-p1-takea.mp3"}' "$SITE/api/owner/takes/move"
       ```
 
-      The set, number and letter don't change, so every vote stays with its take.
+      It answers with `votesMoved: 0`. That's expected: votes belong to the set, number and letter, which don't change, so every vote stays with its take.
 
 8. **When a letter is taken.** A move answers 409 when the letter you picked is already used on that track.
    - `destination file exists`: pick the track's next free letter.
+   - Another file already uses that letter, under a different name: pick the next free letter after the last one in the track's sheet. Letters are never reused.
    - `destination has votes`: pick the next free letter too, so nothing gets deleted. If the owner wants this take to take over that letter, tell them exactly which votes go: the track, the take as `<set name> <letter>`, and the count from the answer's `votes`. Only after a yes, run the move again with `"replace": true` added. That deletes those votes and downloads.
 
 9. **Free up storage.** Offer this only when storage is a concern: more than 150 takes are stored, or an upload failed for lack of space. Never offer it as a routine after a round. Offer it once. If the owner says no, note that in `album/GENERATION-LOG.md`, and don't offer again until an upload fails for lack of space or they ask.
@@ -143,7 +144,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
       npx --yes vercel blob del takes/<file> takes/<file> --yes
       ```
 
-      Their votes stay in the database, and the takes stop showing on `/vote`. Local copies in `album/audio/` stay where they are.
+      Their votes stay in the database, and the takes stop showing on `/vote`. Keep their rows in the sheets: their letters stay used, so a new take never inherits their votes. Local copies in `album/audio/` stay where they are.
 
 ## Check before you say done
 

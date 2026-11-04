@@ -64,7 +64,7 @@ One folder and one site hold one album. For a second album, ask the user before 
    npx --yes vercel api /v2/user --raw | node -p 'const { user } = JSON.parse(require("fs").readFileSync(0, "utf8")); `${user.name ?? user.username}\n${user.email}`'
    ```
 
-   Set them for this folder only. On path (b), use the email on the user's GitHub account if it's different, because their repo's pushes are checked against GitHub.
+   Set them for this folder only, on every path. `pnpm setup:site` and `pnpm publish:album` check the same thing before they deploy, and switch the folder's git user to the Vercel account if it doesn't match.
 
    ```bash
    git config user.name "<name>"
@@ -97,8 +97,10 @@ One folder and one site hold one album. For a second album, ask the user before 
    - **0:** done. The last line is JSON with `siteUrl`, `albumKey` and `project`.
    - **2:** not signed in to Vercel. Do step 5 again, then rerun `pnpm setup:site --name <name>`.
    - **3:** the Neon database step needs the browser. The output says what to open. Open it, ask the user to take over and finish it, then rerun `pnpm setup:site --name <name>`.
-   - **4:** setup couldn't read the Vercel account's email, so it can't make the user the commit author. Do what its message says. Usually that means asking the user for the email on their Vercel account, setting it as in step 6, then rerunning `pnpm setup:site --name <name>`.
+   - **4:** setup couldn't read the signed-in Vercel account's email, which it needs to deploy as the owner. Its message says to sign in again: do step 5 again, then rerun `pnpm setup:site --name <name>`.
    - **1:** stop. The output names the command that failed and its error.
+
+   Before it deploys, setup may add an empty commit, `album: deploy as <username>`, so the newest commit is the account owner's.
 
 8. **Save the site URL and the key.** `.album-site.json` holds `siteUrl`, and `.album-key` holds the key.
    - On path (b), if `.album-key` is missing, ask the user for the passcode they picked on the Deploy page and save it with `printf '%s\n' '<passcode>' > .album-key`. Then set `"deploy": "git"` in `.album-site.json`.

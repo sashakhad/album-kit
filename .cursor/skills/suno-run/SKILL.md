@@ -66,7 +66,11 @@ Use Suno's own MCP server first, and the browser path at the end of the steps as
    pnpm takes:upload album/audio/v1-07-plant-bassd-p1-takea.mp3 album/audio/v1-07-plant-bassd-p1-takeb.mp3
    ```
 
-   List every new file. The script checks all the names first and uploads nothing if one is wrong. Fix the name to match the sheet, never the sheet to match the name. It replaces Suno's tags with the album's own, then prints `uploaded`, `skipped` or `failed` for each file and a summary. `skipped` means a file with that name is already on the site, so leave it. If a file failed for lack of space, follow "Free up storage" in the `judge` skill.
+   List every new file. The script checks all of them first, and uploads nothing if one is refused:
+   - A name that isn't canonical, or whose set or track isn't in `album/album.json`. Fix the name to match the sheet, never the sheet to match the name.
+   - A letter that's already taken: another file on the site has the same set, track and letter. Letters are never reused, so rename your file to the next free letter after the last one in the sheet, add that row to the sheet, and run the upload again.
+
+   It replaces Suno's tags with the album's own, then prints `uploaded`, `skipped` or `failed` for each file and a summary. `skipped` means a file with that name is already on the site, so leave it. If a file failed for lack of space, follow "Free up storage" in the `judge` skill.
 
 10. **Check the storage.** Count the takes stored:
 

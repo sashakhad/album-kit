@@ -32,10 +32,13 @@ Every album change goes live the same way. Publishing is part of each change, so
    const setIds = new Set();
    for (const set of album.sets) {
      if (!/^v\d+$/.test(set.id) || setIds.has(set.id)) errors.push(`set ${set.id}: ids are v1, v2 and so on, each used once`);
-     if (!set.name) errors.push(`set ${set.id}: name is empty`);
+     if (typeof set.name !== "string") errors.push(`set ${set.id}: name must be text`);
      setIds.add(set.id);
    }
-   if (!album.title) errors.push("title is empty");
+   if (typeof album.title !== "string" || album.title.length === 0) errors.push("title is empty");
+   for (const field of ["artist", "genre", "rule"]) {
+     if (typeof album[field] !== "string") errors.push(`${field} must be text, even if empty`);
+   }
    if (setIds.size === 0) errors.push("sets needs at least one set");
    const numbers = new Set();
    const slugs = new Set();
@@ -61,7 +64,9 @@ Every album change goes live the same way. Publishing is part of each change, so
    pnpm publish:album "<message>"
    ```
 
-   It commits `album/` and `.album-site.json`, pushes if the album has a git home, deploys and prints the site URL. With `"deploy": "git"` in `.album-site.json`, Vercel builds from the push, so the change shows a minute or two later.
+   It commits `album/` and `.album-site.json` as `album: <message>`, pushes if the album has a git home, deploys and prints the site URL. With `"deploy": "git"` in `.album-site.json`, Vercel builds from the push, so the change shows a minute or two later. With `"deploy": "cli"`, it first checks that you're signed in to Vercel, and if the newest commit isn't by that account, it switches the folder's git user to the account and adds an empty commit, `album: deploy as <username>`.
+
+   If it exits with code 4, it couldn't read the signed-in Vercel account. Run `npx vercel login`, ask the user to take over the browser and sign in, then publish again.
 
 4. Check that the site answers:
 
@@ -119,7 +124,7 @@ On albums that started from the kit (paths (a) and (c) in `start-here`), run `gi
 ## Stop and ask when
 
 - The album.json check prints a problem you can't fix from what the user told you.
-- `pnpm publish:album` fails. Show the user its last lines. Never force-push.
+- `pnpm publish:album` fails with code 1, or with code 4 again after the user signed in. Show the user its last lines. Never force-push.
 - A push is rejected because the remote has commits this folder doesn't have.
 - The site answers `500` after a publish.
 - Making the repo would make it public, or needs a paid plan.
