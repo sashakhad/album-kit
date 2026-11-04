@@ -1,0 +1,14 @@
+{
+  "title": "Mixed Fixture",
+  "artist": "Fixture Artist",
+  "genre": "Test house",
+  "rule": "Small and boring.",
+  "sets": [
+    { "id": "v2", "name": "Lulu" },
+    { "id": "v1", "name": "Bubu", "blurb": "First prompt set." }
+  ],
+  "tracks": [
+    { "number": 1, "title": "Track One", "slug": "track-one" },
+    { "number": 2, "title": "Track Two", "slug": "track-two", "parked": true }
+  ]
+}

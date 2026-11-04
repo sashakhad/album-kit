@@ -1,0 +1,11 @@
+{
+  "title": "Fixture Album",
+  "artist": "Fixture Artist",
+  "genre": "Test house",
+  "rule": "Small and boring.",
+  "sets": [{ "id": "v1", "name": "Bubu" }],
+  "tracks": [
+    { "number": 2, "title": "Track Two", "slug": "track-two" },
+    { "number": 1, "title": "Track One", "slug": "track-one" }
+  ]
+}
