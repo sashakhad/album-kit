@@ -89,7 +89,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 
 8. **When a letter is taken.** A move answers 409 when the letter you picked is already used on that track.
    - `destination file exists`: pick the track's next free letter.
-   - Another file already uses that letter, under a different name: pick the next free letter after the last one in the track's sheet. Letters are never reused.
+   - The take `already exists as` another file: a file with a different name already holds that letter. Pick the next free letter after the last one in the track's sheet. Letters are never reused.
    - `destination has votes`: pick the next free letter too, so nothing gets deleted. If the owner wants this take to take over that letter, tell them exactly which votes go: the track, the take as `<set name> <letter>`, and the count from the answer's `votes`. Only after a yes, run the move again with `"replace": true` added. That deletes those votes and downloads.
 
 9. **Free up storage.** Offer this only when storage is a concern: more than 150 takes are stored, or an upload failed for lack of space. Never offer it as a routine after a round. Offer it once. If the owner says no, note that in `album/GENERATION-LOG.md`, and don't offer again until an upload fails for lack of space or they ask.
