@@ -1,163 +1,66 @@
-# Project Scaffold
+# Album kit
 
-A clean, modern scaffold for full-stack web applications built with Next.js App Router, React, TypeScript, Prisma, Tailwind CSS, and shadcn/ui.
+## What this is
 
----
+Make an instrumental album with Suno, judge every take blind, and share the keepers. A bot sets up your own album site, writes the Suno prompts, runs Suno on your account and uploads every take. You vote on the takes one round at a time without knowing which prompt made which, and the winners go on a page you can share. It's the process behind [mus1c for v3gans](https://music-for-vegans.vercel.app/listen/mus1c-for-v3gans), a 30-song record where Suno made every sound. [Here's how that went](BLOG_POST_URL).
 
-## Quick Start
+## Make an album
 
-This project uses **Cursor commands** to make everything easy. Just type these commands in the Cursor chat:
+[Add Album Bot](ALBUM_BOT_TEMPLATE_URL) to Grok Bot, then say "let's make an album."
 
-| Command        | What it does                                                                 |
-| -------------- | ---------------------------------------------------------------------------- |
-| `/setup`       | Installs everything your project needs                                       |
-| `/start`       | Launches your app so you can see it in the browser                           |
-| `/new-project` | Creates a fresh copy of this template and pushes it to a private GitHub repo |
+You need:
 
----
+- **Grok Bot.**
+- **Suno Premium.** The bot connects to Suno through Suno's own MCP server, and you sign in with your account. Runs use your own plan's credits, and the songs land in your Suno library.
+- **A Vercel account.** The free plan is enough, and you can sign up with email when the bot asks.
 
-## Getting Started
+You don't need GitHub, a terminal or any code. The bot copies this kit onto its own computer and works from there.
 
-### Prerequisites
+## Own the code
 
-- **Node.js 24 LTS** (see `.nvmrc` / `.node-version`)
-- **pnpm 11** via Corepack (`corepack enable`)
+You don't need this part to make an album. It's for people who want the album in their own repo.
 
-### First Time Setup
+**GitHub.** The Deploy button copies the kit into your GitHub account and sets up Vercel Blob storage, a Neon Postgres database and your album key. After that, every push deploys. Then add the bot and send it your repo's link.
 
-1. Open this folder in Cursor
-2. Open the chat (click the chat icon or press `Cmd+L` / `Ctrl+L`)
-3. Type `/setup` and press Enter
-4. Wait for everything to install (takes 1-2 minutes)
-5. Type `/start` to launch your app
-6. Open http://localhost:3000 in your browser
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/sashakhad/album-kit&project-name=my-album&repository-name=my-album&stores=%5B%7B%22type%22%3A%22blob%22%2C%22access%22%3A%22public%22%7D%2C%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D&env=ALBUM_KEY&envDescription=Pick%20a%20passcode.%20Only%20you%20can%20vote%20with%20it.)
 
-**That's it for the demo UI.** Postgres is optional until you need the database.
+**Cursor Origin.** Origin repos are private, and the Deploy button doesn't work with them. Ask the bot for an Origin repo instead, and it keeps your album in a private one. Origin repos only deploy on push with Vercel Pro, so the bot keeps deploying with the Vercel CLI, which works on the free plan.
 
-### Optional database
+**Local dev.** You need Node 24, pnpm and Docker.
 
 ```bash
-cp .env.example .env
-pnpm run db:up        # local Postgres via Docker
-pnpm run db:migrate   # apply the initial schema
-```
-
-Or paste a hosted `DATABASE_URL` into `.env` and run `pnpm run db:migrate`.
-
----
-
-## Starting a New Project
-
-Want to create a new project using this template?
-
-1. Type `/new-project` in the chat
-2. Enter a name for your project (like `my-cool-app`)
-3. Choose whether the private GitHub repo should live under your personal account or an available organization
-4. Follow the instructions to open your new project folder in Cursor
-5. Run `/setup` in the new project
-6. Run `/start` to launch it
-
-`/new-project` creates a local folder and private GitHub repo only. It does not deploy to Vercel.
-
----
-
-## What's Included
-
-This scaffold comes with modern tools pre-configured:
-
-- **Next.js** with App Router and Turbopack
-- **React** with strict TypeScript configuration
-- **Prisma** with a PostgreSQL adapter (optional until you need a DB)
-- **Tailwind CSS** for styling
-- **shadcn/ui** with Radix UI components
-- **React Hook Form** with Zod validation
-- **Vitest** and Testing Library for unit/component tests
-- **Storybook** with Vitest browser + accessibility tests
-- **Cypress** for end-to-end smoke tests
-- **ESLint** and **Prettier** for code quality
-
----
-
-## For Developers
-
-<details>
-<summary>Click to expand developer documentation</summary>
-
-### Manual Commands
-
-If you prefer using the terminal directly:
-
-```bash
-# Enable package manager
-corepack enable
-corepack prepare pnpm@11.13.1 --activate
-
-# Install dependencies
 pnpm install
-
-# Aggregate quality checks
-pnpm run check
-
-# Start development server
-pnpm run dev
-
-# Build for production
-pnpm run build
-
-# Unit tests (Vitest)
-pnpm test
-
-# Storybook browser tests
-pnpm run test:storybook
-
-# End-to-end smoke tests (builds + starts the app; installs Cypress binary on demand)
-pnpm run test:e2e
-
-# Start Storybook
-pnpm run storybook
-
-# Type-check the project
-pnpm run type-check
-
-# Database commands
-pnpm run db:up          # start local Postgres (Docker)
-pnpm run db:down        # stop local Postgres
-pnpm run db:generate    # Generate Prisma client
-pnpm run db:migrate     # Run migrations
-pnpm run db:push        # Push schema without migrations
-pnpm run db:studio      # Open database UI
+cp .env.example .env
+pnpm db:up
+pnpm exec prisma migrate deploy
+pnpm dev
 ```
 
-### Project Structure
+The example env file sets the album key to `dev` and leaves the Blob token out, so the site reads takes from `album/audio/`. Add a track to `album/album.json`, name its takes like `v1-01-<slug>-p1-takea.mp3`, then open http://localhost:3000/key and enter `dev`.
 
-```
-src/
-├── app/                 # Pages and layouts
-├── components/          # Reusable UI components
-│   └── ui/             # shadcn/ui components
-├── lib/                # Utility functions
-└── stories/            # Storybook stories
+## How it works
 
-prisma/
-├── schema.prisma       # Database schema
-└── migrations/         # SQL migrations
+1. **Set up.** The bot copies the kit, makes your Vercel project with Blob storage, a Postgres database and an album key, deploys your site and connects Suno.
+2. **Frame the album.** It asks for the title, the artist, the genre, the album's one rule and your first track titles, and writes the album's brief.
+3. **Write the prompts.** For each track, five writers each draft five Suno prompts on their own. A judge scores them, and the best become the track's sheet.
+4. **Run Suno.** The bot runs each prompt once, which makes two takes, then names the files and uploads them to your site.
+5. **Judge blind.** You vote on `/vote`. Each take has a nonsense set name and a letter, so you never know which prompt made it. Downvotes leave, upvotes carry, and takes you haven't voted on stay. You start the next round when you're ready.
+6. **Share.** When a track is done, you pick its take and the bot pins it to `/listen`, the page you share.
 
-.cursor/
-└── commands/           # Cursor slash commands
-```
+## Costs
 
-### Adding UI Components
+- **Suno Premium.** Every run spends credits from your own plan, and each run makes two takes. A track with five prompts is five runs. The bot asks before it spends more than a track's sheet plans.
+- **Grok Bot.** The bot runs in your own Grok Bot account, on whatever plan you have.
+- **Vercel: free.** The free Hobby plan covers the site, the Blob storage and a Neon Postgres database. It's meant for personal, non-commercial projects.
 
-```bash
-pnpm dlx shadcn@latest add [component-name]
-```
+## FAQ
 
-</details>
+**What if Suno shows a captcha?** That only happens when the bot uses Suno in its browser instead of the MCP server. The bot stops and asks you to take over its browser, so you solve it and hand it back. If Suno keeps blocking the bot, open `/studio/<track>` on your site. It has every field ready to copy into Suno by hand. Then drop the takes on `/intake`, named the way `/studio` shows.
 
----
+**What if storage fills up?** Takes live in Vercel Blob, and each one is a few megabytes, so an album with hundreds of takes can outgrow the free plan. When more than 150 takes are stored, or an upload fails for lack of space, the bot offers once to delete the audio for takes you voted out. It asks first, because a downvoted take sometimes becomes a new song, and it never touches parked or pinned takes.
 
-## Need Help?
+**Who can hear my takes?** Signed-out visitors can only play the takes pinned to `/listen`, and those stream through the site. Every other take is stored at an unlisted address that only your signed-in browser ever sees. The files aren't encrypted, so think of them as unlisted, not secret.
 
-- Type your question in the Cursor chat - the AI can help!
-- Check the [Next.js docs](https://nextjs.org/docs)
-- Check the [Tailwind CSS docs](https://tailwindcss.com/docs)
+## Credits
+
+Made by [Sasha](https://github.com/sashakhad), from the process behind mus1c for v3gans. The prompt arena uses the `/arena` skill from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan. Suno makes every sound, through each person's own account.

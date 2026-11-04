@@ -22,7 +22,7 @@ One folder and one site hold one album. For a second album, ask the user before 
 
 ## Steps
 
-1. **Get the kit.** If the user already named an album repo, skip to step 2 (b). If they named an album folder on this computer, work in that folder wherever this skill says `~/album`, and skip the clone. Otherwise:
+1. **Get the kit.** If `~/album` already holds the kit, with `kit` as its remote, this step is done. If the user already named an album repo, skip to step 2 (b). If they named an album folder on this computer, work in that folder wherever this skill says `~/album`, and skip the clone. Otherwise:
 
    ```bash
    git clone https://github.com/sashakhad/album-kit ~/album
@@ -33,7 +33,7 @@ One folder and one site hold one album. For a second album, ask the user before 
 
 2. **Pick the path.** Ask only if it isn't clear. The default is (a).
    - **(a) Bot only.** Nothing more to do here. The site deploys from this folder with the Vercel CLI.
-   - **(b) The user already used the Deploy button.** Ask for their repo link and their Vercel project's name. The Deploy button suggests `my-album`. If step 1 cloned the kit, that copy has nothing in it yet, so replace it:
+   - **(b) The user already used the Deploy button.** Ask for their repo link and their Vercel project's name. The Deploy button suggests `my-album`. If `~/album` holds the kit, that copy has nothing in it yet, so replace it:
 
      ```bash
      rm -rf ~/album
