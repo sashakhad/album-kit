@@ -29,12 +29,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files — keep .env.example committed
-.env
-.env*.local
-.env.development
-.env.test
-.env.production
+# env files — keep .env.example committed. vercel env pull appends `.env*` unless
+# that exact line is here.
+.env*
+!.env.example
 
 # album key (only on the bot's computer)
 .album-key
