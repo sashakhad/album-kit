@@ -2,9 +2,6 @@
 # Build scripts are denied by default; allow only packages we need.
 allowBuilds:
   '@prisma/engines': true
-  # Cypress binary is large and often stalls installs; install on demand via
-  # `pnpm exec cypress install` (CI already does this before e2e).
-  cypress: false
   esbuild: true
   prisma: true
   sharp: true
