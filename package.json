@@ -26,6 +26,9 @@
     "db:studio": "prisma studio",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "setup:site": "node scripts/setup.mjs",
+    "takes:upload": "node scripts/takes-upload.mjs",
+    "publish:album": "node scripts/publish-album.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky"
   },
@@ -40,6 +43,7 @@
     "dotenv": "17.4.2",
     "lucide-react": "1.24.0",
     "next": "16.2.10",
+    "node-id3": "0.2.9",
     "pg": "8.22.0",
     "radix-ui": "1.6.2",
     "react": "19.2.7",

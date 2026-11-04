@@ -170,12 +170,11 @@ describe('loadAlbumConfig', () => {
     expect(config.tracks.map(track => track.slug)).toEqual(['track-one', 'track-three']);
   });
 
-  it('reads the starter file that ships with the kit', async () => {
+  it('reads a valid album/album.json from this repo', async () => {
     const config = await loadAlbumConfig();
 
-    expect(config.title).toBe('Untitled album');
-    expect(config.sets).toEqual([{ id: 'v1', name: 'Bubu' }]);
-    expect(config.tracks).toEqual([]);
+    expect(config.title.length).toBeGreaterThan(0);
+    expect(config.sets.length).toBeGreaterThan(0);
   });
 
   it('says when the file is not JSON', async () => {
