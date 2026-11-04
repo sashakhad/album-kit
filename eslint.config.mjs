@@ -1,5 +1,3 @@
-// For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
-import storybook from 'eslint-plugin-storybook';
 import coreWebVitals from 'eslint-config-next/core-web-vitals';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
@@ -12,10 +10,8 @@ const eslintConfig = [
       'dist/**',
       'out/**',
       'coverage/**',
-      'storybook-static/**',
       'src/generated/**',
       'next-env.d.ts',
-      'cypress/**',
     ],
   },
   {
@@ -44,14 +40,12 @@ const eslintConfig = [
       'postcss.config.mjs',
       'next.config.ts',
       'vitest.config.ts',
-      'cypress.config.ts',
       'prisma.config.ts',
     ],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
     },
   },
-  ...storybook.configs['flat/recommended'],
   eslintConfigPrettier,
 ];
 

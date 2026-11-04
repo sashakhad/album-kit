@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,10 +7,62 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Vote {
+  id          String   @id @default(cuid())
+  visitorId   String
+  trackNumber Int
+  versionSlug String
+  takeLabel   String   @default("A")
+  value       Int      @default(1)
+  round       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([visitorId, trackNumber, versionSlug, takeLabel, round])
+  @@index([trackNumber, versionSlug, takeLabel])
+}
+
+model Download {
+  id          String   @id @default(cuid())
+  visitorId   String
+  trackNumber Int
+  versionSlug String
+  takeLabel   String
+  round       Int
+  createdAt   DateTime @default(now())
+
+  @@unique([visitorId, trackNumber, versionSlug, takeLabel])
+  @@index([visitorId])
+}
+
+model VisitorRound {
+  visitorId    String   @id
+  currentRound Int      @default(1)
+  updatedAt    DateTime @updatedAt
+}
+
+model JudgingState {
+  id          String @id @default("default")
+  latestRound Int    @default(1)
+}
+
+model TakeSighting {
+  id           String   @id @default(cuid())
+  versionSlug  String
+  filename     String
+  addedInRound Int
+  createdAt    DateTime @default(now())
+
+  @@unique([versionSlug, filename])
+}
+
+model ParkedTake {
+  id          String   @id @default(cuid())
+  versionSlug String
+  trackNumber Int
+  takeLabel   String
+  createdAt   DateTime @default(now())
+
+  @@unique([versionSlug, trackNumber, takeLabel])
+  @@index([trackNumber])
 }

@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   formatCurrency,
   formatCurrencyExact,
+  formatDuration,
   formatNumber,
   formatNumberExact,
   formatPercent,
+  formatSignedScore,
 } from '../formatters';
 
 describe('formatNumber', () => {
@@ -21,6 +23,14 @@ describe('formatNumber', () => {
 describe('formatNumberExact', () => {
   it('formats with separators', () => {
     expect(formatNumberExact(1234567)).toBe('1,234,567');
+  });
+});
+
+describe('formatSignedScore', () => {
+  it('keeps a plus on positive scores', () => {
+    expect(formatSignedScore(3)).toBe('+3');
+    expect(formatSignedScore(0)).toBe('0');
+    expect(formatSignedScore(-2)).toBe('-2');
   });
 });
 
@@ -44,5 +54,14 @@ describe('formatPercent', () => {
     expect(formatPercent(0.125)).toBe('12.5%');
     expect(formatPercent(0.5)).toBe('50%');
     expect(formatPercent(50, true)).toBe('50%');
+  });
+});
+
+describe('formatDuration', () => {
+  it('formats a media clock', () => {
+    expect(formatDuration(0)).toBe('0:00');
+    expect(formatDuration(65)).toBe('1:05');
+    expect(formatDuration(3661)).toBe('61:01');
+    expect(formatDuration(Number.NaN)).toBe('0:00');
   });
 });
