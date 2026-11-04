@@ -127,6 +127,37 @@ export function deployAsAccountOwner(runner, { checkSignIn = true } = {}) {
   runner.must(runner.run('git', ['commit', '--allow-empty', '-m', `album: deploy as ${username}`]));
 }
 
+// A project that `vercel link` creates gets connected to the folder's git remote, and on a fresh
+// copy that remote is the public kit. Left connected, every push to the kit would redeploy this
+// album's site from the kit's empty album.json.
+export function disconnectKitRepo(runner, root = process.cwd()) {
+  const kit = runner.run('git', ['remote', 'get-url', 'kit']);
+  if (runner.dryRun) {
+    runner.vercel(['api', '/v9/projects/<project id>', '--raw'], {
+      when: 'if a kit remote exists',
+    });
+    runner.vercel(['git', 'disconnect', '--yes'], {
+      when: 'if the project is connected to the kit remote',
+    });
+    return;
+  }
+
+  const kitRepo = kit.status === 0 ? repoPath(kit.stdout) : null;
+  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
+  if (kitRepo === null || typeof projectId !== 'string') {
+    return;
+  }
+  const project = runner.must(runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']));
+  const link = parseJson(project.stdout)?.link;
+  const linkedRepo =
+    typeof link?.org === 'string' && typeof link?.repo === 'string'
+      ? `${link.org}/${link.repo}`.toLowerCase()
+      : null;
+  if (linkedRepo === kitRepo) {
+    runner.must(runner.vercel(['git', 'disconnect', '--yes']));
+  }
+}
+
 export function readAlbumSite(root = process.cwd()) {
   const site = parseJson(readText(path.join(root, '.album-site.json')));
   return site !== null && typeof site === 'object' ? site : null;
@@ -274,6 +305,7 @@ function setup(options) {
       })
     );
   }
+  disconnectKitRepo(runner, root);
 
   const keys = options.dryRun ? new Set() : productionEnvKeys(runner);
   if (options.dryRun) {
@@ -353,6 +385,11 @@ function maskArg(args, index, arg, options) {
 
 function quote(value) {
   return /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function repoPath(url) {
+  const match = /[/:]([^/:]+)\/([^/]+?)(?:\.git)?\/*$/.exec(url.trim());
+  return match === null ? null : `${match[1]}/${match[2]}`.toLowerCase();
 }
 
 function stripAnsi(value) {
