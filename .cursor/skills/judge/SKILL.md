@@ -100,7 +100,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
       ```
 
    2. Remind the owner first that downvoted takes sometimes become new songs. Promote one before it's deleted.
-   3. List the takes that are out: those that ended an earlier round with a negative score. This leaves out every parked take and every take pinned to `/listen`:
+   3. List the takes that are out: those that ended an earlier round with a negative score. This leaves out every parked take and every take pinned to `/listen`. The command only reads: its one database query is a `SELECT`. Never write to the database yourself.
 
       ```bash
       node --env-file=.env.local -e '
@@ -137,8 +137,8 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
       '
       ```
 
-   4. Show the owner the list as track titles and `<set name> <letter>`, and get a yes for all of it or for the ones they pick.
-   5. Delete only those files from storage:
+   4. Show the owner the exact list of files the command printed, each with its track title and `<set name> <letter>`, before you ask for anything. Then get a yes for all of them, or for the ones they pick.
+   5. Delete only the files they said yes to, and nothing else:
 
       ```bash
       npx --yes vercel blob del takes/<file> takes/<file> --yes
