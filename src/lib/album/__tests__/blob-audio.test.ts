@@ -11,10 +11,10 @@ vi.mock('@vercel/blob', () => ({
 import {
   canUseBlob,
   findLetterConflict,
-  letterConflictMessage,
   listBlobTakeFilenames,
   resolveBlobAudioUrl,
 } from '../blob-audio';
+import { letterConflictMessage } from '../parse-filename';
 
 describe('blob audio', () => {
   beforeEach(() => {
