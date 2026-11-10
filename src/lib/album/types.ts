@@ -12,6 +12,7 @@ export type AlbumTake = {
   audioUrl: string;
   versionSlug: string;
   voteLabel: string;
+  prompt?: string;
   details?: {
     style: string;
     writer: string;

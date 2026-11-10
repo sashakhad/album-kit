@@ -36,6 +36,9 @@ export function SiteHeader({
           ) : null}
           {isOwner ? (
             <>
+              <NavPill href='/final' active={isSection(pathname, '/final')}>
+                Final picks
+              </NavPill>
               <NavPill href='/intake' active={isSection(pathname, '/intake')}>
                 Intake
               </NavPill>

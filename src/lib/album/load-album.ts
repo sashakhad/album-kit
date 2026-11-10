@@ -7,6 +7,7 @@ import { canUseBlob, listBlobTakeFilenames } from '@/lib/album/blob-audio';
 import { buildVersion, type CanonicalTrack } from '@/lib/album/build-version';
 import { isAudioFilename } from '@/lib/album/parse-filename';
 import { localAudioDir } from '@/lib/album/paths';
+import { loadTakePrompts } from '@/lib/album/sheet-prompts';
 import type { AlbumVersion } from '@/lib/album/types';
 
 const SET_PREFIX = /^(v\d+)-/;
@@ -14,7 +15,8 @@ const SET_PREFIX = /^(v\d+)-/;
 export async function listSets(): Promise<AlbumVersion[]> {
   const config = await loadAlbumConfig();
   const filenames = canUseBlob() ? await listBlobTakeFilenames() : await listLocalTakeFilenames();
-  return buildSets(config, filenames);
+  const takePrompts = await loadTakePrompts(config, filenames);
+  return buildSets(config, filenames, takePrompts);
 }
 
 export async function getSet(id: string): Promise<AlbumVersion | null> {
@@ -33,7 +35,11 @@ export function albumTracklist(config: AlbumConfig): CanonicalTrack[] {
   return tracklist;
 }
 
-function buildSets(config: AlbumConfig, filenames: readonly string[]): AlbumVersion[] {
+function buildSets(
+  config: AlbumConfig,
+  filenames: readonly string[],
+  takePrompts: Map<string, string>
+): AlbumVersion[] {
   const filesBySet = new Map<string, string[]>();
   for (const set of config.sets) {
     filesBySet.set(set.id, []);
@@ -61,6 +67,7 @@ function buildSets(config: AlbumConfig, filenames: readonly string[]): AlbumVers
         },
         audioFiles: filesBySet.get(set.id) ?? [],
         prompts: new Map(),
+        takePrompts,
         tracklist,
       })
     );

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
@@ -9,13 +10,14 @@ import type { AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { isViewer, viewerInviteId } from '@/lib/owner/viewer';
 import { canCastVote } from '@/lib/settings/access';
-import { getVoteSnapshot, safeVoteSnapshot } from '@/lib/votes/board';
+import { getVoteSnapshot } from '@/lib/votes/board';
 import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
 import { blindSnapshot, blindVersion } from '@/lib/votes/blind';
 import { loadSettings } from '@/lib/settings/store';
-import { withVisibleDetails } from '@/lib/votes/provenance';
-import { allTakesVoted, markExposed, wasExposed } from '@/lib/votes/exposure';
+import { isBlindForListenerSnapshot, markExposed } from '@/lib/votes/exposure';
 import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
+import { ownerJudgingView } from '@/lib/votes/owner-view';
+import { withVisibleDetails } from '@/lib/votes/provenance';
 import {
   inviteListenerVisitorId,
   listenerIdFromPage,
@@ -60,25 +62,13 @@ export default async function VotePage({ params }: VotePageProps) {
       versionSlug,
       takeSlug,
       visibility: settings.visibility,
+      listeningDetails: settings.listeningDetails,
     });
   }
-  const [config, originalVersion, originalVotes] = await Promise.all([
+  const [config, { version, votes, awaitingReveal }] = await Promise.all([
     loadAlbumConfig(),
-    getConsolidatedPassVersion(OWNER_VISITOR_ID),
-    safeVoteSnapshot(OWNER_VISITOR_ID),
+    ownerJudgingView(),
   ]);
-  const revealReady =
-    settings.listeningDetails === 'reveal-after-vote' &&
-    allTakesVoted(originalVersion, originalVotes);
-  const exposedBefore = await wasExposed(OWNER_VISITOR_ID, originalVotes.currentRound);
-  const blind =
-    settings.listeningDetails === 'keep-hidden' ||
-    (settings.listeningDetails === 'reveal-after-vote' && !revealReady && !exposedBefore);
-  if (!blind) await markExposed(OWNER_VISITOR_ID, originalVotes.currentRound);
-  const version = blind
-    ? await blindVersion(originalVersion, originalVotes.currentRound)
-    : await withVisibleDetails(originalVersion);
-  const votes = blind ? await blindSnapshot(originalVotes) : originalVotes;
   const configTrack = config.tracks.find(track => track.slug === trackSlug);
   const track =
     trackSlug === undefined
@@ -97,7 +87,7 @@ export default async function VotePage({ params }: VotePageProps) {
       version={version}
       votes={votes}
       voter='owner'
-      awaitingReveal={settings.listeningDetails === 'reveal-after-vote' && blind}
+      awaitingReveal={awaitingReveal}
       track={track}
       initialTake={initialTake}
       note={
@@ -114,6 +104,7 @@ async function listenerVotePage(args: {
   versionSlug: string | undefined;
   takeSlug: string | undefined;
   visibility: 'unset' | 'public' | 'private';
+  listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
 }) {
   const [config, originalVersion, ownerRound, inviteId, publicId] = await Promise.all([
     loadAlbumConfig(),
@@ -134,8 +125,17 @@ async function listenerVotePage(args: {
       : await getVoteSnapshot(visitorId, { round: ownerRound, carry: false }).catch(
           (): VoteSnapshot => ({ ...EMPTY_VOTE_SNAPSHOT, currentRound: ownerRound })
         );
-  const version = await blindVersion(originalVersion, ownerRound);
-  const votes = await blindSnapshot({ ...originalVotes, currentRound: ownerRound });
+  const blind = await isBlindForListenerSnapshot(
+    visitorId,
+    args.listeningDetails,
+    originalVotes,
+    originalVersion
+  );
+  if (!blind && visitorId.length > 0) await markExposed(visitorId, ownerRound);
+  const version = blind
+    ? await blindVersion(originalVersion, ownerRound)
+    : await withVisibleDetails(originalVersion);
+  const votes = blind ? await blindSnapshot(originalVotes) : originalVotes;
   const configTrack = config.tracks.find(track => track.slug === args.trackSlug);
   const track =
     args.trackSlug === undefined
@@ -154,10 +154,10 @@ async function listenerVotePage(args: {
       version={version}
       votes={votes}
       voter='listener'
-      awaitingReveal={false}
+      awaitingReveal={args.listeningDetails === 'reveal-after-vote' && blind}
       track={track}
       initialTake={initialTake}
-      note='You are voting as a listener. Your scores stay on your own ballot. The owner chooses what gets pinned.'
+      note='Play a take, then tap + or − to score it.'
     />
   );
 }
@@ -184,6 +184,14 @@ function VoteMain({
       {note === null ? null : (
         <p className='text-muted-foreground mb-8 max-w-2xl text-sm'>{note}</p>
       )}
+      {voter === 'listener' ? (
+        <Link
+          href='/key?next=/vote'
+          className='mb-6 inline-flex rounded-lg border border-white/20 px-4 py-2 text-sm font-medium hover:bg-white/8'
+        >
+          Making this album? Sign in to choose final picks
+        </Link>
+      ) : null}
       {track === null ? (
         <AlbumPlayer
           version={version}

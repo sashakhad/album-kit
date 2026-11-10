@@ -201,6 +201,7 @@ export function buildConsolidatedPassVersion(args: {
           audioUrl: take.audioUrl,
           versionSlug: take.versionSlug,
           voteLabel: take.voteLabel,
+          ...(take.prompt === undefined ? {} : { prompt: take.prompt }),
         };
         if (
           isTakeVisibleInPass({

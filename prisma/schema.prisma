@@ -156,3 +156,15 @@ model VoteAttempt {
 
   @@index([bucket, createdAt])
 }
+
+// Owner choices made in the final pass override pins in album.json.
+// Null values explicitly clear a file-backed pin.
+model ListenSelection {
+  trackNumber Int
+  slot        String
+  setId       String?
+  takeLabel   String?
+  updatedAt   DateTime @updatedAt
+
+  @@id([trackNumber, slot])
+}

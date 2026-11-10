@@ -1,10 +1,10 @@
 import { promises as fs } from 'node:fs';
 import { get } from '@vercel/blob';
 
-import { loadAlbumConfig } from '@/lib/album/album-config';
 import { resolveBlobAudioUrl } from '@/lib/album/blob-audio';
 import { parseByteRange } from '@/lib/album/byte-range';
 import { isListenFile } from '@/lib/album/listen';
+import { getListenConfig } from '@/lib/album/listen-store';
 import { contentTypeForFilename } from '@/lib/album/parse-filename';
 import { blobPathnameFor, defaultAlbumRoot, resolveAudioCandidates } from '@/lib/album/paths';
 import { isOwnerRequest } from '@/lib/owner/auth';
@@ -35,7 +35,7 @@ export async function serveAudio(
   options: { allowUnpinned?: boolean } = {}
 ) {
   const { set, file } = await context.params;
-  const config = await loadAlbumConfig();
+  const config = await getListenConfig();
   const contentType = contentTypeForFilename(file);
   if (!config.sets.some(item => item.id === set) || !file.startsWith(`${set}-`)) {
     return notFound();

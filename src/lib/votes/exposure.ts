@@ -51,3 +51,15 @@ export async function isBlindForSnapshot(
   const version = await getConsolidatedPassVersion(visitorId);
   return !allTakesVoted(version, snapshot);
 }
+
+export async function isBlindForListenerSnapshot(
+  visitorId: string,
+  mode: AlbumSettingsValue['listeningDetails'],
+  snapshot: VoteSnapshot,
+  ownerVersion: AlbumVersion
+): Promise<boolean> {
+  if (mode === 'visible') return false;
+  if (mode === 'keep-hidden') return true;
+  if (visitorId.length > 0 && (await wasExposed(visitorId, snapshot.currentRound))) return false;
+  return !allTakesVoted(ownerVersion, snapshot);
+}

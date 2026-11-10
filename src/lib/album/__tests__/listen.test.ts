@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseAlbumConfig, type AlbumConfig } from '../album-config';
-import { buildListenVersion, findListenTrack, isListenFile } from '../listen';
+import {
+  applyListenSelections,
+  buildListenVersion,
+  findListenTrack,
+  isListenFile,
+} from '../listen';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '../types';
 
 function take(versionSlug: string, filename: string, letter: string): AlbumTake {
@@ -93,6 +98,21 @@ const config: AlbumConfig = parseAlbumConfig({
     },
     { number: 6, title: 'Track Six', slug: 'track-six', listen: { set: 'v1', take: 'A' } },
   ],
+});
+
+describe('owner final picks', () => {
+  it('overrides file-backed pins without changing album.json data', () => {
+    const selected = applyListenSelections(config, [
+      { trackNumber: 1, slot: 'main', setId: 'v1', takeLabel: 'A' },
+      { trackNumber: 3, slot: 'vip', setId: null, takeLabel: null },
+    ]);
+
+    expect(selected.tracks[0]?.listen).toEqual({ set: 'v1', take: 'A' });
+    expect(selected.tracks[2]?.vip).toBeUndefined();
+    expect(config.tracks[0]?.listen).toEqual({ set: 'v2', take: 'C' });
+    expect(isListenFile(selected, 'v1', 'v1-01-track-one-p1-takea.mp3')).toBe(true);
+    expect(isListenFile(selected, 'v2', 'v2-01-track-one-p1-takec.mp3')).toBe(false);
+  });
 });
 
 describe('buildListenVersion', () => {

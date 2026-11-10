@@ -15,7 +15,7 @@ import { EMPTY_VOTE_SNAPSHOT, isTakeLabel, type VoteSnapshot } from '@/lib/votes
 import { blindSnapshot, realTakeForAlias } from '@/lib/votes/blind';
 import { loadSettings } from '@/lib/settings/store';
 import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
-import { isBlindForSnapshot, markExposed } from '@/lib/votes/exposure';
+import { isBlindForListenerSnapshot, isBlindForSnapshot, markExposed } from '@/lib/votes/exposure';
 import { listenerCookieOptions, LISTENER_COOKIE } from '@/lib/votes/listener-id';
 import { resolveVoter, type ResolvedVoter } from '@/lib/votes/voter';
 
@@ -157,8 +157,19 @@ async function ownerVote(
 async function listenerSnapshot(visitorId: string): Promise<VoteSnapshot> {
   const round = await getVisitorCurrentRound(OWNER_VISITOR_ID);
   try {
-    const snapshot = await getVoteSnapshot(visitorId, { round, carry: false });
-    return listenerBallot(await blindSnapshot(snapshot));
+    const [snapshot, settings, version] = await Promise.all([
+      getVoteSnapshot(visitorId, { round, carry: false }),
+      loadSettings(),
+      getConsolidatedPassVersion(OWNER_VISITOR_ID),
+    ]);
+    const blind = await isBlindForListenerSnapshot(
+      visitorId,
+      settings.listeningDetails,
+      snapshot,
+      version
+    );
+    if (!blind) await markExposed(visitorId, round);
+    return listenerBallot(blind ? await blindSnapshot(snapshot) : snapshot);
   } catch {
     return { ...EMPTY_VOTE_SNAPSHOT, currentRound: round };
   }
@@ -178,13 +189,26 @@ async function listenerVote(
     return NextResponse.json({ error: 'Unknown take' }, { status: 400 });
   }
 
-  const take = await realTakeForAlias({
-    round,
-    trackNumber: track.number,
-    versionSlug: body.versionSlug,
-    alias: body.takeLabel,
-    takes,
-  });
+  const [settings, before] = await Promise.all([
+    loadSettings(),
+    getVoteSnapshot(visitorId, { round, carry: false }),
+  ]);
+  const blind = await isBlindForListenerSnapshot(
+    visitorId,
+    settings.listeningDetails,
+    before,
+    pass
+  );
+  if (!blind) await markExposed(visitorId, round);
+  const take = blind
+    ? await realTakeForAlias({
+        round,
+        trackNumber: track.number,
+        versionSlug: body.versionSlug,
+        alias: body.takeLabel,
+        takes,
+      })
+    : (takes.find(item => item.voteLabel === body.takeLabel) ?? null);
   if (take === null) {
     return NextResponse.json({ error: 'Unknown take' }, { status: 400 });
   }
@@ -197,7 +221,7 @@ async function listenerVote(
     value: body.value,
     round,
   });
-  return listenerBallot(await blindSnapshot(snapshot));
+  return listenerBallot(blind ? await blindSnapshot(snapshot) : snapshot);
 }
 
 function listenerBallot(snapshot: VoteSnapshot): VoteSnapshot {
