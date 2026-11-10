@@ -98,6 +98,7 @@ vi.mock('@/lib/votes/pass-store', () => ({
 }));
 vi.mock('@/lib/votes/exposure', () => ({
   isBlindForSnapshot: async () => false,
+  isBlindForListenerSnapshot: async () => false,
   markExposed: async () => undefined,
 }));
 vi.mock('@/lib/votes/blind', () => ({

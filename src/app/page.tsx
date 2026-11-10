@@ -61,6 +61,14 @@ export default async function Home() {
                 Vote
               </Link>
             ) : null}
+            {owner ? (
+              <Link
+                href='/final'
+                className='rounded-lg border border-white/15 px-5 py-2 text-sm font-medium hover:bg-white/6'
+              >
+                Final picks
+              </Link>
+            ) : null}
           </div>
         </section>
       )}

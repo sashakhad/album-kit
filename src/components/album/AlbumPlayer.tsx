@@ -137,6 +137,8 @@ export function AlbumPlayer({
       : audioUrlForTrack(currentTrack, selectedTakeByTrack, preferredTakeLabel);
   const hasAudio = playableIndexes.length > 0;
   const hasVariations = version.tracks.some(track => track.takes.length > 1);
+  const currentPrompt =
+    currentTake?.prompt ?? currentTake?.details?.style ?? currentTrack?.prompt ?? null;
 
   useEffect(() => {
     if (currentTrack === null || currentTake === null) {
@@ -437,6 +439,20 @@ export function AlbumPlayer({
           ) : null}
         </div>
 
+        {playerSurface === 'vote' && currentPrompt !== null ? (
+          <section className='rounded-xl border border-white/12 bg-white/4 p-4'>
+            <h2 className='text-primary/80 text-xs font-medium tracking-[0.16em] uppercase'>
+              Prompt for {currentTake?.label ?? 'this track'}
+            </h2>
+            <p className='mt-3 text-sm leading-relaxed whitespace-pre-line'>{currentPrompt}</p>
+            {currentTake?.details === undefined ? null : (
+              <p className='text-muted-foreground mt-3 text-xs'>
+                {currentTake.details.writer} · Suno {currentTake.details.sunoModel}
+              </p>
+            )}
+          </section>
+        ) : null}
+
         {hasVariations && playerSurface !== 'listen' ? (
           <PlaybackModeControl mode={playbackMode} onChange={setPlaybackMode} />
         ) : null}
@@ -581,30 +597,6 @@ export function AlbumPlayer({
           />
         ) : null}
       </div>
-
-      {currentTrack?.prompt !== null && currentTrack?.prompt !== undefined ? (
-        <details className='bg-card/70 rounded-2xl border border-white/8'>
-          <summary className='text-primary/80 cursor-pointer px-5 py-3 text-xs tracking-[0.2em] uppercase'>
-            Prompt
-          </summary>
-          <p className='text-foreground/85 px-5 pb-5 text-sm leading-relaxed whitespace-pre-line'>
-            {currentTrack.prompt.replace(/\*\*/g, '')}
-          </p>
-        </details>
-      ) : null}
-
-      {playerSurface === 'vote' && currentTake?.details !== undefined ? (
-        <details className='bg-card/70 rounded-2xl border border-white/8'>
-          <summary className='text-primary/80 cursor-pointer px-5 py-3 text-xs tracking-[0.2em] uppercase'>
-            Take details
-          </summary>
-          <div className='space-y-2 px-5 pb-5 text-sm'>
-            <p>{currentTake.details.writer}</p>
-            <p>{currentTake.details.sunoModel}</p>
-            <p className='whitespace-pre-line'>{currentTake.details.style}</p>
-          </div>
-        </details>
-      ) : null}
 
       {currentAudioUrl !== null ? (
         <audio
@@ -1004,7 +996,7 @@ function TakeSwitcher({
   counts?: Record<string, number>;
 }) {
   return (
-    <div className={cn('flex flex-wrap items-center gap-1', compact ? '' : 'pt-1')}>
+    <div className={cn('flex flex-wrap items-center gap-2', compact ? '' : 'pt-1')}>
       {legend === undefined ? null : (
         <p className='text-muted-foreground mr-2 text-xs tracking-[0.2em] uppercase'>{legend}</p>
       )}
@@ -1012,27 +1004,28 @@ function TakeSwitcher({
         const selected = label === selectedLabel;
         const count = counts?.[label] ?? 0;
         return (
-          <button
-            key={label}
-            type='button'
-            onClick={() => onSelect(label)}
-            aria-pressed={selected}
-            aria-label={legend === undefined ? `Take ${label}` : `${legend} ${label}`}
-            className={cn(
-              'rounded-full border font-mono text-xs',
-              compact ? 'min-w-7 px-1.5 py-1' : 'min-w-8 px-2.5 py-1',
-              selected
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'text-muted-foreground hover:text-foreground border-white/15 hover:border-white/30'
-            )}
-          >
-            <span className='block leading-none'>{label}</span>
+          <span key={label} className='inline-flex items-center gap-1'>
+            <button
+              type='button'
+              onClick={() => onSelect(label)}
+              aria-pressed={selected}
+              aria-label={legend === undefined ? `Take ${label}` : `${legend} ${label}`}
+              className={cn(
+                'rounded-lg border font-mono text-xs transition-colors',
+                compact ? 'px-2.5 py-1.5' : 'px-3 py-2',
+                selected
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'text-muted-foreground hover:text-foreground border-white/15 hover:border-white/30'
+              )}
+            >
+              {label}
+            </button>
             {count !== 0 ? (
-              <span className='mt-0.5 block text-[10px] leading-none'>
+              <span className='text-muted-foreground min-w-5 font-mono text-xs'>
                 {formatSignedScore(count)}
               </span>
             ) : null}
-          </button>
+          </span>
         );
       })}
     </div>

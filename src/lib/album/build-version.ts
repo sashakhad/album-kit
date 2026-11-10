@@ -19,6 +19,7 @@ export function buildVersion(args: {
   meta: VersionMeta;
   audioFiles: string[];
   prompts: Map<number, string>;
+  takePrompts?: Map<string, string> | undefined;
   tracklist: CanonicalTrack[];
 }): AlbumVersion {
   const albumSlug = args.meta.albumSlug ?? null;
@@ -34,6 +35,7 @@ export function buildVersion(args: {
       audioFiles: sortedFiles,
       usedFiles,
       trackNumber: canonical.number,
+      takePrompts: args.takePrompts,
     });
     const first = takes[0];
 
@@ -56,7 +58,12 @@ export function buildVersion(args: {
     }
 
     bonusNumber += 1;
-    const take = takeFromFile({ slug: publicSlug, filename, label: 'A' });
+    const take = takeFromFile({
+      slug: publicSlug,
+      filename,
+      label: 'A',
+      prompt: args.takePrompts?.get(filename),
+    });
     tracks.push({
       number: bonusNumber,
       title: titleFromFilename(filename),
@@ -84,6 +91,7 @@ function collectTakes(args: {
   audioFiles: string[];
   usedFiles: Set<string>;
   trackNumber: number;
+  takePrompts?: Map<string, string> | undefined;
 }): AlbumTake[] {
   const matching: string[] = [];
 
@@ -107,7 +115,9 @@ function collectTakes(args: {
     const parsed = parseTakeLabel(filename);
     const label = parsed !== null && !usedLabels.has(parsed) ? parsed : nextUnusedLabel(usedLabels);
     usedLabels.add(label);
-    takes.push(takeFromFile({ slug: args.slug, filename, label }));
+    takes.push(
+      takeFromFile({ slug: args.slug, filename, label, prompt: args.takePrompts?.get(filename) })
+    );
   }
 
   takes.sort((left, right) => left.label.localeCompare(right.label));
@@ -125,12 +135,18 @@ function nextUnusedLabel(usedLabels: Set<string>): string {
   return String(usedLabels.size + 1);
 }
 
-function takeFromFile(args: { slug: string; filename: string; label: string }): AlbumTake {
+function takeFromFile(args: {
+  slug: string;
+  filename: string;
+  label: string;
+  prompt?: string | undefined;
+}): AlbumTake {
   return {
     label: args.label,
     filename: args.filename,
     audioUrl: audioUrlFor(args.slug, args.filename),
     versionSlug: args.slug,
     voteLabel: args.label,
+    ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
   };
 }

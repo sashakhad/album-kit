@@ -32,6 +32,9 @@ vi.mock('@/lib/album/album-config', async importOriginal => {
       }),
   };
 });
+vi.mock('@/lib/album/listen-store', () => ({
+  getListenConfig: async () => (await import('@/lib/album/album-config')).loadAlbumConfig(),
+}));
 vi.mock('@/lib/album/blob-audio', () => ({
   resolveBlobAudioUrl: async (args: { filename: string }) => `${BLOB_URL}${args.filename}`,
 }));

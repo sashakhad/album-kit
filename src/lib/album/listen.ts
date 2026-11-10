@@ -10,6 +10,34 @@ type Pin = {
   take: string;
 };
 
+export type ListenSelectionValue = {
+  trackNumber: number;
+  slot: string;
+  setId: string | null;
+  takeLabel: string | null;
+};
+
+export function applyListenSelections(
+  config: AlbumConfig,
+  selections: readonly ListenSelectionValue[]
+): AlbumConfig {
+  const byTrack = new Map<number, AlbumConfigTrack>();
+  for (const track of config.tracks) byTrack.set(track.number, { ...track });
+  for (const selection of selections) {
+    const track = byTrack.get(selection.trackNumber);
+    if (track === undefined) continue;
+    const pin =
+      selection.setId === null || selection.takeLabel === null
+        ? undefined
+        : { set: selection.setId, take: selection.takeLabel };
+    if (selection.slot === 'main') track.listen = pin;
+    if (selection.slot === 'vip') {
+      track.vip = pin === undefined ? undefined : { ...pin, title: track.vip?.title };
+    }
+  }
+  return { ...config, tracks: config.tracks.map(track => byTrack.get(track.number) ?? track) };
+}
+
 export function listenVipTitle(track: AlbumConfigTrack): string {
   return track.vip?.title ?? `${track.title} (VIP)`;
 }
@@ -96,7 +124,13 @@ function pinnedTake(
   if (version === undefined || take === undefined) {
     return null;
   }
-  return { ...take, label: `${version.title} ${take.voteLabel}` };
+  return {
+    label: `${version.title} ${take.voteLabel}`,
+    filename: take.filename,
+    audioUrl: take.audioUrl,
+    versionSlug: take.versionSlug,
+    voteLabel: take.voteLabel,
+  };
 }
 
 function trackWithTake(number: number, title: string, take: AlbumTake): AlbumTrack {

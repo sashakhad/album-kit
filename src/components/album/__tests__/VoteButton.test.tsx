@@ -46,7 +46,7 @@ describe('VoteButton', () => {
       />
     );
 
-    const upvote = screen.getByRole('button', { name: /upvote take b of track one/i });
+    const upvote = screen.getByRole('button', { name: /add one to take b of track one/i });
     await user.click(upvote);
     await user.click(upvote);
 
@@ -99,7 +99,7 @@ describe('VoteButton', () => {
       />
     );
 
-    const downvote = screen.getByRole('button', { name: /downvote take a of track one/i });
+    const downvote = screen.getByRole('button', { name: /subtract one from take a of track one/i });
     await user.click(downvote);
     await user.click(downvote);
 

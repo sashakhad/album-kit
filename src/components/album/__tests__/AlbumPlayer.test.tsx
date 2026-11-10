@@ -103,9 +103,7 @@ describe('AlbumPlayer', () => {
     expect(screen.getByRole('heading', { name: 'Track One' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^01track one/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /track two/i })).toBeDisabled();
-    const prompt = screen.getByText('Prompt').closest('details');
-    expect(prompt).not.toBeNull();
-    expect(prompt).not.toHaveAttribute('open');
+    expect(screen.getByRole('heading', { name: 'Prompt for A' })).toBeInTheDocument();
     expect(screen.getByText('Warm and wide.')).toBeInTheDocument();
   });
 

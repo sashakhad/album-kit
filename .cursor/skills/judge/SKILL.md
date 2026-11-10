@@ -30,6 +30,8 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - From round 2 on, a take is out if it ended an earlier round with a negative score, and a parked take moves under Possible renames.
    - When a new round starts, each take's latest positive score carries into it. Zero and negative scores don't carry. Takes at zero and takes with no votes stay in.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
+   - Visible mode shows the selected take's Style prompt beside the player. Blind modes hide it until the selected reveal point.
+   - When the owner is ready to choose album versions, open `/final`. Picks made there appear on `/listen` immediately.
 
 2. **Read the scores.**
 

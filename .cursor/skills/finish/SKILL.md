@@ -1,85 +1,35 @@
 ---
 name: finish
-description: Use when the owner is done judging a track or the whole album. It pins the chosen takes to /listen, publishes and shares the link.
+description: Use when the owner is ready to choose album or VIP takes for Listen.
 ---
 
-# Finish · version 2
+# Finish · version 3
 
-The owner picks the keepers. You pin them to `/listen`. A public site is open to anyone; a private site requires an owner or invited-listener session.
+The owner picks the keepers. `/final` is the owner screen for making those choices. A pick appears on `/listen` as soon as it is saved. Never choose a winner just because it has the highest score.
 
 ## When to use
 
-- The owner is done judging a track, or the whole album.
-- The owner wants a different take on `/listen` for a track, or a second version as a VIP.
-
-## You need
-
-- `~/album` with `.album-site.json` and `.album-key`.
-- The owner's pick for each track. You suggest, and they choose.
+- The owner is done judging a track or the whole album.
+- The owner wants a different take on `/listen`, an optional VIP, or a final pass over the scores.
 
 ## Steps
 
-Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.json").siteUrl')`.
+1. Open `<siteUrl>/final` in the owner's authenticated session. If the owner is signed out, the site sends them to `/key` and returns to Final picks after sign-in. Do not paste the album key into chat.
+2. Show the owner the takes and scores. Suggest a top-scoring take when helpful, but let the owner make the choice. The Final picks page can play each active take and shows owner scores and listener scores separately.
+3. Use **Make album pick** for the chosen main take and **Make VIP** only for a chosen second version. The page resolves blind aliases on the server; never guess the canonical letter from a blind label. Picks saved here override any older pins in `album/album.json`. Removing a pick in the page also overrides a file-backed pin.
+4. Open `<siteUrl>/listen` and verify that the chosen track plays. For a public site, check without the key that pinned audio plays and an unpinned canonical take does not. For a private site, check with a valid invited-listener session; signed-out pages and audio must stay closed.
+5. Share `<siteUrl>/listen` for the album or `<siteUrl>/listen/<slug>` for one track.
 
-1. **Suggest the top-scoring take that's still in,** for each track the owner is finishing:
-
-   ```bash
-   curl -sS -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/votes" | node -e '
-   const snapshot = JSON.parse(require("fs").readFileSync(0, "utf8"));
-   const album = require("./album/album.json");
-   const names = new Map(album.sets.map(set => [set.id, set.name]));
-   console.log(`Round ${snapshot.currentRound}`);
-   for (const track of album.tracks) {
-     let top = 0;
-     let leaders = [];
-     for (const [set, takes] of Object.entries(snapshot.tallies[track.number] ?? {})) {
-       for (const [take, score] of Object.entries(takes)) {
-         if (score > top) {
-           top = score;
-           leaders = [];
-         }
-         if (score === top && score > 0) {
-           leaders.push(`${names.get(set) ?? set} ${take}`);
-         }
-       }
-     }
-     console.log(`${track.number} ${track.title}: ${leaders.length > 0 ? `${leaders.join(", ")} at +${top}` : "no upvotes this round"}`);
-   }
-   '
-   ```
-
-   The scores are this round's, so a take that's out has none. A parked take can still show a score, so skip it if you parked it. Name the suggestion the way `/vote` does, like `Bubu C`, and let the owner pick. Never pin a take the owner didn't pick.
-
-2. **Pin the pick.** In blind mode the displayed letter is an alias, so do not put it directly in `album.json`. Resolve the canonical take only after deliberate exposure is recorded in Studio. On the track in `album/album.json`, add `"listen": { "set": "<set id>", "take": "<canonical letter>" }`. For a second version, add `"vip"` with the canonical letter too.
-
-3. **Publish.** Follow the `publish` skill with the message `pin track <NN>`.
-
-4. **Check it the way a visitor would.** For a public site, without the key, the track's page and pinned take answer, and any other take doesn't. For a private site, signed-out requests to the page and audio must fail; repeat with an invited listener session and confirm only pinned audio works:
-
-   ```bash
-   curl -sS -o /dev/null -w '%{http_code}\n' "$SITE/listen/<slug>"
-   curl -sSL -o /dev/null -w '%{http_code}\n' "$SITE/api/audio/<set>/<pinned file>"
-   curl -sSL -o /dev/null -w '%{http_code}\n' "$SITE/api/audio/<set>/<an unpinned file>"
-   ```
-
-   For public visibility expect `200`, `200`, then `401`. That last `401` stays even when listener voting is on: listeners hear in-round takes through `/vote`, not through the canonical file URL. For private visibility expect signed-out `404`, `404`; use a second browser with an invite to check the listening page and pinned audio. Take canonical filenames from the sheet only after exposure.
-
-5. **Share the link:** `<siteUrl>/listen` for pinned takes, and `<siteUrl>/listen/<slug>` for one track. If listener voting is on, also share `<siteUrl>/vote` for a public album, or an invitation for a private album. Listener scores do not choose the pin.
+If the owner asks to version the final choices in `album/album.json`, update the file only after the canonical identity has been deliberately revealed, then follow `publish`. A file update alone does not replace a choice already saved on `/final`; reconcile the site choice too.
 
 ## Check before you say done
 
-- The `publish` skill's checks passed.
-- Step 4 matched the chosen public or private access policy.
-- Open `<siteUrl>/listen` in your browser, which isn't signed in as the owner. Each pinned track is there in track order, a VIP row follows its own track, and tracks without a pin aren't there.
-
-## Tell the user
-
-- The `/listen` link, and each pinned track with its take, like `Plant Bass'd: Bubu C`.
-- Public listeners can hear pinned takes. Private listeners need a valid invitation or owner session. Unpinned canonical files stay owner-only. When listener voting is on, friends vote at `/vote` or through an invitation, on ballots that stay separate from the owner's.
+- The selected take is marked **Album pick** or **VIP picked** on `/final`.
+- `/listen` shows the selected track, and the audio access check matches public or private visibility.
+- The site URL you share is the production URL from `.album-site.json`.
 
 ## Stop and ask when
 
-- The owner hasn't picked a take for a track.
-- The pick is out or parked. Confirm it before you pin it.
-- Two takes tie, or no take has an upvote.
-- An unpinned take answers `200` without the key. Don't share the link, and tell the user.
+- The owner has not chosen a take, or their words could mean more than one take.
+- The requested take is out or parked. Confirm before changing the shortlist.
+- An unpinned take answers `200` without the key. Do not share the link until access is fixed.

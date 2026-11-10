@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type MouseEvent } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 
 import { countForTake, choiceForTake } from '@/lib/votes/tally';
 import type { VoteDelta, VoteSnapshot } from '@/lib/votes/types';
@@ -59,38 +59,41 @@ export function VoteButton({
   }
 
   return (
-    <div className='flex shrink-0 flex-col items-center'>
-      <button
-        type='button'
-        onClick={event => void cast(event, 1)}
-        disabled={pending}
-        aria-label={`Upvote take ${takeLabel} of ${trackTitle}`}
-        className={cn(
-          'flex size-10 items-center justify-center rounded-md',
-          myScore > 0
-            ? 'text-primary bg-primary/12'
-            : 'text-muted-foreground hover:text-foreground hover:bg-white/6'
-        )}
-      >
-        <ChevronUp className='size-5' />
-      </button>
-      <span aria-live='polite' className='text-muted-foreground font-mono text-xs'>
-        {formatSignedScore(count)}
-      </span>
-      <button
-        type='button'
-        onClick={event => void cast(event, -1)}
-        disabled={pending}
-        aria-label={`Downvote take ${takeLabel} of ${trackTitle}`}
-        className={cn(
-          'flex size-10 items-center justify-center rounded-md',
-          myScore < 0
-            ? 'text-destructive bg-destructive/12'
-            : 'text-muted-foreground hover:text-foreground hover:bg-white/6'
-        )}
-      >
-        <ChevronDown className='size-5' />
-      </button>
+    <div className='flex shrink-0 flex-col items-center gap-1'>
+      <span className='text-muted-foreground text-[10px] tracking-wide uppercase'>Score</span>
+      <div className='flex items-center rounded-lg border border-white/15 bg-black/15 p-0.5'>
+        <button
+          type='button'
+          onClick={event => void cast(event, -1)}
+          disabled={pending}
+          aria-label={`Subtract one from take ${takeLabel} of ${trackTitle}`}
+          className={cn(
+            'flex size-9 items-center justify-center rounded-md',
+            myScore < 0
+              ? 'text-destructive bg-destructive/12'
+              : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
+          )}
+        >
+          <Minus className='size-4' />
+        </button>
+        <span aria-live='polite' className='min-w-8 text-center font-mono text-sm'>
+          {formatSignedScore(count)}
+        </span>
+        <button
+          type='button'
+          onClick={event => void cast(event, 1)}
+          disabled={pending}
+          aria-label={`Add one to take ${takeLabel} of ${trackTitle}`}
+          className={cn(
+            'flex size-9 items-center justify-center rounded-md',
+            myScore > 0
+              ? 'text-primary bg-primary/12'
+              : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
+          )}
+        >
+          <Plus className='size-4' />
+        </button>
+      </div>
     </div>
   );
 }
