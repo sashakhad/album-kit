@@ -5,7 +5,15 @@ import { usePathname } from 'next/navigation';
 
 import { cn } from '@/lib/utils';
 
-export function SiteHeader({ albumTitle, isOwner }: { albumTitle: string; isOwner: boolean }) {
+export function SiteHeader({
+  albumTitle,
+  isOwner,
+  showVote = isOwner,
+}: {
+  albumTitle: string;
+  isOwner: boolean;
+  showVote?: boolean;
+}) {
   const pathname = usePathname();
 
   return (
@@ -21,11 +29,13 @@ export function SiteHeader({ albumTitle, isOwner }: { albumTitle: string; isOwne
           <NavPill href='/listen' active={isSection(pathname, '/listen')}>
             Listen
           </NavPill>
+          {showVote ? (
+            <NavPill href='/vote' active={isSection(pathname, '/vote')}>
+              Vote
+            </NavPill>
+          ) : null}
           {isOwner ? (
             <>
-              <NavPill href='/vote' active={isSection(pathname, '/vote')}>
-                Vote
-              </NavPill>
               <NavPill href='/intake' active={isSection(pathname, '/intake')}>
                 Intake
               </NavPill>

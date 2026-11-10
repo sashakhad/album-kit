@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 
 export function AccessForm() {
-  const [message, setMessage] = useState('Open the invitation link the album owner sent you.');
+  const [message, setMessage] = useState(
+    'Opening your invitation. You will land on Listen, or on Vote if the owner has allowed listener voting.'
+  );
   useEffect(() => {
     const token = window.location.hash.slice(1);
     window.history.replaceState(window.history.state, '', '/access');
@@ -13,12 +15,17 @@ export function AccessForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token }),
     })
-      .then(response => {
+      .then(async response => {
         if (!response.ok)
           throw new Error(
             'This invitation has expired or was already used. Ask the owner for a new link.'
           );
-        window.location.replace('/listen');
+        const body: unknown = await response.json().catch(() => null);
+        const next =
+          typeof body === 'object' && body !== null && 'next' in body && body.next === '/vote'
+            ? '/vote'
+            : '/listen';
+        window.location.replace(next);
       })
       .catch(error => setMessage(error instanceof Error ? error.message : 'Access failed.'));
   }, []);

@@ -26,6 +26,14 @@ type AudioRouteContext = {
 };
 
 export async function GET(request: Request, context: AudioRouteContext) {
+  return serveAudio(request, context);
+}
+
+export async function serveAudio(
+  request: Request,
+  context: AudioRouteContext,
+  options: { allowUnpinned?: boolean } = {}
+) {
   const { set, file } = await context.params;
   const config = await loadAlbumConfig();
   const contentType = contentTypeForFilename(file);
@@ -43,7 +51,7 @@ export async function GET(request: Request, context: AudioRouteContext) {
     settings.visibility === 'private' && !owner ? await isViewerRequest(request) : false;
   if (!canViewAlbum(settings.visibility, owner, viewer)) return notFound();
   const pinned = isListenFile(config, set, file);
-  if (!owner && !pinned) {
+  if (!owner && !pinned && options.allowUnpinned !== true) {
     return Response.json({ error: 'Owner key required' }, { status: 401 });
   }
   const cacheControl = settings.visibility === 'public' && pinned ? PUBLIC_CACHE : OWNER_CACHE;

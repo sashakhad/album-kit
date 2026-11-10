@@ -21,7 +21,33 @@ vi.mock('@/lib/votes/pass-store', () => ({
 vi.mock('@/lib/prisma', () => ({
   getPrisma: () => ({
     vote: {
-      findMany: async () => rows.map(row => ({ ...row })),
+      findMany: async (args?: {
+        where?: {
+          visitorId?: string | { startsWith: string };
+          round?: number;
+        };
+      }) =>
+        rows
+          .filter(row => {
+            const where = args?.where;
+            if (where === undefined) {
+              return true;
+            }
+            if (typeof where.visitorId === 'string' && row.visitorId !== where.visitorId) {
+              return false;
+            }
+            if (
+              typeof where.visitorId === 'object' &&
+              !row.visitorId.startsWith(where.visitorId.startsWith)
+            ) {
+              return false;
+            }
+            if (where.round !== undefined && row.round !== where.round) {
+              return false;
+            }
+            return true;
+          })
+          .map(row => ({ ...row })),
       upsert: async (args: {
         where: {
           visitorId_trackNumber_versionSlug_takeLabel_round: {
@@ -214,5 +240,79 @@ describe('getVoteSnapshot', () => {
     expect(snapshot.currentRound).toBe(10);
     expect(snapshot.tallies[24]?.v1?.A).toBe(2);
     expect(snapshot.mine[24]).toEqual([{ versionSlug: 'v1', takeLabel: 'A', value: 2, round: 10 }]);
+  });
+
+  it('keeps listener votes out of the owner tally and score', async () => {
+    rows.push({
+      id: 'listener-vote',
+      visitorId: 'listener:abc',
+      trackNumber: 1,
+      versionSlug: 'v1',
+      takeLabel: 'A',
+      value: 4,
+      round: 1,
+    });
+    rows.push({
+      id: 'owner-vote',
+      visitorId: 'owner',
+      trackNumber: 1,
+      versionSlug: 'v1',
+      takeLabel: 'A',
+      value: 1,
+      round: 1,
+    });
+
+    const { getVoteSnapshot } = await import('@/lib/votes/board');
+    const owner = await getVoteSnapshot('owner');
+    const listener = await getVoteSnapshot('listener:abc', { round: 1, carry: false });
+
+    expect(owner.tallies[1]?.v1?.A).toBe(1);
+    expect(owner.mine[1]).toEqual([{ versionSlug: 'v1', takeLabel: 'A', value: 1, round: 1 }]);
+    expect(owner.listenerTallies?.[1]?.v1?.A).toBe(4);
+    expect(listener.tallies[1]?.v1?.A).toBe(4);
+    expect(listener.listenerTallies).toBeUndefined();
+    expect(listener.mine[1]).toEqual([{ versionSlug: 'v1', takeLabel: 'A', value: 4, round: 1 }]);
+  });
+});
+
+describe('listener vote cap', () => {
+  beforeEach(() => {
+    rows.length = 0;
+    mockRound = 1;
+  });
+
+  it('stops a listener from pushing one take past the cap and leaves the owner uncapped', async () => {
+    rows.push({
+      id: 'capped',
+      visitorId: 'listener:abc',
+      trackNumber: 1,
+      versionSlug: 'v1',
+      takeLabel: 'A',
+      value: 20,
+      round: 1,
+    });
+    const { castVote } = await import('@/lib/votes/board');
+    const { ListenerVoteLimitError } = await import('@/lib/votes/abuse');
+
+    await expect(
+      castVote({
+        visitorId: 'listener:abc',
+        trackNumber: 1,
+        versionSlug: 'v1',
+        takeLabel: 'A',
+        value: 1,
+        round: 1,
+      })
+    ).rejects.toBeInstanceOf(ListenerVoteLimitError);
+
+    const owner = await castVote({
+      visitorId: 'owner',
+      trackNumber: 1,
+      versionSlug: 'v1',
+      takeLabel: 'A',
+      value: 1,
+    });
+    expect(owner.tallies[1]?.v1?.A).toBe(1);
+    expect(owner.listenerTallies?.[1]?.v1?.A).toBe(20);
   });
 });

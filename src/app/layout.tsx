@@ -6,7 +6,7 @@ import { SiteHeader } from '@/components/album/SiteHeader';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
-import { canViewAlbum } from '@/lib/settings/access';
+import { canCastVote, canViewAlbum } from '@/lib/settings/access';
 import { isViewer } from '@/lib/owner/viewer';
 
 import './globals.css';
@@ -55,6 +55,12 @@ export default async function RootLayout({
         <SiteHeader
           albumTitle={canViewAlbum(settings.visibility, owner, viewer) ? title : 'Private album'}
           isOwner={owner}
+          showVote={canCastVote({
+            visibility: settings.visibility,
+            listenerVoting: settings.listenerVoting,
+            owner,
+            viewer,
+          })}
         />
         {children}
       </body>

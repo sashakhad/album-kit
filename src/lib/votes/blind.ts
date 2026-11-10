@@ -143,18 +143,22 @@ export async function blindSnapshot(snapshot: VoteSnapshot): Promise<VoteSnapsho
   }
   const lookup = (track: number, version: string, label: string) =>
     aliases.get(`${track}|${version}|${label}`);
-  const tallies: VoteSnapshot['tallies'] = {};
-  for (const [trackText, versions] of Object.entries(snapshot.tallies)) {
-    const track = Number(trackText);
-    tallies[track] = {};
-    for (const [version, labels] of Object.entries(versions)) {
-      tallies[track][version] = {};
-      for (const [label, value] of Object.entries(labels)) {
-        const alias = lookup(track, version, label);
-        if (alias !== undefined) tallies[track][version][alias] = value;
+  const remap = (source: VoteSnapshot['tallies']): VoteSnapshot['tallies'] => {
+    const tallies: VoteSnapshot['tallies'] = {};
+    for (const [trackText, versions] of Object.entries(source)) {
+      const track = Number(trackText);
+      tallies[track] = {};
+      for (const [version, labels] of Object.entries(versions)) {
+        tallies[track][version] = {};
+        for (const [label, value] of Object.entries(labels)) {
+          const alias = lookup(track, version, label);
+          if (alias !== undefined) tallies[track][version][alias] = value;
+        }
       }
     }
-  }
+    return tallies;
+  };
+  const tallies = remap(snapshot.tallies);
   const mine: VoteSnapshot['mine'] = {};
   for (const [trackText, votes] of Object.entries(snapshot.mine)) {
     const track = Number(trackText);
@@ -171,5 +175,13 @@ export async function blindSnapshot(snapshot: VoteSnapshot): Promise<VoteSnapsho
       return alias === undefined ? [] : [{ ...item, takeLabel: alias }];
     });
   }
-  return { ...snapshot, tallies, mine, downloads };
+  return {
+    ...snapshot,
+    tallies,
+    mine,
+    downloads,
+    ...(snapshot.listenerTallies === undefined
+      ? {}
+      : { listenerTallies: remap(snapshot.listenerTallies) }),
+  };
 }
