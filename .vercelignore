@@ -1,4 +1,5 @@
 # vercel deploy uploads this folder and skips only its own defaults, not .gitignore.
 # The album key never leaves this computer, and the site gets takes from Blob.
 .album-key
+.env*
 album/audio/
