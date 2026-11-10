@@ -8,9 +8,13 @@ const PINNED = 'v1-01-track-one-p1-takea.mp3';
 const UNPINNED = 'v1-01-track-one-p1-takeb.mp3';
 
 const ownerState = { owner: false };
+const viewerState = { viewer: false };
+const settingsState = { visibility: 'public' };
 const fetchMock = vi.fn();
+const privateGetMock = vi.fn();
 
 vi.mock('server-only', () => ({}));
+vi.mock('@vercel/blob', () => ({ get: (...args: unknown[]) => privateGetMock(...args) }));
 vi.mock('@/lib/album/album-config', async importOriginal => {
   const actual = await importOriginal<typeof import('../album-config')>();
   return {
@@ -34,6 +38,8 @@ vi.mock('@/lib/album/blob-audio', () => ({
 vi.mock('@/lib/owner/auth', () => ({
   isOwnerRequest: () => ownerState.owner,
 }));
+vi.mock('@/lib/settings/store', () => ({ loadSettings: async () => settingsState }));
+vi.mock('@/lib/owner/viewer', () => ({ isViewerRequest: async () => viewerState.viewer }));
 
 import { GET } from '@/app/api/audio/[set]/[file]/route';
 
@@ -45,25 +51,32 @@ function get(set: string, file: string, headers: Record<string, string> = {}) {
 
 beforeEach(() => {
   ownerState.owner = false;
+  viewerState.viewer = false;
+  settingsState.visibility = 'public';
   fetchMock.mockReset();
+  privateGetMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent-album-kit-root');
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
 describe('GET /api/audio/[set]/[file]', () => {
-  it('redirects the owner to Blob', async () => {
+  it('streams owner audio without exposing the Blob URL', async () => {
     ownerState.owner = true;
+    fetchMock.mockResolvedValueOnce(
+      new Response('ID3audio', { status: 200, headers: { 'content-type': 'audio/mpeg' } })
+    );
 
     const response = await get('v1', UNPINNED);
 
-    expect(response.status).toBe(302);
-    expect(response.headers.get('location')).toBe(`${BLOB_URL}${UNPINNED}`);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(response.headers.get('location')).toBeNull();
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('streams a pinned take to a signed-out visitor without revealing Blob', async () => {
@@ -117,6 +130,45 @@ describe('GET /api/audio/[set]/[file]', () => {
 
     expect(response.status).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('gates private audio and streams pinned audio only for invited listeners', async () => {
+    settingsState.visibility = 'private';
+    vi.stubEnv('BLOB_ACCESS', 'private');
+    expect((await get('v1', PINNED)).status).toBe(404);
+    expect(privateGetMock).not.toHaveBeenCalled();
+    viewerState.viewer = true;
+    privateGetMock.mockResolvedValue({
+      statusCode: 200,
+      stream: new Response('audio').body,
+      headers: new Headers({ 'accept-ranges': 'bytes' }),
+      blob: { contentType: 'audio/mpeg', size: 5 },
+    });
+    const response = await get('v1', PINNED);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(privateGetMock).toHaveBeenCalledWith(`takes/${PINNED}`, { access: 'private' });
+    expect((await get('v1', UNPINNED)).status).toBe(401);
+  });
+
+  it('forwards byte ranges from a private store without disclosing its URL', async () => {
+    ownerState.owner = true;
+    settingsState.visibility = 'private';
+    vi.stubEnv('BLOB_ACCESS', 'private');
+    privateGetMock.mockResolvedValue({
+      statusCode: 200,
+      stream: new Response('bytes').body,
+      headers: new Headers({ 'content-range': 'bytes 0-4/100', 'accept-ranges': 'bytes' }),
+      blob: { contentType: 'audio/mpeg', size: 5 },
+    });
+    const response = await get('v1', PINNED, { range: 'bytes=0-4' });
+    expect(response.status).toBe(206);
+    expect(response.headers.get('content-range')).toBe('bytes 0-4/100');
+    expect(response.headers.get('location')).toBeNull();
+    expect(privateGetMock).toHaveBeenCalledWith(`takes/${PINNED}`, {
+      access: 'private',
+      headers: { range: 'bytes=0-4' },
+    });
   });
 
   it('returns 404 for an unknown set or a file from another set', async () => {

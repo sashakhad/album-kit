@@ -1,193 +1,43 @@
 ---
 name: start-here
-description: Use for the first run of a new album, when someone says let's make an album or there's no ~/album folder yet. It copies the kit, sets up the album site, gets the user signed in to Suno and writes the album brief.
+description: First run of a new album. Collect essentials, set up the user's project, connect Suno, and prepare the first round.
 ---
 
-# Start here
+# Start here · version 2
 
-The first run for a new album. At the end the user has a live album site, a key to vote with, Suno connected to their own account and an album brief.
+## Begin
 
-## When to use
+Say: “Tell me the album name, genre, and any track titles you have. I’ll set up the album, write the prompts, make the takes, and help you choose your favorites. I’ll use sensible defaults. You can change models, listening mode, budget, and sharing in Settings or by asking me.”
 
-- The user says "let's make an album" and `~/album` doesn't exist yet.
-- The user names an album repo they already have, for example one the Deploy button made, and it isn't set up on this computer yet.
+Extract all essentials already supplied. Ask for missing album name, genre and track titles together. Artist credit, mood and vocals are optional. If the user wants to move quickly, use a genre-appropriate instrumental default and state it once. Do not ask for an abstract album rule. Title humor stays out of Style prompts as a standing rule. If the user requests a small test, keep exactly one track, two prompts and one generation per prompt.
 
-One folder and one site hold one album. For a second album, ask the user before you touch `~/album`.
+## Choose the path
 
-## You need
+- Quick start: Grok Bot writes five prompt variations per track; Suno generates audio. No Cursor installation or model API key is needed.
+- Studio: a connected Cursor project may write selected prompt slots. Require verified execution and observed model information; otherwise offer a Cursor handoff or continue with Quick start.
+- Small test: one track, two prompts, one generation per prompt, including download and voting.
 
-- A terminal with `git`, and a browser the user can take over.
-- The user, for the sign-ins: Vercel (free, and email sign-up works), Suno (a paid Premium plan), and Cursor on the Origin path only.
-- For path (b): the link to the user's GitHub repo and the name of its Vercel project.
+The user's explicit request overrides these presets. The default site Settings page can change future rounds. Ask **“Should the album site be public, or private for you and people you invite?”** before publishing album content. Leave visibility unset until answered. Public means the listening page is open; private requires protected pages and private storage. Do not promise private sharing until it has been verified on a second browser.
 
-## Steps
+## Accounts and preparation
 
-1. **Get the kit.** If `~/album` already holds the kit, with `kit` as its remote, this step is done. If the user already named an album repo, skip to step 2 (b). If they named an album folder on this computer, work in that folder wherever this skill says `~/album`, and skip the clone. Otherwise:
+Reuse existing sessions and entitlements. In dependency order, check [Grok Bot](https://x.ai/bot), [Suno](https://suno.com/pricing), [GitHub](https://github.com/pricing), and [Vercel](https://vercel.com/pricing). Ask the user to take over for each missing sign-in. Cursor is [optional](https://cursor.com/pricing). Vercel Hobby is limited to eligible personal, non-commercial use; check the [commercial-use rules](https://vercel.com/docs/limits/fair-use-guidelines). Check whether the connected Suno plan has enough _downloads_ as well as generation credits. Do not buy a plan on the user's behalf.
 
-   ```bash
-   git clone https://github.com/sashakhad/album-kit ~/album
-   git -C ~/album remote rename origin kit
-   ```
+Create a repository from the kit in the user's GitHub account, with the kit as an upstream source. Use an existing suitable user-owned repo if they supplied one. A local or cloud checkout is fine. Do not put multiple users on branches of the upstream kit. Set `origin` to the user's repo and `kit` to the upstream repository. Verify both remotes. Preserve the installed kit commit ID in the handoff notes. If GitHub is not yet connected, prepare the local checkout and finish this step when the user signs in.
 
-   The rename keeps `pnpm publish:album` from ever pushing to the public kit. Later, `git -C ~/album pull --no-ff kit main` picks up kit updates. Run every command after this one from `~/album`.
+Install Node 24 and pnpm if needed. Connect the official Suno MCP server at `https://api.suno.com/mcp`; use a signed-in suno.com browser only if the connector cannot do the required operation. Verify available create, status, download, model and credit capabilities. A free MCP connection does not establish enough download allowance for hosted voting.
 
-2. **Pick the path.** Ask only if it isn't clear. The default is (a).
-   - **(a) Bot only.** Nothing more to do here. The site deploys from this folder with the Vercel CLI.
-   - **(b) The user already used the Deploy button.** Ask for their repo link and their Vercel project's name. The Deploy button suggests `my-album`. If `~/album` holds the kit, that copy has nothing in it yet, so replace it:
+Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
 
-     ```bash
-     rm -rf ~/album
-     git clone <their repo URL> ~/album
-     ```
+Run `pnpm setup:site --name <album-slug>` for the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. Setup gives the owner key and URL; the key stays outside git. Confirm the owner can sign in at `/key` and reach `/settings`. Settings and the bot use the same authenticated `/api/owner/settings` record. Set visibility only after the owner has answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass.
 
-     Their repo deploys on every push, so step 8 sets `deploy` to `git`.
+Before paid work, use `suno-run` preflight to resolve a supported model and show a compact estimate for generation credits, expected output count, download allowance, separate Cursor model spend if any, and hosting eligibility. Obtain one explicit round allowance. Continue through generation, download, upload and voting inside it.
 
-   - **(c) Cursor Origin.** The album gets a private Origin repo in step 9 and keeps deploying with the Vercel CLI.
+## Check before saying done
 
-3. **Ask for the album title.** It also names the site. The rest of the interview waits until step 11.
-
-4. **Install Node 24 if it's missing.** Run `node --version`. If it prints nothing, or a version below v24:
-
-   ```bash
-   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
-   . "$HOME/.nvm/nvm.sh"
-   nvm install 24
-   ```
-
-   Then turn on pnpm, which ships with Node: `corepack enable`. Say yes if Corepack asks to download pnpm. In a new shell, run `. "$HOME/.nvm/nvm.sh"` first if `node` isn't found.
-
-5. **Sign in to Vercel.** Run `npx vercel login` and say yes if npx asks to install it. It prints a sign-in link. Open the link in your browser and ask the user to take over and sign in, or sign up free with email. Wait until the command says the login worked.
-
-6. **Make the user the commit author.** Vercel's free plan blocks a deploy when the newest commit isn't by the account owner. Read the user's name and email:
-
-   ```bash
-   npx --yes vercel api /v2/user --raw | node -p 'const { user } = JSON.parse(require("fs").readFileSync(0, "utf8")); `${user.name ?? user.username}\n${user.email}`'
-   ```
-
-   Set them for this folder only, on every path. `pnpm setup:site` and `pnpm publish:album` check the same thing before they deploy, and switch the folder's git user to the Vercel account if it doesn't match.
-
-   ```bash
-   git config user.name "<name>"
-   git config user.email "<email>"
-   ```
-
-   Put the title in the `title` field of `album/album.json` and commit it, so the newest commit is the user's before the first deploy:
-
-   ```bash
-   git add album/album.json
-   git commit -m "album: name the album"
-   ```
-
-7. **Set up the site.** Get the site name from the title:
-
-   ```bash
-   node --no-warnings -e 'import("./src/lib/album/slug.ts").then(m => console.log(m.slugifyTrackTitle(process.argv[1])))' "<title>"
-   ```
-
-   Inside the double quotes, put a backslash before any `"`, `$` or backtick in the title. If it prints nothing, use `my-album`. On path (b), use their Vercel project's name instead.
-
-   If `.vercel/project.json` doesn't exist yet, check that the name isn't one of the user's other projects: `npx vercel project inspect <name>`. If that finds a project and it isn't this album, ask the user for another name. Then:
-
-   ```bash
-   pnpm install
-   pnpm setup:site --name <name>
-   ```
-
-   Setup is safe to run again, because each run skips what's already done. Its exit code tells you what happened:
-   - **0:** done. The last line is JSON with `siteUrl`, `albumKey` and `project`.
-   - **2:** not signed in to Vercel. Do step 5 again, then rerun `pnpm setup:site --name <name>`.
-   - **3:** the Neon database step needs the browser. The output says what to open. Open it, ask the user to take over and finish it, then rerun `pnpm setup:site --name <name>`.
-   - **4:** setup couldn't read the signed-in Vercel account's email, which it needs to deploy as the owner. Its message says to sign in again: do step 5 again, then rerun `pnpm setup:site --name <name>`.
-   - **1:** stop. The output names the command that failed and its error.
-
-   Before it deploys, setup may add an empty commit, `album: deploy as <username>`, so the newest commit is the account owner's.
-
-8. **Save the site URL and the key.** `.album-site.json` holds `siteUrl`, and `.album-key` holds the key.
-   - On path (b), if `.album-key` is missing, ask the user for the passcode they picked on the Deploy page and save it with `printf '%s\n' '<passcode>' > .album-key`. Then set `"deploy": "git"` in `.album-site.json`.
-   - Give the user the site URL and the key. The key is how they vote: they open `<siteUrl>/key` once in each browser they use and paste it there. You never type the key into a web page.
-
-9. **Path (c) only: give the album its Origin home.** Check whether the Origin command is on this computer with `command -v origin`.
-   - **If it prints a path,** run these. `origin auth login` opens a sign-in, so ask the user to take over the browser for it:
-
-     ```bash
-     origin auth login
-     origin auth setup-git
-     origin repo create <name> --visibility private
-     ```
-
-     `origin repo create` prints the repo's full name, `<namespace>/<name>`. Add it as `origin` and push:
-
-     ```bash
-     git remote add origin "$(origin repo view <namespace>/<name> --json cloneUrl | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).cloneUrl')"
-     git push -u origin main
-     ```
-
-   - **If it prints nothing,** open https://cursor.com/codebase in your browser and ask the user to take over, sign in, click **+New** and create a private repo named `<name>`. The page then shows the command that installs `origin` and the commands that push to the new repo. Run them exactly as the page shows them, from `~/album`. When `origin auth login` runs, ask the user to take over the browser for the sign-in.
-
-   Keep `"deploy": "cli"` in `.album-site.json`. Origin repos only deploy on push with Vercel Pro, and the CLI works on the free plan.
-
-   If the install or the sign-in fails, tell the user and fall back to path (a): remove any `origin` remote you added with `git remote remove origin`, and go on. They can add the Origin home later by saying "back up my album".
-
-10. **Connect Suno.** Add a custom MCP server named `Suno` with the URL `https://api.suno.com/mcp`, the way your app adds MCP servers. In Cursor, that's an entry in `~/.cursor/mcp.json`:
-
-    ```json
-    { "mcpServers": { "Suno": { "url": "https://api.suno.com/mcp" } } }
-    ```
-
-    Connecting opens Suno's sign-in. Ask the user to take over the browser, sign in with their own Suno account and approve the access it asks for, which includes downloading songs and spending credits. Runs spend their own plan's credits, and the songs land in their Suno library. Use only Suno's own server, never a third-party Suno API.
-
-    If you can't add MCP servers, open https://suno.com in your browser instead, ask the user to take over and sign in, and leave that tab open for `suno-run`. Either way, if Suno asks for a plan or a payment, stop: the kit needs Suno Premium, and the user buys it themselves.
-
-11. **Interview the user.** One question at a time:
-    - the artist name
-    - the genre, in one line
-    - the album's one rule, for example "Funny titles, serious records."
-    - three to five first track titles, exactly as they should appear in Suno's Title field
-
-    Then fill in `album/album.json`. Keep the starter set (`v1`, named `Bubu`). Number the tracks from 1 in the order the user gave them, and get each slug with the command in step 7:
-
-    ```json
-    {
-      "title": "<title>",
-      "artist": "<artist>",
-      "genre": "<genre>",
-      "rule": "<the one rule>",
-      "sets": [{ "id": "v1", "name": "Bubu" }],
-      "tracks": [{ "number": 1, "title": "<first title>", "slug": "<slug>" }]
-    }
-    ```
-
-    Write `album/BRIEF.md`. Start it with `# <title>`, then these sections, in the user's own words wherever they gave them:
-    - `## What this album is`: one paragraph on the genre and the feeling.
-    - `## The rule`: the one rule, and what it means for the Style prompts.
-    - `## Sound`: what every track shares, such as the mix, the room, the era and the core kit.
-    - `## Never`: banned words and moves. Start with the Style rules: no vocal negations (`instrumental`, `no vocals`, `no singing`, `vocal-free`, `voiceless`) and no choir words (`choir`, `gospel`, `choral`, `cantor`, `prayer`, `congregation`). Add whatever the user rules out.
-    - `## Neighbors`: write "None yet." `album-track` adds a line for each track it writes.
-
-    Show the user the brief and fix anything they correct.
-
-12. **Publish.** Follow the `publish` skill with the message `start album`. It checks `album/album.json`, then runs `pnpm publish:album "start album"`, which prints the site URL.
-
-## Check before you say done
-
-- `git -C ~/album remote -v` shows `kit` at the public kit on paths (a) and (c), no `origin` on path (a), the user's repo as `origin` on path (b) and the Origin repo as `origin` on path (c), unless you fell back to path (a).
-- `git -C ~/album log -1 --format='%an <%ae>'` shows the user.
-- `.album-site.json` has a `siteUrl` that starts with `https://`, a `project`, and `deploy` set to `git` on path (b) or `cli` otherwise.
-- `.album-key` exists and holds one line.
-- Suno is connected: you can list the Suno MCP server's tools, or, on the browser fallback, the Suno tab shows the user signed in.
-- `curl -sS -o /dev/null -w '%{http_code}\n' "$(node -p 'require("./.album-site.json").siteUrl')"` prints `200`, and the home page shows the album title when you open it.
-
-## Tell the user
-
-- The site URL and the album key, and that they vote by pasting the key at `<siteUrl>/key` once in each browser.
-- Where the album lives: only on your computer (a), in their GitHub repo (b), or in their private Origin repo (c). If the Origin setup failed, say so, and that "back up my album" adds the Origin home later.
-- What's next: pick a first track, and you'll write its prompts with `album-track`.
-
-## Stop and ask when
-
-- `pnpm setup:site` exits 1, or exits 3 or 4 again after the user did what it asked.
-- A page asks for anything beyond signing in or signing up: a payment, a plan, or another account.
-- A captcha shows up. The user takes over the browser; never solve it yourself.
-- The user's repo doesn't look like the kit, because it has no `.cursor/skills/` or `album/album.json`.
-- The site name is already taken by a project that isn't this album.
-- A push to the user's repo asks for credentials (path b).
+- The user's repo and `kit` remotes are distinct; the checkout includes `album/album.json` and the skills.
+- The album brief reflects the user's actual input; the prompt count matches the selected scope.
+- Suno capability checks were made in the connected account; no retired model was assumed.
+- The owner can reach Settings; publication visibility is the owner's answer.
+- The site, storage and database belong to the user; private access works before claiming privacy.
+- Any unresolved account connection or publication block is named precisely.

@@ -29,6 +29,9 @@ export function SiteHeader({ albumTitle, isOwner }: { albumTitle: string; isOwne
               <NavPill href='/intake' active={isSection(pathname, '/intake')}>
                 Intake
               </NavPill>
+              <NavPill href='/settings' active={isSection(pathname, '/settings')}>
+                Settings
+              </NavPill>
             </>
           ) : null}
         </nav>

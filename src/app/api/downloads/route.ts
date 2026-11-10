@@ -7,6 +7,10 @@ import { OWNER_VISITOR_ID, requireOwner } from '@/lib/owner/auth';
 import { getVoteSnapshot } from '@/lib/votes/board';
 import { upsertDownload } from '@/lib/votes/pass-store';
 import { isTakeLabel } from '@/lib/votes/types';
+import { blindSnapshot, realTakeForAlias } from '@/lib/votes/blind';
+import { loadSettings } from '@/lib/settings/store';
+import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
+import { isBlindForSnapshot, markExposed } from '@/lib/votes/exposure';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -46,8 +50,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Track is not ready' }, { status: 400 });
   }
 
-  const take = track.takes.find(item => item.label === parsed.data.takeLabel);
-  if (take === undefined) {
+  const settings = await loadSettings();
+  const before = await getVoteSnapshot(OWNER_VISITOR_ID);
+  const blind = await isBlindForSnapshot(OWNER_VISITOR_ID, settings.listeningDetails, before);
+  if (!blind) await markExposed(OWNER_VISITOR_ID, before.currentRound);
+  const take = blind
+    ? await realTakeForAlias({
+        round: await getVisitorCurrentRound(OWNER_VISITOR_ID),
+        trackNumber: track.number,
+        versionSlug: version.slug,
+        alias: parsed.data.takeLabel,
+        takes: track.takes,
+      })
+    : track.takes.find(item => item.label === parsed.data.takeLabel);
+  if (take === undefined || take === null) {
     return NextResponse.json({ error: 'Unknown take' }, { status: 400 });
   }
 
@@ -57,5 +73,6 @@ export async function POST(request: Request) {
     versionSlug: version.slug,
     takeLabel: take.label,
   });
-  return NextResponse.json(await getVoteSnapshot(OWNER_VISITOR_ID));
+  const snapshot = await getVoteSnapshot(OWNER_VISITOR_ID);
+  return NextResponse.json(blind ? await blindSnapshot(snapshot) : snapshot);
 }

@@ -3,9 +3,9 @@ name: judge
 description: Use while the owner votes on /vote, to explain or start rounds, park a take, or promote, extract or rename takes. It also frees up storage when the album runs low on space.
 ---
 
-# Judge
+# Judge · version 2
 
-The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote, and you don't volunteer which prompt or model made a take.
+The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
 ## When to use
 
@@ -23,7 +23,7 @@ The owner judges. You explain the rounds, keep the files straight and move takes
 Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.json").siteUrl')`.
 
 1. **Know how rounds work,** and explain it this way when the owner asks:
-   - You vote on `/vote`, signed in with the album key. Each take shows as its set's name and its letter, like `Bubu C`. Nothing on the page says which prompt or model made it.
+   - You vote on `/vote`, signed in with the album key. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
    - Round 1 shows every take.
    - A vote adds +1 or -1 to the take's score for the current round, starting from whatever score carried over.
    - From round 2 on, a take is out if it ended an earlier round with a negative score, and a parked take moves under Possible renames.
@@ -36,7 +36,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    curl -sS -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/votes"
    ```
 
-   The answer has `currentRound`, and `tallies`: track number, then set id, then letter, then the score this round.
+   The answer has `currentRound`, and `tallies`: track number, then set id, then displayed take label, then the score this round. In a blind mode, the letter is an alias, not the canonical sheet letter.
 
 3. **Start the next round,** only when the owner says so. Read the scores first, so you can say how many takes the new round drops.
 
@@ -46,7 +46,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 
    It answers with `currentRound` and the new scores.
 
-4. **Find a take's file.** The owner names a take the way `/vote` shows it: a track and `<set name> <letter>`. Get the set's id from `sets` in `album/album.json`, then the file from the track sheet's Canonical files table.
+4. **Find a take's file.** In Visible mode, match the displayed set and letter to the sheet's Canonical files table. In a blind mode, displayed letters are shuffled aliases; never guess the canonical filename from them. Resolve it only after the owner deliberately reveals assignments in Studio, which records that exposure, or use a supported server-side operation that accepts an alias without showing the assignment in chat.
 
 5. **Park or unpark a take.**
 
@@ -174,4 +174,4 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 - Before you delete any audio.
 - A move answers 400, 404, 409 or 500 and the fix isn't in step 8.
 - The owner's words could mean more than one take.
-- The owner asks which prompt or model made a take while they're still judging. Say that knowing breaks the blind test, and answer only if they still want to know.
+- The owner asks for identifying details during a blind round. Explain that revealing them records exposure and changes how later votes are interpreted; follow their choice.

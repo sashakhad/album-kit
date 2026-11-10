@@ -31,7 +31,7 @@ export default async function IntakePage() {
           , or copy takes into <code>album/audio/</code> for local dev.
         </p>
       )}
-      <IntakeDropzone />
+      <IntakeDropzone access={process.env.BLOB_ACCESS === 'private' ? 'private' : 'public'} />
     </main>
   );
 }

@@ -316,15 +316,33 @@ function setup(options) {
   disconnectKitRepo(runner, root);
 
   const keys = options.dryRun ? new Set() : productionEnvKeys(runner);
+  const kitHead = runner.run('git', ['rev-parse', '--verify', 'refs/remotes/kit/main']);
+  const kitRevision =
+    kitHead.status === 0 && /^[0-9a-f]{40}$/.test(kitHead.stdout.trim())
+      ? kitHead.stdout.trim()
+      : null;
   if (options.dryRun) {
     runner.vercel(['env', 'ls', 'production', '--json']);
   }
 
-  if (!keys.has('BLOB_READ_WRITE_TOKEN')) {
+  if (!keys.has('BLOB_READ_WRITE_TOKEN') && !keys.has('BLOB_STORE_ID')) {
     runner.must(
-      runner.vercel(['blob', 'create-store', `${name}-audio`, '--access', 'public', '--yes'], {
-        when: 'if BLOB_READ_WRITE_TOKEN is missing',
+      runner.vercel(['blob', 'create-store', `${name}-audio`, '--access', 'private', '--yes'], {
+        when: 'if neither a Blob token nor store ID is configured',
       })
+    );
+    runner.must(
+      runner.vercel(['env', 'add', 'BLOB_ACCESS', 'production', '--value', 'private', '--yes'], {
+        when: 'only for a newly created private Blob store',
+      })
+    );
+    runner.must(
+      runner.vercel(
+        ['env', 'add', 'PRIVATE_BLOB_AUDITED', 'production', '--value', 'true', '--yes'],
+        {
+          when: 'new projects have no earlier public take store',
+        }
+      )
     );
   }
 
@@ -339,6 +357,20 @@ function setup(options) {
         `${output.length > 0 ? `${output}\n` : ''}Finish the Neon step in the browser, then run pnpm setup:site again`
       );
     }
+  }
+
+  if (kitRevision !== null && !keys.has('ALBUM_KIT_REVISION')) {
+    runner.must(
+      runner.vercel([
+        'env',
+        'add',
+        'ALBUM_KIT_REVISION',
+        'production',
+        '--value',
+        kitRevision,
+        '--yes',
+      ])
+    );
   }
 
   const keyFile = path.join(root, '.album-key');
@@ -378,6 +410,8 @@ function setup(options) {
     siteUrl,
     project: name,
     deploy: existing?.deploy === 'git' || existing?.deploy === 'cli' ? existing.deploy : 'cli',
+    kitSource: 'https://github.com/sashakhad/album-kit',
+    kitRevision: existing?.kitRevision ?? kitRevision,
   };
   if (!options.dryRun) {
     writeFileSync(path.join(root, '.album-site.json'), `${JSON.stringify(site, null, 2)}\n`);

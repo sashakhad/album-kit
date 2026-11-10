@@ -6,6 +6,10 @@ import { getSet } from '@/lib/album/load-album';
 import { OWNER_VISITOR_ID, requireOwner } from '@/lib/owner/auth';
 import { castVote, safeVoteSnapshot } from '@/lib/votes/board';
 import { isTakeLabel } from '@/lib/votes/types';
+import { blindSnapshot, realTakeForAlias } from '@/lib/votes/blind';
+import { loadSettings } from '@/lib/settings/store';
+import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
+import { isBlindForSnapshot, markExposed } from '@/lib/votes/exposure';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,8 +27,13 @@ export async function GET(request: Request) {
     return denied;
   }
 
-  const snapshot = await safeVoteSnapshot(OWNER_VISITOR_ID);
-  return NextResponse.json(snapshot);
+  const [snapshot, settings] = await Promise.all([
+    safeVoteSnapshot(OWNER_VISITOR_ID),
+    loadSettings(),
+  ]);
+  const blind = await isBlindForSnapshot(OWNER_VISITOR_ID, settings.listeningDetails, snapshot);
+  if (!blind) await markExposed(OWNER_VISITOR_ID, snapshot.currentRound);
+  return NextResponse.json(blind ? await blindSnapshot(snapshot) : snapshot);
 }
 
 export async function POST(request: Request) {
@@ -56,10 +65,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Track is not ready' }, { status: 400 });
   }
 
-  const take = track.takes.find(
-    item => item.voteLabel === parsed.data.takeLabel || item.label === parsed.data.takeLabel
-  );
-  if (take === undefined) {
+  const settings = await loadSettings();
+  const before = await safeVoteSnapshot(OWNER_VISITOR_ID);
+  const blind = await isBlindForSnapshot(OWNER_VISITOR_ID, settings.listeningDetails, before);
+  if (!blind) await markExposed(OWNER_VISITOR_ID, before.currentRound);
+  const take = blind
+    ? await realTakeForAlias({
+        round: await getVisitorCurrentRound(OWNER_VISITOR_ID),
+        trackNumber: track.number,
+        versionSlug: version.slug,
+        alias: parsed.data.takeLabel,
+        takes: track.takes,
+      })
+    : track.takes.find(
+        item => item.voteLabel === parsed.data.takeLabel || item.label === parsed.data.takeLabel
+      );
+  if (take === undefined || take === null) {
     return NextResponse.json({ error: 'Unknown take' }, { status: 400 });
   }
 
@@ -70,5 +91,11 @@ export async function POST(request: Request) {
     takeLabel: take.voteLabel,
     value: parsed.data.value,
   });
-  return NextResponse.json(snapshot);
+  const stillBlind = await isBlindForSnapshot(
+    OWNER_VISITOR_ID,
+    settings.listeningDetails,
+    snapshot
+  );
+  if (!stillBlind) await markExposed(OWNER_VISITOR_ID, snapshot.currentRound);
+  return NextResponse.json(stillBlind ? await blindSnapshot(snapshot) : snapshot);
 }

@@ -5,11 +5,15 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
 import { CopyButton } from '@/components/studio/CopyButton';
+import { RevealStudioButton } from '@/components/studio/RevealStudioButton';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { parseTrackSheet } from '@/lib/album/parse-sheet';
 import { defaultAlbumRoot } from '@/lib/album/paths';
 import { formatNumberExact } from '@/lib/formatters';
-import { isOwner } from '@/lib/owner/auth';
+import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
+import { loadSettings } from '@/lib/settings/store';
+import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
+import { wasExposed } from '@/lib/votes/exposure';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -34,6 +38,24 @@ export default async function StudioPage({ params }: StudioPageProps) {
   const track = config.tracks.find(item => item.slug === slug);
   if (track === undefined) {
     notFound();
+  }
+
+  const settingsValue = await loadSettings();
+  const round = await getVisitorCurrentRound(OWNER_VISITOR_ID);
+  if (
+    settingsValue.listeningDetails !== 'visible' &&
+    !(await wasExposed(OWNER_VISITOR_ID, round))
+  ) {
+    return (
+      <main className='mx-auto max-w-3xl space-y-4 px-6 py-12'>
+        <h1 className='text-2xl font-semibold'>Studio details are hidden</h1>
+        <p className='text-muted-foreground text-sm'>
+          Opening the prompts ends blindness for this listening round. This exposure is recorded
+          with later votes.
+        </p>
+        <RevealStudioButton />
+      </main>
+    );
   }
 
   const markdown = await readTrackSheet(track.number, track.slug);

@@ -15,6 +15,7 @@ model Vote {
   takeLabel   String   @default("A")
   value       Int      @default(1)
   round       Int      @default(1)
+  detailsExposed Boolean @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -65,4 +66,85 @@ model ParkedTake {
 
   @@unique([versionSlug, trackNumber, takeLabel])
   @@index([trackNumber])
+}
+
+// The database is the canonical settings store for chat and the site.
+model AlbumSettings {
+  id        String   @id @default("default")
+  version   Int      @default(1)
+  defaults  Json
+  overrides Json
+  updatedAt DateTime @updatedAt
+}
+
+model GenerationRound {
+  id                 String   @id @default(cuid())
+  status             String   @default("preparing")
+  snapshot           Json
+  estimate           Json
+  authorization      Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  jobs               ProviderJob[]
+}
+
+model ProviderJob {
+  id          String   @id @default(cuid())
+  roundId     String
+  operationId String   @unique
+  promptId    String
+  providerId  String?
+  status      String   @default("planned")
+  output      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  round       GenerationRound @relation(fields: [roundId], references: [id])
+
+  @@index([roundId])
+}
+
+model BlindOrder {
+  round       Int
+  trackNumber Int
+  filenames   Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([round, trackNumber])
+}
+
+model ListeningExposure {
+  visitorId String
+  round     Int
+  exposedAt DateTime @default(now())
+
+  @@id([visitorId, round])
+}
+
+model TakeProvenance {
+  filename           String   @id
+  promptId           String
+  style              String
+  writerHost         String
+  writerProvider     String?
+  requestedModel     String?
+  observedModel      String?
+  attribution        String
+  promptRevision     Int
+  executionId        String?
+  sunoModel          String?
+  generationId       String?
+  generationSettings Json
+  outputId           String?
+  roundId            String
+  createdAt          DateTime @default(now())
+}
+
+model AccessInvite {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  redeemedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
 }

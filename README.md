@@ -1,32 +1,43 @@
 # Album kit
 
-## What this is
+Make an album with Suno, hear every take, and choose the winners on your own site. The album lives in `album/`; changing its title, tracks and sheets does not require changing site code. Grok Bot can run the basic workflow. Cursor is optional for a project handoff or verified model comparison.
 
-Make an instrumental album with Suno, judge every take blind, and share the keepers. A bot sets up your own album site, writes the Suno prompts, runs Suno on your account and uploads every take. You vote on the takes one round at a time without knowing which prompt made which, and the winners go on a page you can share. It's the process behind [mus1c for v3gans](https://music-for-vegans.vercel.app/listen/mus1c-for-v3gans), a 30-song record where Suno made every sound. [Here's how that went](BLOG_POST_URL).
+## Start
 
-## Make an album
+Tell [Album Bot](grokbot/BOT.md): “Tell me the album name, genre, and any track titles you have.” It uses sensible defaults and asks for missing essentials together. Quick start writes five prompt variations per track. Ask for a **Small test** to make one track with two prompts and one Suno generation per prompt. The test still downloads takes and opens voting.
 
-[Add Album Bot](ALBUM_BOT_TEMPLATE_URL) to Grok Bot, then say "let's make an album."
+You will need your own [Grok Bot](https://x.ai/bot), [Suno](https://suno.com/pricing), [GitHub](https://github.com/pricing) and [Vercel](https://vercel.com/pricing) access. Existing entitlements may already cover some of these. Suno credits and song downloads are separate allowances; the bot checks both before a round. The site also uses Vercel Blob and a Postgres database through Neon. Check your account's storage and database terms. Vercel Hobby is for eligible [personal, non-commercial use](https://vercel.com/docs/limits/fair-use-guidelines); a commercial site may need a paid hosting plan. [Cursor](https://cursor.com/pricing) is optional and third-party model usage may be billed separately.
 
-You need:
+Before making music, the bot asks whether the site should be public or private and shows one estimate covering generation, downloads, external prompt models if selected, and hosting eligibility. One round allowance covers generation through upload and voting. A settings limit or imported preset is never spending approval.
 
-- **Grok Bot.**
-- **Suno Premium.** The bot connects to Suno through Suno's own MCP server, and you sign in with your account. Runs use your own plan's credits, and the songs land in your Suno library.
-- **A Vercel account.** The free plan is enough, and you can sign up with email when the bot asks.
+## Own the project
 
-You don't need GitHub, a terminal or any code. The bot copies this kit onto its own computer and works from there.
+The default is a repository in **your** GitHub account, with this kit recorded as its upstream. The bot can use a local or cloud checkout. If you set it up yourself, use Node 24, pnpm, a signed-in `gh` CLI, Vercel CLI and Docker for local Postgres:
 
-## Own the code
+```bash
+git clone https://github.com/sashakhad/album-kit my-album
+cd my-album
+git remote rename origin kit
+gh repo create my-album --private --source . --remote origin --push
+pnpm install
+pnpm setup:site --name my-album
+```
 
-You don't need this part to make an album. It's for people who want the album in their own repo.
+`setup:site` creates or links your Vercel project, a private Blob store for new projects, a Neon database and an owner key. It may hand a database sign-in step to you. The owner key is saved in ignored `.album-key`; `.album-site.json` holds the site URL, deployment path and kit revision without credentials. The deployed site starts with publication **unset**, so listeners cannot see the album until the owner chooses visibility in `/settings` or the bot updates the same authenticated settings API. To sign in on a browser or phone, open `<site-url>/key` and enter the owner key. An authenticated owner can view and copy the key in Settings. Rotate it in the Vercel environment and redeploy; update the local ignored copy too.
 
-**GitHub.** The Deploy button copies the kit into your GitHub account and sets up Vercel Blob storage, a Neon Postgres database and your album key. After that, every push deploys. Then add the bot and send it your repo's link.
+An existing **public** Blob store cannot protect already uploaded objects by changing a site setting. Migrate takes into a private Blob store and retire the old public objects before selecting Private; Settings requires a verified private store and `PRIVATE_BLOB_AUDITED=true` after that audit. New setup sets this flag because it creates no earlier public take store. Private listening invites are one-use links that expire after 15 minutes. The link secret is in the URL fragment, removed on opening, and exchanged for a revocable viewer cookie. Viewers can hear pinned takes, not vote or change Settings. Test access on a second browser before sharing.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/sashakhad/album-kit&project-name=my-album&repository-name=my-album&stores=%5B%7B%22type%22%3A%22blob%22%2C%22access%22%3A%22public%22%7D%2C%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22postgres%22%2C%22protocol%22%3A%22storage%22%7D%5D&env=ALBUM_KEY&envDescription=Pick%20a%20passcode.%20Only%20you%20can%20vote%20with%20it.)
+## Settings and rounds
 
-**Cursor Origin.** Origin repos are private, and the Deploy button doesn't work with them. Ask the bot for an Origin repo instead, and it keeps your album in a private one. Origin repos only deploy on push with Vercel Pro, so the bot keeps deploying with the Vercel CLI, which works on the free plan.
+The owner-only `/settings` page controls the Suno model policy, prompt writer, variation and generation counts, listening details, sound and vocals, round limits, visibility and invitations. Settings are stored once in Postgres and are available to the bot through `/api/owner/settings` with the owner key as a Bearer token. User defaults and album overrides are separate fields. An exported preset is versioned and contains no credentials, album content, publication choice or approval.
 
-**Local dev.** You need Node 24, pnpm and Docker.
+Auto resolves against the connected Suno account's supported quality model before each round. [Suno currently recommends v6](https://help.suno.com/en/articles/13924737) for eligible accounts; that version is not pinned forever. Grok Bot prompt records say **model undisclosed**. A Cursor model label is verified only from its runtime output. The site has no Cursor execution adapter yet, so selecting Cursor requires a real Cursor handoff and a verified external estimate before a paid round can begin.
+
+Visible listening shows saved prompt provenance. Reveal after voting waits until every available take has a vote in the round. Keep hidden omits those details from voting. Blind voting saves a randomized order, uses neutral labels and opaque audio URLs, and omits filenames and prompt details from the browser payload. Deliberately opening Studio records exposure, so later votes can be interpreted correctly. New uploads strip common MP3 metadata; migrate or scrub older takes before claiming a legacy round is blind.
+
+The bot saves each round's settings, resolved model, capability snapshot, estimate and authorization. It records operation IDs before Suno calls, and provider IDs after acceptance. Retry a known job by polling it, not by making another paid generation. Per-take provenance is recorded through `/api/owner/provenance`; missing model information stays explicitly unverified.
+
+## Local development
 
 ```bash
 pnpm install
@@ -36,31 +47,13 @@ pnpm exec prisma migrate deploy
 pnpm dev
 ```
 
-The example env file sets the album key to `dev` and leaves the Blob token out, so the site reads takes from `album/audio/`. Add a track to `album/album.json`, name its takes like `v1-01-<slug>-p1-takea.mp3`, then open http://localhost:3000/key and enter `dev`.
+The local example key is `dev`; sign in at `http://localhost:3000/key`. With no Blob connection, put canonical MP3 files in `album/audio/`. The site does not generate music by itself; the official Suno MCP connector or signed-in Suno browser runs the prompts. Use `pnpm takes:upload <files...>` for hosted upload. It uses a Blob token if available, otherwise the owner site's upload API and ignored `.album-key`.
 
-## How it works
+Run `pnpm check` for formatting, lint, types and tests. Run `pnpm publish:album "message"` after a permitted album change. Verify the deployment branch, owner, environment and working URL before sharing.
 
-1. **Set up.** The bot copies the kit, makes your Vercel project with Blob storage, a Postgres database and an album key, deploys your site and connects Suno.
-2. **Frame the album.** It asks for the title, the artist, the genre, the album's one rule and your first track titles, and writes the album's brief.
-3. **Write the prompts.** For each track, five writers each draft five Suno prompts on their own. A judge scores them, and the best become the track's sheet.
-4. **Run Suno.** The bot runs each prompt once, which makes two takes, then names the files and uploads them to your site.
-5. **Judge blind.** You vote on `/vote`. Each take has a nonsense set name and a letter, so you never know which prompt made it. Downvotes leave, upvotes carry, and takes you haven't voted on stay. You start the next round when you're ready.
-6. **Share.** When a track is done, you pick its take and the bot pins it to `/listen`, the page you share.
+## Boundaries
 
-## Costs
-
-- **Suno Premium.** Every run spends credits from your own plan, and each run makes two takes. A track with five prompts is five runs. The bot asks before it spends more than a track's sheet plans.
-- **Grok Bot.** The bot runs in your own Grok Bot account, on whatever plan you have.
-- **Vercel: free.** The free Hobby plan covers the site, the Blob storage and a Neon Postgres database. It's meant for personal, non-commercial projects.
-
-## FAQ
-
-**What if Suno shows a captcha?** That only happens when the bot uses Suno in its browser instead of the MCP server. The bot stops and asks you to take over its browser, so you solve it and hand it back. If Suno keeps blocking the bot, open `/studio/<track>` on your site. It has every field ready to copy into Suno by hand. Then drop the takes on `/intake`, named the way `/studio` shows.
-
-**What if storage fills up?** Takes live in Vercel Blob, and each one is a few megabytes, so an album with hundreds of takes can outgrow the free plan. When more than 150 takes are stored, or an upload fails for lack of space, the bot offers once to delete the audio for takes you voted out. It asks first, because a downvoted take sometimes becomes a new song, and it never touches parked or pinned takes.
-
-**Who can hear my takes?** Signed-out visitors can only play the takes pinned to `/listen`, and those stream through the site. Every other take is stored at an unlisted address that only your signed-in browser ever sees. The files aren't encrypted, so think of them as unlisted, not secret.
-
-## Credits
-
-Made by [Sasha](https://github.com/sashakhad), from the process behind mus1c for v3gans. The prompt arena uses the `/arena` skill from [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan. Suno makes every sound, through each person's own account.
+- A take is a full mix. Stems are separate files created by a split.
+- No title joke or joke-derived musical premise goes in a Suno Style prompt.
+- The owner judges takes; the bot does not choose winners.
+- No live Suno credits or third-party model spend are used by repository tests.

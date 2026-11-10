@@ -5,6 +5,10 @@ import { AlbumPlayer } from '@/components/album/AlbumPlayer';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { findListenTrack } from '@/lib/album/listen';
 import { getListenVersion } from '@/lib/album/listen-store';
+import { isOwner } from '@/lib/owner/auth';
+import { loadSettings } from '@/lib/settings/store';
+import { canViewAlbum } from '@/lib/settings/access';
+import { isViewer } from '@/lib/owner/viewer';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +17,8 @@ type ListenPageProps = {
 };
 
 export async function generateMetadata({ params }: ListenPageProps): Promise<Metadata> {
+  const [owner, settings, viewer] = await Promise.all([isOwner(), loadSettings(), isViewer()]);
+  if (!canViewAlbum(settings.visibility, owner, viewer)) return { title: 'Listen' };
   const { parts = [] } = await params;
   const trackSlug = parts[0];
   if (trackSlug === undefined || parts.length > 1) {
@@ -25,6 +31,8 @@ export async function generateMetadata({ params }: ListenPageProps): Promise<Met
 }
 
 export default async function ListenPage({ params }: ListenPageProps) {
+  const [owner, settings, viewer] = await Promise.all([isOwner(), loadSettings(), isViewer()]);
+  if (!canViewAlbum(settings.visibility, owner, viewer)) notFound();
   const { parts = [] } = await params;
   if (parts.length > 1) {
     notFound();
