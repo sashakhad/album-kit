@@ -20,3 +20,4 @@ For any new album, run `start-here` first.
 - Never call full mixes stems. A take is a full mix. Stems are the separate files a split makes, several per song.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
+- Ship completed kit changes to production: merge the upstream PR, update the user-owned album repository without replacing its `album/` content, and verify the linked Vercel production deployment and listening URL. A merged kit PR alone is not done.
