@@ -23,7 +23,8 @@ The owner judges. You explain the rounds, keep the files straight and move takes
 Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.json").siteUrl')`.
 
 1. **Know how rounds work,** and explain it this way when the owner asks:
-   - You vote on `/vote`, signed in with the album key. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
+   - You vote on `/vote`. The owner signs in with the album key. When you send that link, point the owner to `/key` or Settings to view and copy the key. Never paste the key into chat, and never put it in a URL. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
+   - Listener voting is off until the owner turns it on. When it is on, people who can already hear the album score takes on their own ballots. Those scores arrive on the owner `/api/votes` response as `listenerTallies`. They are not in `tallies` or `mine`. They do not drop takes, carry into the next round, or choose a pin. Listeners cannot start a round, park, move, download through the owner API, or open Studio or Settings. On a public album the share link is `/vote`. On a private album, send an invitation whose secret is in the URL fragment after `#`.
    - Round 1 shows every take.
    - A vote adds +1 or -1 to the take's score for the current round, starting from whatever score carried over.
    - From round 2 on, a take is out if it ended an earlier round with a negative score, and a parked take moves under Possible renames.
@@ -36,7 +37,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    curl -sS -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/votes"
    ```
 
-   The answer has `currentRound`, and `tallies`: track number, then set id, then displayed take label, then the score this round. In a blind mode, the letter is an alias, not the canonical sheet letter.
+   The answer has `currentRound`, and `tallies`: track number, then set id, then displayed take label, then the owner's score this round. `listenerTallies`, when present, is the separate listener total and is not the owner's score. In a blind mode, the letter is an alias, not the canonical sheet letter.
 
 3. **Start the next round,** only when the owner says so. Read the scores first, so you can say how many takes the new round drops.
 

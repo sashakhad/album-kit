@@ -5,14 +5,17 @@ import { useState } from 'react';
 import { exportPreset, type AlbumSettingsValue } from '@/lib/settings/schema';
 import { InviteControls } from '@/components/owner/InviteControls';
 import { OwnerKeyControls } from '@/components/owner/OwnerKeyControls';
+import { ShareControls } from '@/components/owner/ShareControls';
 
 export function SettingsForm({
   initial,
   privateStorage,
+  albumKeyValue,
   lastSunoCheck,
 }: {
   initial: AlbumSettingsValue;
   privateStorage: boolean;
+  albumKeyValue: string;
   lastSunoCheck: { models: string[]; checkedAt: string; resolvedModel: string | null } | null;
 }) {
   const [settings, setSettings] = useState(initial);
@@ -58,7 +61,9 @@ export function SettingsForm({
       const result = await response.json();
       if (!response.ok) throw new Error('The preset is invalid or uses another version.');
       setSettings(result.resolved);
-      setNotice('Preset imported. Publication is unset; no spending was authorized.');
+      setNotice(
+        'Preset imported. Publication is unset and listener voting is off; no spending was authorized.'
+      );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Preset import failed.');
     }
@@ -226,8 +231,25 @@ export function SettingsForm({
           </select>
           <small className='text-muted-foreground'>
             {privateStorage
-              ? 'Private requires owner access on every page and audio request.'
-              : 'Private needs a private Blob store. Existing public takes must be migrated before selection.'}
+              ? 'Public lets anyone open the home page and Listen, which plays pinned takes. Private lets you and people with an invitation open those pages. Neither choice lets other people vote, upload, or change Settings.'
+              : 'Public lets anyone open the home page and Listen, which plays pinned takes. Private needs a private Blob store. Existing public takes must be migrated before selection.'}
+          </small>
+        </Field>
+        <Field label='Who can vote'>
+          <select
+            value={settings.listenerVoting ? 'listeners' : 'owner'}
+            onChange={event => change('listenerVoting', event.target.value === 'listeners')}
+            className={inputClass}
+          >
+            <option value='owner'>Only you</option>
+            <option value='listeners'>You and listeners</option>
+          </select>
+          <small className='text-muted-foreground'>
+            Off by default. Listener scores are stored on their own ballots and never change your
+            scores, your picks, or the next round. Listeners always hear shuffled labels, even when
+            your own listening details are visible. They cannot pin, move takes, open Studio, or
+            change Settings. On a public album any visitor can vote. On a private album only someone
+            with an invitation can.
           </small>
         </Field>
       </section>
@@ -268,8 +290,11 @@ export function SettingsForm({
           A Cursor project is optional.
         </p>
       </section>
-      {settings.visibility === 'private' && privateStorage ? <InviteControls /> : null}
-      <OwnerKeyControls />
+      <ShareControls visibility={settings.visibility} listenerVoting={settings.listenerVoting} />
+      {settings.visibility === 'private' && privateStorage ? (
+        <InviteControls listenerVoting={settings.listenerVoting} />
+      ) : null}
+      <OwnerKeyControls albumKeyValue={albumKeyValue} />
       <p className='text-muted-foreground text-sm'>
         For Cursor,{' '}
         <a className='underline' href='/api/owner/handoff' download='cursor-handoff.json'>

@@ -58,28 +58,40 @@ export function viewerCookieValue(id: string): string {
   return `${id}.${mac}`;
 }
 
-async function validateViewerCookie(value: string | undefined): Promise<boolean> {
-  if (value === undefined) return false;
+async function viewerInviteFromCookie(value: string | undefined): Promise<string | null> {
+  if (value === undefined) return null;
   const separator = value.lastIndexOf('.');
-  if (separator <= 0) return false;
+  if (separator <= 0) return null;
   const id = value.slice(0, separator);
   const candidate = value.slice(separator + 1);
   const expected = signature(id);
-  if (expected === null || !safeEqual(candidate, expected)) return false;
+  if (expected === null || !safeEqual(candidate, expected)) return null;
   const row = await prisma.accessInvite.findUnique({ where: { id } });
-  return row !== null && row.redeemedAt !== null && row.revokedAt === null;
+  return row !== null && row.redeemedAt !== null && row.revokedAt === null ? id : null;
+}
+
+function viewerCookieFromHeader(header: string | null): string | undefined {
+  const cookie = header
+    ?.split(';')
+    .map(part => part.trim())
+    .find(part => part.startsWith(`${VIEWER_COOKIE}=`));
+  return cookie?.slice(VIEWER_COOKIE.length + 1);
 }
 
 export async function isViewer(): Promise<boolean> {
   const store = await cookies();
-  return validateViewerCookie(store.get(VIEWER_COOKIE)?.value);
+  return (await viewerInviteFromCookie(store.get(VIEWER_COOKIE)?.value)) !== null;
+}
+
+export async function viewerInviteId(): Promise<string | null> {
+  const store = await cookies();
+  return viewerInviteFromCookie(store.get(VIEWER_COOKIE)?.value);
 }
 
 export async function isViewerRequest(request: Request): Promise<boolean> {
-  const cookie = request.headers
-    .get('cookie')
-    ?.split(';')
-    .map(part => part.trim())
-    .find(part => part.startsWith(`${VIEWER_COOKIE}=`));
-  return validateViewerCookie(cookie?.slice(VIEWER_COOKIE.length + 1));
+  return (await viewerInviteIdFromRequest(request)) !== null;
+}
+
+export async function viewerInviteIdFromRequest(request: Request): Promise<string | null> {
+  return viewerInviteFromCookie(viewerCookieFromHeader(request.headers.get('cookie')));
 }

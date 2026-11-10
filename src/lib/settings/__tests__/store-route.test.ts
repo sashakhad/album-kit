@@ -65,6 +65,30 @@ describe('shared settings storage', () => {
     expect((await response.json()).resolved.listeningDetails).toBe('keep-hidden');
   });
 
+  it('stores listener voting for the owner settings API', async () => {
+    const response = await PATCH(
+      new Request('http://localhost/api/owner/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ patch: { listenerVoting: true, visibility: 'public' } }),
+      })
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).resolved.listenerVoting).toBe(true);
+    expect((await loadSettings()).listenerVoting).toBe(true);
+    expect((await loadSettings()).visibility).toBe('public');
+    const followUp = await PATCH(
+      new Request('http://localhost/api/owner/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ patch: { promptVariations: 4 } }),
+      })
+    );
+    expect(followUp.status).toBe(200);
+    const followed = await followUp.json();
+    expect(followed.resolved.listenerVoting).toBe(true);
+    expect(followed.resolved.visibility).toBe('public');
+    expect(followed.resolved.promptVariations).toBe(4);
+  });
+
   it('keeps unauthenticated listeners away from settings writes', async () => {
     state.owner = false;
     const response = await PATCH(

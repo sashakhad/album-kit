@@ -41,6 +41,7 @@ export function AlbumPlayer({
   initialTakeLabel,
   surface,
   awaitingReveal = false,
+  voter = 'owner',
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -49,6 +50,7 @@ export function AlbumPlayer({
   initialTakeLabel?: string;
   surface?: PlayerSurface;
   awaitingReveal?: boolean;
+  voter?: 'owner' | 'listener';
 }) {
   const router = useRouter();
   const revealRefreshRequested = useRef(false);
@@ -441,7 +443,13 @@ export function AlbumPlayer({
 
         {playerSurface === 'vote' ? (
           <div className='space-y-3'>
-            <PassControls currentRound={voteSnapshot.currentRound} />
+            {voter === 'owner' ? (
+              <PassControls currentRound={voteSnapshot.currentRound} />
+            ) : (
+              <p className='text-primary/80 text-xs tracking-[0.2em] uppercase'>
+                Round {voteSnapshot.currentRound}
+              </p>
+            )}
             {currentTrack !== null ? <ParkedCount track={currentTrack} /> : null}
           </div>
         ) : null}
@@ -521,7 +529,7 @@ export function AlbumPlayer({
           </div>
         </div>
 
-        {!hasAudio ? <EmptyAudioHint surface={playerSurface} /> : null}
+        {!hasAudio ? <EmptyAudioHint surface={playerSurface} voter={voter} /> : null}
       </div>
 
       <div className='space-y-6 lg:row-span-2'>
@@ -544,6 +552,7 @@ export function AlbumPlayer({
                   versionSlug={version.slug}
                   showVotes={playerSurface !== 'listen'}
                   showTakes={playerSurface !== 'listen'}
+                  voter={voter}
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
                     const selected = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
@@ -566,6 +575,7 @@ export function AlbumPlayer({
             currentTake={currentTake}
             isPlaying={isPlaying}
             votes={voteSnapshot}
+            voter={voter}
             onVoteSnapshot={setVoteSnapshot}
             onPlay={(index, label) => playIndex(index, label)}
           />
@@ -659,6 +669,7 @@ function PossibleRenames({
   currentTake,
   isPlaying,
   votes,
+  voter,
   onVoteSnapshot,
   onPlay,
 }: {
@@ -667,6 +678,7 @@ function PossibleRenames({
   currentTake: AlbumTake | null;
   isPlaying: boolean;
   votes: VoteSnapshot;
+  voter: 'owner' | 'listener';
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
   onPlay: (index: number, label: string) => void;
 }) {
@@ -708,6 +720,7 @@ function PossibleRenames({
                 isCurrent={isCurrent}
                 isPlaying={isPlaying && isCurrent}
                 votes={votes}
+                voter={voter}
                 onVoteSnapshot={onVoteSnapshot}
                 onPlay={() => onPlay(entry.index, entry.take.label)}
               />
@@ -725,6 +738,7 @@ function ParkedTakeRow({
   isCurrent,
   isPlaying,
   votes,
+  voter,
   onVoteSnapshot,
   onPlay,
 }: {
@@ -733,6 +747,7 @@ function ParkedTakeRow({
   isCurrent: boolean;
   isPlaying: boolean;
   votes: VoteSnapshot;
+  voter: 'owner' | 'listener';
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
   onPlay: () => void;
 }) {
@@ -762,15 +777,24 @@ function ParkedTakeRow({
         </span>
       </button>
       <div className='flex shrink-0 items-center gap-1'>
-        <DownloadButton
-          key={`save-parked-${track.number}-${take.versionSlug}-${take.voteLabel}`}
+        {voter === 'owner' ? (
+          <DownloadButton
+            key={`save-parked-${track.number}-${take.versionSlug}-${take.voteLabel}`}
+            trackNumber={track.number}
+            versionSlug={take.versionSlug}
+            takeLabel={take.voteLabel}
+            trackTitle={track.title}
+            audioUrl={take.audioUrl}
+            votes={votes}
+            onSnapshot={onVoteSnapshot}
+          />
+        ) : null}
+        <ListenerScore
+          votes={votes}
+          voter={voter}
           trackNumber={track.number}
           versionSlug={take.versionSlug}
           takeLabel={take.voteLabel}
-          trackTitle={track.title}
-          audioUrl={take.audioUrl}
-          votes={votes}
-          onSnapshot={onVoteSnapshot}
         />
         <VoteButton
           key={`vote-parked-${track.number}-${take.versionSlug}-${take.voteLabel}`}
@@ -784,6 +808,39 @@ function ParkedTakeRow({
         />
       </div>
     </div>
+  );
+}
+
+function ListenerScore({
+  votes,
+  voter,
+  trackNumber,
+  versionSlug,
+  takeLabel,
+}: {
+  votes: VoteSnapshot;
+  voter: 'owner' | 'listener';
+  trackNumber: number;
+  versionSlug: string;
+  takeLabel: string;
+}) {
+  if (voter !== 'owner' || votes.listenerTallies === undefined) {
+    return null;
+  }
+  const count = votes.listenerTallies[trackNumber]?.[versionSlug]?.[takeLabel] ?? 0;
+  if (count === 0) {
+    return null;
+  }
+  const label = formatSignedScore(count);
+  return (
+    <span
+      className='text-muted-foreground w-14 text-right font-mono text-[10px] leading-tight'
+      aria-label={`Listener score ${label}, separate from your score`}
+    >
+      listeners
+      <br />
+      {label}
+    </span>
   );
 }
 
@@ -812,6 +869,7 @@ function TrackRow({
   versionSlug,
   showVotes,
   showTakes,
+  voter,
   onSelect,
   onSelectTake,
   onVoteSnapshot,
@@ -825,6 +883,7 @@ function TrackRow({
   versionSlug: string;
   showVotes: boolean;
   showTakes: boolean;
+  voter: 'owner' | 'listener';
   onSelect: () => void;
   onSelectTake: (label: string) => void;
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
@@ -893,15 +952,24 @@ function TrackRow({
       ) : null}
       {canVote && selectedTake !== null ? (
         <div className='flex shrink-0 items-center gap-1'>
-          <DownloadButton
-            key={`save-${track.number}-${voteVersionSlug}-${takeLabel}`}
+          {voter === 'owner' ? (
+            <DownloadButton
+              key={`save-${track.number}-${voteVersionSlug}-${takeLabel}`}
+              trackNumber={track.number}
+              versionSlug={voteVersionSlug}
+              takeLabel={takeLabel}
+              trackTitle={track.title}
+              audioUrl={selectedTake.audioUrl}
+              votes={votes}
+              onSnapshot={onVoteSnapshot}
+            />
+          ) : null}
+          <ListenerScore
+            votes={votes}
+            voter={voter}
             trackNumber={track.number}
             versionSlug={voteVersionSlug}
             takeLabel={takeLabel}
-            trackTitle={track.title}
-            audioUrl={selectedTake.audioUrl}
-            votes={votes}
-            onSnapshot={onVoteSnapshot}
           />
           <VoteButton
             key={`${track.number}-${voteVersionSlug}-${takeLabel}`}
@@ -1037,10 +1105,18 @@ function SeekBar({
   );
 }
 
-function EmptyAudioHint({ surface }: { surface: PlayerSurface }) {
+function EmptyAudioHint({
+  surface,
+  voter,
+}: {
+  surface: PlayerSurface;
+  voter: 'owner' | 'listener';
+}) {
   return (
     <div className='text-muted-foreground rounded-2xl border border-dashed border-white/15 p-5 text-sm leading-relaxed'>
-      {surface === 'vote' ? (
+      {surface === 'vote' && voter === 'listener' ? (
+        <p>No takes in this round yet.</p>
+      ) : surface === 'vote' ? (
         <p>
           No takes yet. Upload them on{' '}
           <Link href='/intake' className='text-foreground underline-offset-2 hover:underline'>

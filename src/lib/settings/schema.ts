@@ -13,13 +13,33 @@ export const settingsSchema = z.object({
   vocals: z.enum(['instrumental', 'sung', 'chops']).default('instrumental'),
   musicalConstraints: z.string().max(2000).default(''),
   visibility: z.enum(['unset', 'public', 'private']).default('unset'),
+  listenerVoting: z.boolean().default(false),
   generationCreditLimit: z.number().int().min(0).nullable().default(null),
   downloadLimit: z.number().int().min(0).nullable().default(null),
   externalSpendLimitUsd: z.number().min(0).nullable().default(null),
 });
 
 export type AlbumSettingsValue = z.infer<typeof settingsSchema>;
-export const settingsPatchSchema = settingsSchema.partial().strict();
+
+export const settingsPatchSchema = z
+  .object({
+    preset: settingsSchema.shape.preset.removeDefault(),
+    sunoModel: settingsSchema.shape.sunoModel.removeDefault(),
+    promptWriter: settingsSchema.shape.promptWriter.removeDefault(),
+    promptVariations: settingsSchema.shape.promptVariations.removeDefault(),
+    generationsPerPrompt: settingsSchema.shape.generationsPerPrompt.removeDefault(),
+    listeningDetails: settingsSchema.shape.listeningDetails.removeDefault(),
+    mood: settingsSchema.shape.mood.removeDefault(),
+    vocals: settingsSchema.shape.vocals.removeDefault(),
+    musicalConstraints: settingsSchema.shape.musicalConstraints.removeDefault(),
+    visibility: settingsSchema.shape.visibility.removeDefault(),
+    listenerVoting: settingsSchema.shape.listenerVoting.removeDefault(),
+    generationCreditLimit: settingsSchema.shape.generationCreditLimit.removeDefault(),
+    downloadLimit: settingsSchema.shape.downloadLimit.removeDefault(),
+    externalSpendLimitUsd: settingsSchema.shape.externalSpendLimitUsd.removeDefault(),
+  })
+  .partial()
+  .strict();
 export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
 
 export const DEFAULT_SETTINGS: AlbumSettingsValue = settingsSchema.parse({});
@@ -89,5 +109,5 @@ export function exportPreset(settings: AlbumSettingsValue) {
 
 export function importPreset(raw: unknown): Partial<AlbumSettingsValue> {
   const parsed = portableSchema.parse(raw);
-  return { ...parsed.settings, preset: 'imported', visibility: 'unset' };
+  return { ...parsed.settings, preset: 'imported', visibility: 'unset', listenerVoting: false };
 }

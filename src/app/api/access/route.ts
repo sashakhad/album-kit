@@ -7,6 +7,8 @@ import {
   viewerCookieOptions,
   viewerCookieValue,
 } from '@/lib/owner/viewer';
+import { shareTarget } from '@/lib/settings/access';
+import { loadSettings } from '@/lib/settings/store';
 
 export const runtime = 'nodejs';
 
@@ -20,10 +22,9 @@ export async function POST(request: Request) {
       { error: 'This link has expired or was already used' },
       { status: 410 }
     );
-  const response = new NextResponse(null, {
-    status: 204,
-    headers: { 'Cache-Control': 'no-store' },
-  });
+  const settings = await loadSettings();
+  const next = shareTarget(settings.visibility, settings.listenerVoting).path ?? '/listen';
+  const response = NextResponse.json({ next }, { headers: { 'Cache-Control': 'no-store' } });
   response.cookies.set(VIEWER_COOKIE, viewerCookieValue(id), viewerCookieOptions());
   return response;
 }

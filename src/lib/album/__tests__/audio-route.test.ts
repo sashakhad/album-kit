@@ -9,7 +9,7 @@ const UNPINNED = 'v1-01-track-one-p1-takeb.mp3';
 
 const ownerState = { owner: false };
 const viewerState = { viewer: false };
-const settingsState = { visibility: 'public' };
+const settingsState = { visibility: 'public', listenerVoting: false };
 const fetchMock = vi.fn();
 const privateGetMock = vi.fn();
 
@@ -53,6 +53,7 @@ beforeEach(() => {
   ownerState.owner = false;
   viewerState.viewer = false;
   settingsState.visibility = 'public';
+  settingsState.listenerVoting = false;
   fetchMock.mockReset();
   privateGetMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
@@ -125,7 +126,8 @@ describe('GET /api/audio/[set]/[file]', () => {
     expect(response.headers.get('content-range')).toBeNull();
   });
 
-  it('keeps unpinned takes owner only', async () => {
+  it('keeps unpinned canonical audio owner-only even when listener voting is on', async () => {
+    settingsState.listenerVoting = true;
     const response = await get('v1', UNPINNED);
 
     expect(response.status).toBe(401);

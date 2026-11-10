@@ -113,10 +113,12 @@ describe('blind voting', () => {
     const snapshot = await blindSnapshot({
       currentRound: 1,
       tallies: { 1: { v1: { A: 1, B: -1 } } },
+      listenerTallies: { 1: { v1: { [real!.voteLabel]: 3 } } },
       mine: { 1: [{ versionSlug: 'v1', takeLabel: real!.voteLabel, value: 1, round: 1 }] },
       downloads: {},
       versionTotals: { v1: 0 },
     });
     expect(snapshot.mine[1]?.[0]?.takeLabel).toBe(alias);
+    expect(snapshot.listenerTallies?.[1]?.v1?.[alias]).toBe(3);
   });
 });

@@ -25,4 +25,12 @@ describe('SiteHeader', () => {
     expect(screen.getByRole('link', { name: 'Vote' })).toHaveAttribute('href', '/vote');
     expect(screen.getByRole('link', { name: 'Intake' })).toHaveAttribute('href', '/intake');
   });
+
+  it('shows Vote to a listener without owner controls', () => {
+    render(<SiteHeader albumTitle='Fixture Album' isOwner={false} showVote />);
+
+    expect(screen.getByRole('link', { name: 'Vote' })).toHaveAttribute('href', '/vote');
+    expect(screen.queryByRole('link', { name: 'Intake' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+  });
 });

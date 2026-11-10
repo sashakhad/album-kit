@@ -74,7 +74,7 @@ Check the owner's publication choice before sharing album content. A prepared de
    curl -sS -o /dev/null -w '%{http_code}\n' "$(node -p 'require("./.album-site.json").siteUrl')"
    ```
 
-   A signed-out request to `/` returns `200` only for a public album; it returns `404` while visibility is unset or private. `/key` must return `200`. Check the actual listening page with the appropriate owner or invite session before sharing. A `500` needs investigation.
+   A signed-out request to `/` returns `200` only for a public album; it returns `404` while visibility is unset or private. `/key` must return `200`. Public visibility opens the home page and `/listen`. It does not open `/vote`. A signed-out `/vote` redirects to `/key` unless `listenerVoting` is true. When listener voting is on, a signed-out visitor of a public album can open `/vote`; a private album still needs an invitation. Check the actual listening page with the appropriate owner or invite session before sharing. A `500` needs investigation.
 
 ### Give the album a home later
 

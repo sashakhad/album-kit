@@ -4,7 +4,7 @@ import { loadAlbumConfig } from '@/lib/album/album-config';
 import { formatNumberExact } from '@/lib/formatters';
 import { isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
-import { canViewAlbum } from '@/lib/settings/access';
+import { canCastVote, canViewAlbum } from '@/lib/settings/access';
 import { notFound } from 'next/navigation';
 import { isViewer } from '@/lib/owner/viewer';
 
@@ -48,7 +48,12 @@ export default async function Home() {
             >
               Listen
             </Link>
-            {owner ? (
+            {canCastVote({
+              visibility: settings.visibility,
+              listenerVoting: settings.listenerVoting,
+              owner,
+              viewer,
+            }) ? (
               <Link
                 href='/vote'
                 className='rounded-full border border-white/15 px-5 py-2 text-sm font-medium hover:bg-white/6'

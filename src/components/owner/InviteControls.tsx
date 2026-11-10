@@ -9,7 +9,7 @@ type Invite = {
   revokedAt: string | null;
 };
 
-export function InviteControls() {
+export function InviteControls({ listenerVoting }: { listenerVoting: boolean }) {
   const [invites, setInvites] = useState<Invite[]>([]);
   const [link, setLink] = useState('');
   const [message, setMessage] = useState('');
@@ -33,7 +33,9 @@ export function InviteControls() {
     }
     setLink(result.link);
     setMessage(
-      'This link works once and expires in 15 minutes. The listener stays signed in for 30 days unless you revoke it.'
+      listenerVoting
+        ? 'This link works once and expires in 15 minutes. The secret is after #. Opening it signs the listener in for 30 days, lets them hear pinned takes, and lets them vote. It is not your album key.'
+        : 'This link works once and expires in 15 minutes. The secret is after #. Opening it signs the listener in for 30 days so they can hear pinned takes. Listener voting is off, so they cannot score takes.'
     );
     await load();
   }
@@ -50,7 +52,8 @@ export function InviteControls() {
       <h2 className='text-xl font-medium'>Private invitations</h2>
       <p className='text-muted-foreground text-sm'>
         Create one link per browser or phone. The link secret stays after #, so it is not sent in
-        the page URL request.
+        the page request. It grants Listen
+        {listenerVoting ? ' and Vote' : ''}. It does not include your album key.
       </p>
       <button
         type='button'
@@ -73,6 +76,13 @@ export function InviteControls() {
             className='rounded-full border border-white/15 px-4 py-2 text-sm'
           >
             Copy
+          </button>
+          <button
+            type='button'
+            onClick={() => void shareInvite(link)}
+            className='rounded-full border border-white/15 px-4 py-2 text-sm'
+          >
+            Share
           </button>
         </div>
       ) : null}
@@ -101,4 +111,18 @@ export function InviteControls() {
       </ul>
     </section>
   );
+}
+
+async function shareInvite(url: string) {
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ url });
+      return;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+    }
+  }
+  await navigator.clipboard.writeText(url);
 }

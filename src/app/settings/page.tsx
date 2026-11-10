@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { SettingsForm } from '@/components/owner/SettingsForm';
-import { isOwner } from '@/lib/owner/auth';
+import { albumKey, isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
 import { prisma } from '@/lib/prisma';
 import { sunoCapabilitiesSchema } from '@/lib/rounds/preflight';
@@ -28,6 +28,7 @@ export default async function SettingsPage() {
       <SettingsForm
         initial={settings}
         privateStorage={privateStorage}
+        albumKeyValue={albumKey() ?? ''}
         lastSunoCheck={
           capabilities.success
             ? {

@@ -62,9 +62,9 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    curl -sSL -o /dev/null -w '%{http_code}\n' "$SITE/api/audio/<set>/<an unpinned file>"
    ```
 
-   For public visibility expect `200`, `200`, then `401`. For private visibility expect signed-out `404`, `404`; use a second browser with an invite to check the listening page and pinned audio. Take canonical filenames from the sheet only after exposure.
+   For public visibility expect `200`, `200`, then `401`. That last `401` stays even when listener voting is on: listeners hear in-round takes through `/vote`, not through the canonical file URL. For private visibility expect signed-out `404`, `404`; use a second browser with an invite to check the listening page and pinned audio. Take canonical filenames from the sheet only after exposure.
 
-5. **Share the link:** `<siteUrl>/listen` for the album, and `<siteUrl>/listen/<slug>` for one track.
+5. **Share the link:** `<siteUrl>/listen` for pinned takes, and `<siteUrl>/listen/<slug>` for one track. If listener voting is on, also share `<siteUrl>/vote` for a public album, or an invitation for a private album. Listener scores do not choose the pin.
 
 ## Check before you say done
 
@@ -75,7 +75,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 ## Tell the user
 
 - The `/listen` link, and each pinned track with its take, like `Plant Bass'd: Bubu C`.
-- Public listeners can hear pinned takes. Private listeners need a valid invitation or owner session. Unpinned takes stay owner-only.
+- Public listeners can hear pinned takes. Private listeners need a valid invitation or owner session. Unpinned canonical files stay owner-only. When listener voting is on, friends vote at `/vote` or through an invitation, on ballots that stay separate from the owner's.
 
 ## Stop and ask when
 

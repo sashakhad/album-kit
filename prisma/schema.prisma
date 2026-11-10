@@ -148,3 +148,11 @@ model AccessInvite {
   revokedAt  DateTime?
   createdAt  DateTime @default(now())
 }
+
+model VoteAttempt {
+  id        String   @id @default(cuid())
+  bucket    String
+  createdAt DateTime @default(now())
+
+  @@index([bucket, createdAt])
+}

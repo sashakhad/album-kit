@@ -23,6 +23,7 @@ export type VoteSnapshot = {
   downloads: Record<number, DownloadChoice[]>;
   versionTotals: Record<string, number>;
   currentRound: number;
+  listenerTallies?: TrackTallies;
 };
 
 export const EMPTY_VOTE_SNAPSHOT: VoteSnapshot = {
