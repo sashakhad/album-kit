@@ -71,7 +71,10 @@ function blobTakes(): MoveTakeBlob {
       return filenames;
     },
     async copy(fromUrl, toPathname) {
-      await copy(fromUrl, toPathname, { access: 'public', addRandomSuffix: false });
+      await copy(fromUrl, toPathname, {
+        access: process.env.BLOB_ACCESS === 'private' ? 'private' : 'public',
+        addRandomSuffix: false,
+      });
     },
     async remove(urlOrPathname) {
       await del(urlOrPathname);

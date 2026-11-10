@@ -3,9 +3,9 @@ name: finish
 description: Use when the owner is done judging a track or the whole album. It pins the chosen takes to /listen, publishes and shares the link.
 ---
 
-# Finish
+# Finish · version 2
 
-The owner picks the keepers. You pin them to `/listen`, the page anyone can open, and share the link.
+The owner picks the keepers. You pin them to `/listen`. A public site is open to anyone; a private site requires an owner or invited-listener session.
 
 ## When to use
 
@@ -50,11 +50,11 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 
    The scores are this round's, so a take that's out has none. A parked take can still show a score, so skip it if you parked it. Name the suggestion the way `/vote` does, like `Bubu C`, and let the owner pick. Never pin a take the owner didn't pick.
 
-2. **Pin the pick.** On the track in `album/album.json`, add `"listen": { "set": "<set id>", "take": "<letter>" }`, with the letter in capitals. For a second version on `/listen`, add `"vip": { "set": "<set id>", "take": "<letter>" }` too. Its row is titled `<title> (VIP)` unless you add `"title"` to the `vip` pin with the name the owner wants.
+2. **Pin the pick.** In blind mode the displayed letter is an alias, so do not put it directly in `album.json`. Resolve the canonical take only after deliberate exposure is recorded in Studio. On the track in `album/album.json`, add `"listen": { "set": "<set id>", "take": "<canonical letter>" }`. For a second version, add `"vip"` with the canonical letter too.
 
 3. **Publish.** Follow the `publish` skill with the message `pin track <NN>`.
 
-4. **Check it the way a visitor would.** Without the key, the track's page and its pinned take answer, and any other take of that track doesn't:
+4. **Check it the way a visitor would.** For a public site, without the key, the track's page and pinned take answer, and any other take doesn't. For a private site, signed-out requests to the page and audio must fail; repeat with an invited listener session and confirm only pinned audio works:
 
    ```bash
    curl -sS -o /dev/null -w '%{http_code}\n' "$SITE/listen/<slug>"
@@ -62,20 +62,20 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    curl -sSL -o /dev/null -w '%{http_code}\n' "$SITE/api/audio/<set>/<an unpinned file>"
    ```
 
-   You want `200`, `200`, then `401`. Take the filenames from the track sheet's Canonical files table.
+   For public visibility expect `200`, `200`, then `401`. For private visibility expect signed-out `404`, `404`; use a second browser with an invite to check the listening page and pinned audio. Take canonical filenames from the sheet only after exposure.
 
 5. **Share the link:** `<siteUrl>/listen` for the album, and `<siteUrl>/listen/<slug>` for one track.
 
 ## Check before you say done
 
 - The `publish` skill's checks passed.
-- Step 4 printed `200`, `200` and `401`.
+- Step 4 matched the chosen public or private access policy.
 - Open `<siteUrl>/listen` in your browser, which isn't signed in as the owner. Each pinned track is there in track order, a VIP row follows its own track, and tracks without a pin aren't there.
 
 ## Tell the user
 
 - The `/listen` link, and each pinned track with its take, like `Plant Bass'd: Bubu C`.
-- Anyone with the link hears only the pinned takes. Every other take stays unlisted.
+- Public listeners can hear pinned takes. Private listeners need a valid invitation or owner session. Unpinned takes stay owner-only.
 
 ## Stop and ask when
 

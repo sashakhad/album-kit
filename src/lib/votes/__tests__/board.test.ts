@@ -14,6 +14,7 @@ const rows: VoteRow[] = [];
 let mockRound = 1;
 
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/votes/exposure', () => ({ wasExposed: async () => false }));
 vi.mock('@/lib/votes/pass-store', () => ({
   getVisitorCurrentRound: async () => mockRound,
 }));

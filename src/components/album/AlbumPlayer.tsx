@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Pause, Play, SkipBack, SkipForward, Volume2 } from 'lucide-react';
 
 import {
@@ -39,6 +40,7 @@ export function AlbumPlayer({
   initialTrackTitle,
   initialTakeLabel,
   surface,
+  awaitingReveal = false,
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -46,7 +48,10 @@ export function AlbumPlayer({
   initialTrackTitle?: string;
   initialTakeLabel?: string;
   surface?: PlayerSurface;
+  awaitingReveal?: boolean;
 }) {
+  const router = useRouter();
+  const revealRefreshRequested = useRef(false);
   const playerSurface: PlayerSurface = surface ?? 'vote';
   const audioRef = useRef<HTMLAudioElement>(null);
   const playableIndexes = useMemo(() => collectPlayableIndexes(version.tracks), [version.tracks]);
@@ -86,6 +91,28 @@ export function AlbumPlayer({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
   const [voteSnapshot, setVoteSnapshot] = useState(votes);
+
+  useEffect(() => {
+    if (!awaitingReveal || revealRefreshRequested.current) return;
+    const takes = version.tracks.flatMap(track =>
+      track.takes.map(take => ({
+        track: track.number,
+        version: take.versionSlug,
+        label: take.voteLabel,
+      }))
+    );
+    if (
+      takes.length === 0 ||
+      !takes.every(take =>
+        (voteSnapshot.mine[take.track] ?? []).some(
+          vote => vote.versionSlug === take.version && vote.takeLabel === take.label
+        )
+      )
+    )
+      return;
+    revealRefreshRequested.current = true;
+    router.refresh();
+  }, [awaitingReveal, router, version.tracks, voteSnapshot]);
 
   const currentIndexRef = useRef(currentIndex);
   const selectedTakeByTrackRef = useRef(selectedTakeByTrack);
@@ -553,6 +580,19 @@ export function AlbumPlayer({
           <p className='text-foreground/85 px-5 pb-5 text-sm leading-relaxed whitespace-pre-line'>
             {currentTrack.prompt.replace(/\*\*/g, '')}
           </p>
+        </details>
+      ) : null}
+
+      {playerSurface === 'vote' && currentTake?.details !== undefined ? (
+        <details className='bg-card/70 rounded-2xl border border-white/8'>
+          <summary className='text-primary/80 cursor-pointer px-5 py-3 text-xs tracking-[0.2em] uppercase'>
+            Take details
+          </summary>
+          <div className='space-y-2 px-5 pb-5 text-sm'>
+            <p>{currentTake.details.writer}</p>
+            <p>{currentTake.details.sunoModel}</p>
+            <p className='whitespace-pre-line'>{currentTake.details.style}</p>
+          </div>
         </details>
       ) : null}
 

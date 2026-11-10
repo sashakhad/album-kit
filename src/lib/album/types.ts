@@ -12,6 +12,11 @@ export type AlbumTake = {
   audioUrl: string;
   versionSlug: string;
   voteLabel: string;
+  details?: {
+    style: string;
+    writer: string;
+    sunoModel: string;
+  };
 };
 
 export type AlbumTrack = {

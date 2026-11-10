@@ -5,6 +5,7 @@ import { upload } from '@vercel/blob/client';
 import { Upload } from 'lucide-react';
 
 import { canonicalTakeProblem, parseCanonicalTake } from '@/lib/album/parse-filename';
+import { stripMp3Tags } from '@/lib/album/strip-mp3-tags';
 import { formatPercent } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
@@ -27,7 +28,7 @@ const STATE_LABELS: Record<IntakeState, string> = {
   failed: 'Failed',
 };
 
-export function IntakeDropzone() {
+export function IntakeDropzone({ access = 'public' }: { access?: 'public' | 'private' }) {
   const [rows, setRows] = useState<IntakeRow[]>([]);
   const [dragging, setDragging] = useState(false);
 
@@ -37,8 +38,10 @@ export function IntakeDropzone() {
 
   async function uploadFile(id: string, file: File) {
     try {
-      await upload(`takes/${file.name}`, file, {
-        access: 'public',
+      const clean = stripMp3Tags(new Uint8Array(await file.arrayBuffer()));
+      const audio = new File([new Uint8Array(clean)], file.name, { type: 'audio/mpeg' });
+      await upload(`takes/${file.name}`, audio, {
+        access,
         handleUploadUrl: UPLOAD_ROUTE,
         contentType: 'audio/mpeg',
         onUploadProgress: progress => updateRow(id, { percentage: progress.percentage }),

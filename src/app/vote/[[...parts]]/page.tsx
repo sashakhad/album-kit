@@ -9,6 +9,10 @@ import type { AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { safeVoteSnapshot } from '@/lib/votes/board';
 import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
+import { blindSnapshot, blindVersion } from '@/lib/votes/blind';
+import { loadSettings } from '@/lib/settings/store';
+import { withVisibleDetails } from '@/lib/votes/provenance';
+import { allTakesVoted, markExposed, wasExposed } from '@/lib/votes/exposure';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +38,24 @@ export default async function VotePage({ params }: VotePageProps) {
   }
 
   const [trackSlug, versionSlug, takeSlug] = parts;
-  const [config, version, votes] = await Promise.all([
+  const [config, originalVersion, originalVotes, settings] = await Promise.all([
     loadAlbumConfig(),
     getConsolidatedPassVersion(OWNER_VISITOR_ID),
     safeVoteSnapshot(OWNER_VISITOR_ID),
+    loadSettings(),
   ]);
+  const revealReady =
+    settings.listeningDetails === 'reveal-after-vote' &&
+    allTakesVoted(originalVersion, originalVotes);
+  const exposedBefore = await wasExposed(OWNER_VISITOR_ID, originalVotes.currentRound);
+  const blind =
+    settings.listeningDetails === 'keep-hidden' ||
+    (settings.listeningDetails === 'reveal-after-vote' && !revealReady && !exposedBefore);
+  if (!blind) await markExposed(OWNER_VISITOR_ID, originalVotes.currentRound);
+  const version = blind
+    ? await blindVersion(originalVersion, originalVotes.currentRound)
+    : await withVisibleDetails(originalVersion);
+  const votes = blind ? await blindSnapshot(originalVotes) : originalVotes;
   const configTrack = config.tracks.find(track => track.slug === trackSlug);
   const track =
     trackSlug === undefined
@@ -55,12 +72,18 @@ export default async function VotePage({ params }: VotePageProps) {
   return (
     <main className='mx-auto max-w-5xl px-6 py-12'>
       {track === null ? (
-        <AlbumPlayer version={version} votes={votes} surface='vote' />
+        <AlbumPlayer
+          version={version}
+          votes={votes}
+          surface='vote'
+          awaitingReveal={settings.listeningDetails === 'reveal-after-vote' && blind}
+        />
       ) : initialTake === null ? (
         <AlbumPlayer
           version={version}
           votes={votes}
           surface='vote'
+          awaitingReveal={settings.listeningDetails === 'reveal-after-vote' && blind}
           initialTrackNumber={track.number}
           initialTrackTitle={track.title}
         />
@@ -69,6 +92,7 @@ export default async function VotePage({ params }: VotePageProps) {
           version={version}
           votes={votes}
           surface='vote'
+          awaitingReveal={settings.listeningDetails === 'reveal-after-vote' && blind}
           initialTrackNumber={track.number}
           initialTrackTitle={track.title}
           initialTakeLabel={initialTake.label}

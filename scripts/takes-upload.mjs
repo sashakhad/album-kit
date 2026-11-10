@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { BlobNotFoundError, head, list, put } from '@vercel/blob';
+import { upload } from '@vercel/blob/client';
 import NodeID3 from 'node-id3';
 
 const CANONICAL_TAKE =
@@ -29,14 +30,17 @@ if (rejects.length > 0) {
 }
 
 const token = process.env.BLOB_READ_WRITE_TOKEN;
-if (token === undefined || token.length === 0) {
-  console.error('BLOB_READ_WRITE_TOKEN is missing from .env.local. Run pnpm setup:site first.');
+const remote = token ? null : ownerUploadConnection();
+if (!token && remote === null) {
+  console.error(
+    'No Blob token or owner upload connection. Run pnpm setup:site and keep .album-key, or use /intake.'
+  );
   process.exit(1);
 }
 
 let conflicts;
 try {
-  conflicts = await letterConflicts(takes);
+  conflicts = token ? await letterConflicts(takes) : [];
 } catch (error) {
   console.error(
     `Couldn't check Blob for existing takes: ${error instanceof Error ? error.message : error}`
@@ -84,24 +88,46 @@ process.exit(counts.failed > 0 ? 1 : 0);
 
 async function uploadTake(take) {
   const pathname = `takes/${take.filename}`;
-  if (!force && (await blobExists(pathname))) {
+  if (token && !force && (await blobExists(pathname))) {
     return 'skipped';
   }
 
   try {
-    await put(pathname, retag(take), {
-      access: 'public',
-      addRandomSuffix: false,
-      allowOverwrite: force,
-      contentType: 'audio/mpeg',
-      token,
-    });
+    if (token) {
+      await put(pathname, retag(take), {
+        access: process.env.BLOB_ACCESS === 'private' ? 'private' : 'public',
+        addRandomSuffix: false,
+        allowOverwrite: force,
+        contentType: 'audio/mpeg',
+        token,
+      });
+    } else {
+      if (force) throw new Error('--force requires a Blob token and an owner review');
+      await upload(pathname, retag(take), {
+        access: process.env.BLOB_ACCESS === 'private' ? 'private' : 'public',
+        contentType: 'audio/mpeg',
+        handleUploadUrl: `${remote.siteUrl}/api/owner/upload`,
+        headers: { Authorization: `Bearer ${remote.key}` },
+      });
+    }
     return 'uploaded';
   } catch (error) {
     if (!force && error instanceof Error && /already exists/i.test(error.message)) {
       return 'skipped';
     }
     throw error;
+  }
+}
+
+function ownerUploadConnection() {
+  try {
+    const site = JSON.parse(readFileSync(path.join(process.cwd(), '.album-site.json'), 'utf8'));
+    const key = readFileSync(path.join(process.cwd(), '.album-key'), 'utf8').trim();
+    return typeof site.siteUrl === 'string' && site.siteUrl.startsWith('https://') && key.length > 0
+      ? { siteUrl: site.siteUrl.replace(/\/$/, ''), key }
+      : null;
+  } catch {
+    return null;
   }
 }
 
@@ -121,7 +147,7 @@ function retag(take) {
   const original = readFileSync(take.file);
   const untagged = NodeID3.removeTagsFromBuffer(original) || original;
   const tags = {
-    title: `${take.track.title} (${take.set.name} ${take.letter})`,
+    title: take.track.title,
     album: album.title,
     trackNumber: String(take.track.number),
   };

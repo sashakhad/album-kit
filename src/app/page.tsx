@@ -3,6 +3,10 @@ import Link from 'next/link';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { formatNumberExact } from '@/lib/formatters';
 import { isOwner } from '@/lib/owner/auth';
+import { loadSettings } from '@/lib/settings/store';
+import { canViewAlbum } from '@/lib/settings/access';
+import { notFound } from 'next/navigation';
+import { isViewer } from '@/lib/owner/viewer';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +14,13 @@ const MAKE_AN_ALBUM_URL = 'https://github.com/sashakhad/album-kit#make-an-album'
 const EMPTY_ALBUM = "This album is empty. Open Grok Bot and say: let's make an album.";
 
 export default async function Home() {
-  const [config, owner] = await Promise.all([loadAlbumConfig(), isOwner()]);
+  const [config, owner, settings, viewer] = await Promise.all([
+    loadAlbumConfig(),
+    isOwner(),
+    loadSettings(),
+    isViewer(),
+  ]);
+  if (!canViewAlbum(settings.visibility, owner, viewer)) notFound();
   const trackCount = config.tracks.filter(track => track.parked !== true).length;
 
   return (

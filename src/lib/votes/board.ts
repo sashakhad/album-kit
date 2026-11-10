@@ -4,6 +4,7 @@ import { getPrisma } from '@/lib/prisma';
 import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
 import { votesForCurrentPass, votesToCarryForward, type PassVote } from '@/lib/votes/pass';
 import { EMPTY_VOTE_SNAPSHOT, type VoteDelta, type VoteSnapshot } from '@/lib/votes/types';
+import { wasExposed } from '@/lib/votes/exposure';
 
 export function emptyVoteSnapshot(): VoteSnapshot {
   return {
@@ -107,6 +108,7 @@ export async function castVote(args: {
 }): Promise<VoteSnapshot> {
   const db = getPrisma();
   const round = await getVisitorCurrentRound(args.visitorId);
+  const detailsExposed = await wasExposed(args.visitorId, round);
   const existing = await db.vote.findMany({
     where: { visitorId: args.visitorId },
     select: { versionSlug: true, trackNumber: true, takeLabel: true, round: true, value: true },
@@ -141,11 +143,13 @@ export async function castVote(args: {
       takeLabel: args.takeLabel,
       value: base + args.value,
       round,
+      detailsExposed,
     },
     update: {
       value: {
         increment: args.value,
       },
+      ...(detailsExposed ? { detailsExposed: true } : {}),
     },
   });
 

@@ -1,18 +1,22 @@
 import { promises as fs } from 'node:fs';
+import { get } from '@vercel/blob';
 
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { resolveBlobAudioUrl } from '@/lib/album/blob-audio';
 import { parseByteRange } from '@/lib/album/byte-range';
 import { isListenFile } from '@/lib/album/listen';
 import { contentTypeForFilename } from '@/lib/album/parse-filename';
-import { defaultAlbumRoot, resolveAudioCandidates } from '@/lib/album/paths';
+import { blobPathnameFor, defaultAlbumRoot, resolveAudioCandidates } from '@/lib/album/paths';
 import { isOwnerRequest } from '@/lib/owner/auth';
+import { loadSettings } from '@/lib/settings/store';
+import { canViewAlbum } from '@/lib/settings/access';
+import { isViewerRequest } from '@/lib/owner/viewer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const PUBLIC_CACHE = 'public, max-age=3600';
-const OWNER_CACHE = 'private, max-age=3600';
+const OWNER_CACHE = 'private, no-store';
 
 type AudioRouteContext = {
   params: Promise<{
@@ -34,23 +38,43 @@ export async function GET(request: Request, context: AudioRouteContext) {
   }
 
   const owner = isOwnerRequest(request);
+  const settings = await loadSettings();
+  const viewer =
+    settings.visibility === 'private' && !owner ? await isViewerRequest(request) : false;
+  if (!canViewAlbum(settings.visibility, owner, viewer)) return notFound();
   const pinned = isListenFile(config, set, file);
   if (!owner && !pinned) {
     return Response.json({ error: 'Owner key required' }, { status: 401 });
   }
-  const cacheControl = pinned ? PUBLIC_CACHE : OWNER_CACHE;
+  const cacheControl = settings.visibility === 'public' && pinned ? PUBLIC_CACHE : OWNER_CACHE;
 
   const found = await firstExistingFile(candidates);
   if (found === null) {
+    if (process.env.BLOB_ACCESS === 'private') {
+      const pathname = blobPathnameFor(file);
+      if (pathname === null) return notFound();
+      const range = request.headers.get('range');
+      const blob = await get(pathname, {
+        access: 'private',
+        ...(range === null ? {} : { headers: { range } }),
+      });
+      if (blob === null || blob.statusCode !== 200) return notFound();
+      const contentRange = blob.headers.get('content-range');
+      return new Response(blob.stream, {
+        status: contentRange === null ? 200 : 206,
+        headers: {
+          'Content-Type': blob.blob.contentType,
+          'Content-Length': blob.headers.get('content-length') ?? String(blob.blob.size),
+          'Accept-Ranges': blob.headers.get('accept-ranges') ?? 'bytes',
+          ...(contentRange === null ? {} : { 'Content-Range': contentRange }),
+          'Cache-Control': cacheControl,
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    }
     const remoteUrl = await resolveBlobAudioUrl({ filename: file });
     if (remoteUrl === null) {
       return notFound();
-    }
-    if (owner) {
-      return new Response(null, {
-        status: 302,
-        headers: { Location: remoteUrl, 'Cache-Control': 'private, no-store' },
-      });
     }
     return streamFromBlob(request, remoteUrl, cacheControl);
   }

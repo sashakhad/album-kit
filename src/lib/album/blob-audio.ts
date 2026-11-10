@@ -9,6 +9,33 @@ export function canUseBlob(): boolean {
   return isSet(process.env.BLOB_READ_WRITE_TOKEN) || isSet(process.env.BLOB_STORE_ID);
 }
 
+export async function privateStoreReady(): Promise<boolean> {
+  if (
+    process.env.BLOB_ACCESS !== 'private' ||
+    process.env.PRIVATE_BLOB_AUDITED !== 'true' ||
+    !canUseBlob()
+  )
+    return false;
+  let cursor: string | undefined;
+  try {
+    do {
+      const result = await list(
+        cursor === undefined ? { prefix: TAKES_PREFIX } : { prefix: TAKES_PREFIX, cursor }
+      );
+      if (
+        result.blobs.some(
+          blob => !new URL(blob.url).hostname.endsWith('.private.blob.vercel-storage.com')
+        )
+      )
+        return false;
+      cursor = result.hasMore ? result.cursor : undefined;
+    } while (cursor !== undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function resolveBlobAudioUrl(args: { filename: string }): Promise<string | null> {
   const pathname = blobPathnameFor(args.filename);
   if (pathname === null || !canUseBlob()) {

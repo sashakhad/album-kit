@@ -4,6 +4,9 @@ import { z } from 'zod';
 import { OWNER_VISITOR_ID, requireOwner } from '@/lib/owner/auth';
 import { getVoteSnapshot } from '@/lib/votes/board';
 import { advanceVisitorRound } from '@/lib/votes/pass-store';
+import { blindSnapshot } from '@/lib/votes/blind';
+import { loadSettings } from '@/lib/settings/store';
+import { isBlindForSnapshot, markExposed } from '@/lib/votes/exposure';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,5 +29,11 @@ export async function POST(request: Request) {
 
   const currentRound = await advanceVisitorRound(OWNER_VISITOR_ID);
   const snapshot = await getVoteSnapshot(OWNER_VISITOR_ID);
-  return NextResponse.json({ currentRound, snapshot });
+  const settings = await loadSettings();
+  const blind = await isBlindForSnapshot(OWNER_VISITOR_ID, settings.listeningDetails, snapshot);
+  if (!blind) await markExposed(OWNER_VISITOR_ID, snapshot.currentRound);
+  return NextResponse.json({
+    currentRound,
+    snapshot: blind ? await blindSnapshot(snapshot) : snapshot,
+  });
 }

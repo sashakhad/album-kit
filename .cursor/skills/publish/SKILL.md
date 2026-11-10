@@ -3,9 +3,9 @@ name: publish
 description: Use after any change under album/, or when the user wants the album backed up to GitHub or Cursor Origin. It commits the album, redeploys the site and gives the site URL.
 ---
 
-# Publish
+# Publish · version 2
 
-Every album change goes live the same way. Publishing is part of each change, so you don't need to ask first.
+Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio.
 
 ## When to use
 
@@ -15,7 +15,7 @@ Every album change goes live the same way. Publishing is part of each change, so
 
 ## You need
 
-- `~/album`, set up by `start-here`, with `.album-site.json`.
+- The album checkout, set up by `start-here`, with `.album-site.json` and the user's repository as `origin`.
 - For a GitHub home: access to the user's GitHub account, through the GitHub plugin or a signed-in `gh` command.
 - For an Origin home: the `origin` command, or the user's help to create the repo at cursor.com/codebase, which also shows how to install it.
 
@@ -74,11 +74,11 @@ Every album change goes live the same way. Publishing is part of each change, so
    curl -sS -o /dev/null -w '%{http_code}\n' "$(node -p 'require("./.album-site.json").siteUrl')"
    ```
 
-   You want `200`. A `500` usually means `album/album.json` broke a rule the check in step 2 doesn't cover.
+   A signed-out request to `/` returns `200` only for a public album; it returns `404` while visibility is unset or private. `/key` must return `200`. Check the actual listening page with the appropriate owner or invite session before sharing. A `500` needs investigation.
 
 ### Give the album a home later
 
-A bot-only album lives only on your computer. Back it up when the user asks. Use `project` from `.album-site.json` as the repo name.
+New albums get a user-owned GitHub repository during `start-here`. Use this section only to bring an older local album under the user's account. Use `project` from `.album-site.json` as the repo name. Never push a user's album to the upstream kit.
 
 **GitHub.** Make a private repo in the user's account and push the album to it:
 
@@ -117,7 +117,7 @@ On albums that started from the kit (paths (a) and (c) in `start-here`), run `gi
 
 - `pnpm publish:album` printed the site URL.
 - `git status --short album .album-site.json` prints nothing.
-- The check in step 4 prints `200`, and the change shows on the site.
+- The appropriate public, owner or invited-listener page responds as expected, and the change shows on the site.
 - For a new home: `git remote -v` shows `origin` at the new private repo, and the push went through.
 
 ## Tell the user
