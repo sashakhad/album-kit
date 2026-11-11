@@ -1,16 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { KeyRound } from 'lucide-react';
 
 import { KeyForm } from '@/components/owner/KeyForm';
-import { OwnerKeyControls } from '@/components/owner/OwnerKeyControls';
 import { albumKey, isOwner, safeNextPath } from '@/lib/owner/auth';
+import { isViewer } from '@/lib/owner/viewer';
 import { keyPageCopy } from '@/lib/settings/key-copy';
 import { loadSettings } from '@/lib/settings/store';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Album key',
+  title: 'Owner sign-in',
+  robots: { index: false, follow: false },
+  referrer: 'no-referrer',
 };
 
 type KeyPageProps = {
@@ -19,78 +23,53 @@ type KeyPageProps = {
 
 export default async function KeyPage({ searchParams }: KeyPageProps) {
   const { next } = await searchParams;
-  const requested = typeof next === 'string' ? next : '';
-  const target = safeNextPath(requested.length === 0 ? undefined : requested);
+  const target = safeNextPath(typeof next === 'string' ? next : undefined, '/settings');
+  const destination = /^\/key(?:[/?#]|$)/.test(target) ? '/settings' : target;
+  if (await isOwner()) redirect(destination);
 
-  if (albumKey() === null) {
-    return (
-      <main className='mx-auto max-w-md space-y-6 px-6 py-16'>
-        <div className='space-y-2'>
-          <h1 className='text-2xl font-semibold tracking-tight'>Album key</h1>
-          <p className='text-muted-foreground text-sm'>
-            The album key is how the owner scores takes, uploads audio, and moves takes.
-          </p>
-        </div>
-        <p className='rounded-md border p-4 text-sm leading-relaxed'>
-          This site has no album key yet. Run <code>pnpm setup:site</code> to create one, then come
-          back here.
-        </p>
-      </main>
-    );
-  }
-
-  if (await isOwner()) {
-    return (
-      <main className='mx-auto max-w-md space-y-6 px-6 py-16'>
-        <OwnerKeyControls albumKeyValue={albumKey() ?? ''} />
-        <Link href={target} className='inline-block text-sm underline underline-offset-2'>
-          Continue
-        </Link>
-      </main>
-    );
-  }
-
-  const settings = await loadSettings().catch(() => null);
+  const [settings, viewer] = await Promise.all([loadSettings().catch(() => null), isViewer()]);
   const copy = keyPageCopy({
-    next: requested,
+    next: destination,
     visibility: settings?.visibility ?? 'unset',
     listenerVoting: settings?.listenerVoting ?? false,
+    viewer,
   });
 
   return (
-    <main className='mx-auto max-w-md space-y-6 px-6 py-16'>
-      <div className='space-y-3'>
-        <h1 className='text-2xl font-semibold tracking-tight'>{copy.title}</h1>
-        {copy.paragraphs.map(paragraph => (
-          <p key={paragraph} className='text-muted-foreground text-sm leading-relaxed'>
-            {paragraph}
+    <main className='mx-auto max-w-md space-y-5 px-4 py-10 sm:px-6 sm:py-16'>
+      <section className='bg-card/60 space-y-5 rounded-2xl border border-white/12 p-5 sm:p-7'>
+        <KeyRound aria-hidden='true' className='text-muted-foreground size-5' />
+        <header className='space-y-2'>
+          <h1 className='text-2xl font-semibold tracking-tight'>Sign in as owner</h1>
+          <p className='text-muted-foreground text-sm leading-relaxed'>
+            {albumKey() === null
+              ? 'This album hasn’t finished setup. Ask Grok Bot to finish setting up your site.'
+              : 'Open the owner link from Grok Bot, or enter your album key here.'}
           </p>
-        ))}
-      </div>
-      {copy.listenHref === null && copy.voteHref === null ? null : (
-        <div className='flex flex-wrap gap-3'>
-          {copy.listenHref === null ? null : (
-            <Link
-              href={copy.listenHref}
-              className='bg-primary text-primary-foreground rounded-full px-4 py-2 text-sm font-medium'
-            >
-              Listen
-            </Link>
-          )}
-          {copy.voteHref === null ? null : (
-            <Link
-              href={copy.voteHref}
-              className='rounded-full border border-white/15 px-4 py-2 text-sm font-medium'
-            >
-              Vote
-            </Link>
-          )}
-        </div>
+        </header>
+        {albumKey() === null ? null : <KeyForm next={destination} />}
+      </section>
+      {copy.listenerNote === null ? null : (
+        <p className='text-muted-foreground px-1 text-sm leading-relaxed'>{copy.listenerNote}</p>
       )}
-      <div className='space-y-3'>
-        <p className='text-sm font-medium'>Owner sign-in</p>
-        <KeyForm next={target} />
-      </div>
+      {copy.listen ? (
+        <div className='flex flex-wrap items-center gap-x-5 px-1'>
+          <Link
+            href='/listen'
+            className='inline-flex min-h-11 items-center text-sm underline underline-offset-4'
+          >
+            Back to Listen
+          </Link>
+          {copy.compare ? (
+            <Link
+              href='/vote'
+              className='inline-flex min-h-11 items-center text-sm underline underline-offset-4'
+            >
+              Compare as a listener
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
     </main>
   );
 }

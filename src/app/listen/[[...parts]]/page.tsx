@@ -73,7 +73,7 @@ export default async function ListenPage({ params }: ListenPageProps) {
           </Link>
         ) : null}
       </header>
-      {listen.tracks.length > 0 ? (
+      {hasAudio ? (
         <AlbumPlayer
           version={listen}
           surface='listen'
@@ -82,15 +82,26 @@ export default async function ListenPage({ params }: ListenPageProps) {
             ? {}
             : { initialTrackNumber: selected.number, initialTrackTitle: selected.title })}
         />
-      ) : (
-        <div className='text-muted-foreground rounded-2xl border border-white/10 p-6'>
-          <p>
-            {owner
-              ? 'Add takes or choose your final picks to start listening.'
-              : 'No tracks are ready to play yet.'}
-          </p>
-        </div>
-      )}
+      ) : listen.tracks.length > 0 ? (
+        <section className='max-w-2xl space-y-3'>
+          <h2 className='text-sm font-medium'>Tracks</h2>
+          <ol className='bg-card/60 divide-y divide-white/8 rounded-2xl border border-white/10'>
+            {listen.tracks.map(track => (
+              <li
+                key={track.listenSlug ?? track.number}
+                className='flex min-h-16 items-center justify-between gap-4 px-4 py-3 text-sm'
+              >
+                <span className='min-w-0 break-words'>{track.title}</span>
+                <span className='text-muted-foreground shrink-0 text-xs'>Coming soon</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : owner ? (
+        <p className='text-muted-foreground max-w-lg rounded-2xl border border-white/10 p-5 text-sm'>
+          Ask Grok Bot to make your first track. It will show up here when the takes are ready.
+        </p>
+      ) : null}
     </main>
   );
 }

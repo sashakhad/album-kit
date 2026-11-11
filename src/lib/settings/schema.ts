@@ -58,13 +58,26 @@ export function resolveSettings(stored: StoredSettings): AlbumSettingsValue {
 }
 
 export function presetSettings(preset: AlbumSettingsValue['preset']): Partial<AlbumSettingsValue> {
+  if (preset === 'imported') return { preset };
   if (preset === 'small-test') {
-    return { preset, promptVariations: 2, generationsPerPrompt: 1 };
+    return { preset, promptWriter: 'grok-bot', promptVariations: 2, generationsPerPrompt: 1 };
   }
   if (preset === 'studio') {
     return { preset, promptWriter: 'cursor', promptVariations: 5 };
   }
   return { preset, promptWriter: 'grok-bot', promptVariations: 5, generationsPerPrompt: 1 };
+}
+
+export function settingsChanges(
+  saved: AlbumSettingsValue,
+  draft: AlbumSettingsValue
+): SettingsPatch {
+  const presetFields = saved.preset === draft.preset ? {} : presetSettings(draft.preset);
+  return Object.fromEntries(
+    Object.entries(draft).filter(
+      ([name, value]) => value !== saved[name as keyof AlbumSettingsValue] || name in presetFields
+    )
+  );
 }
 
 const portableSchema = z

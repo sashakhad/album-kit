@@ -8,13 +8,15 @@ import {
   ownerCookieOptions,
   ownerCookieValue,
 } from '@/lib/owner/auth';
+import { consumeOwnerSignInLink } from '@/lib/owner/sign-in-links';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const sessionBodySchema = z.object({
-  key: z.string(),
-});
+const sessionBodySchema = z.union([
+  z.object({ key: z.string() }).strict(),
+  z.object({ token: z.string() }).strict(),
+]);
 
 export async function POST(request: Request) {
   const key = albumKey();
@@ -24,8 +26,14 @@ export async function POST(request: Request) {
 
   const raw: unknown = await request.json().catch(() => null);
   const parsed = sessionBodySchema.safeParse(raw);
-  if (!parsed.success || !isAlbumKey(parsed.data.key)) {
+  if (!parsed.success || ('key' in parsed.data && !isAlbumKey(parsed.data.key))) {
     return NextResponse.json({ error: 'Wrong key' }, { status: 401 });
+  }
+  if ('token' in parsed.data && !(await consumeOwnerSignInLink(parsed.data.token, key))) {
+    return NextResponse.json(
+      { error: 'This owner link expired or was already used' },
+      { status: 410 }
+    );
   }
 
   const response = new NextResponse(null, { status: 204 });

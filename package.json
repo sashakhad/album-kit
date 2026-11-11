@@ -27,6 +27,8 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "setup:site": "node scripts/setup.mjs",
+    "owner:link": "node scripts/album-owner.mjs link",
+    "album:settings": "node scripts/album-owner.mjs settings",
     "check:kit": "node scripts/check-kit.mjs",
     "takes:upload": "node scripts/takes-upload.mjs",
     "publish:album": "node scripts/publish-album.mjs",

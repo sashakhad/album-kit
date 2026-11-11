@@ -34,7 +34,7 @@ export default async function Home() {
 
       {config.tracks.length === 0 ? (
         <p className='rounded-2xl border border-dashed border-white/15 p-5 leading-relaxed'>
-          {EMPTY_ALBUM}
+          {owner ? EMPTY_ALBUM : 'Music is on the way. Check back soon.'}
         </p>
       ) : (
         <section className='space-y-4'>

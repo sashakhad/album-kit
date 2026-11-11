@@ -1,379 +1,583 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Check, ChevronDown, Circle, Upload } from 'lucide-react';
 
-import { exportPreset, type AlbumSettingsValue } from '@/lib/settings/schema';
 import { InviteControls } from '@/components/owner/InviteControls';
 import { OwnerKeyControls } from '@/components/owner/OwnerKeyControls';
 import { ShareControls } from '@/components/owner/ShareControls';
+import { Button } from '@/components/ui/button';
+import {
+  exportPreset,
+  importPreset,
+  presetSettings,
+  settingsChanges,
+  settingsSchema,
+  type AlbumSettingsValue,
+} from '@/lib/settings/schema';
 
-export function SettingsForm({
-  initial,
-  privateStorage,
-  albumKeyValue,
-  lastSunoCheck,
-}: {
+const inputClass =
+  'min-h-11 w-full rounded-lg border border-white/15 bg-background px-3 py-2 text-base sm:text-sm';
+const muted = 'text-muted-foreground text-sm leading-relaxed';
+const visibilityLabels = { unset: 'Only you', public: 'Public', private: 'Private' };
+const presetLabels = {
+  'quick-start': 'Quick start',
+  'small-test': 'Small test',
+  studio: 'Studio',
+  imported: 'Imported preset',
+};
+
+type Props = {
+  albumTitle: string;
   initial: AlbumSettingsValue;
   privateStorage: boolean;
-  albumKeyValue: string;
-  lastSunoCheck: { models: string[]; checkedAt: string; resolvedModel: string | null } | null;
-}) {
-  const [settings, setSettings] = useState(initial);
-  const [notice, setNotice] = useState('');
-  const [importText, setImportText] = useState('');
+  lastSunoCheck: { models: string[]; resolvedModel: string | null } | null;
+};
+
+export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoCheck }: Props) {
+  const router = useRouter();
+  const [saved, setSaved] = useState(initial);
+  const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [presetNotice, setPresetNotice] = useState('');
+  const patch = settingsChanges(saved, draft);
+  const dirty = Object.keys(patch).length > 0;
+  const sharingDirty = patch.visibility !== undefined || patch.listenerVoting !== undefined;
+  const models = [...new Set([...(lastSunoCheck?.models ?? []), draft.sunoModel])].filter(
+    model => model !== 'auto'
+  );
+
+  useEffect(() => {
+    if (!dirty) return;
+    function warn(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
 
   function change<K extends keyof AlbumSettingsValue>(key: K, value: AlbumSettingsValue[K]) {
-    setSettings(previous => ({ ...previous, [key]: value }));
+    setDraft(previous => ({ ...previous, [key]: value }));
+    setError('');
   }
 
-  async function save() {
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !dirty) return;
     setSaving(true);
-    setNotice('');
+    setError('');
     try {
       const response = await fetch('/api/owner/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patch: settings }),
+        body: JSON.stringify({ patch }),
       });
-      const result = await response.json();
-      if (!response.ok)
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
         throw new Error(
-          typeof result.error === 'string' ? result.error : 'Settings could not be saved.'
+          response.status === 401
+            ? 'Your owner session ended. Open a fresh owner link from Grok Bot and try again.'
+            : typeof result?.error === 'string'
+              ? result.error
+              : 'Couldn’t save changes. Check your choices and try again.'
         );
-      setSettings(result.resolved);
-      setNotice('Saved. New rounds use these settings; existing rounds keep their snapshot.');
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Settings could not be saved.');
+      }
+      const parsed = settingsSchema.safeParse(result?.resolved);
+      if (!parsed.success)
+        throw new Error('Couldn’t confirm the saved settings. Reload to check them.');
+      const next = parsed.data;
+      setSaved(next);
+      setDraft(next);
+      setPresetNotice('');
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Couldn’t save changes. Try again.');
     } finally {
       setSaving(false);
     }
   }
 
-  async function importSettings() {
-    setNotice('');
+  async function loadPreset(file: File) {
+    setPresetNotice('');
     try {
-      const response = await fetch('/api/owner/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: importText,
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error('The preset is invalid or uses another version.');
-      setSettings(result.resolved);
-      setNotice(
-        'Preset imported. Publication is unset and listener voting is off; no spending was authorized.'
-      );
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Preset import failed.');
+      const imported = importPreset(JSON.parse(await file.text()));
+      setDraft(previous => ({
+        ...previous,
+        ...imported,
+        visibility: previous.visibility,
+        listenerVoting: previous.listenerVoting,
+      }));
+      setPresetNotice('Preset loaded. Save changes to apply it.');
+    } catch {
+      setPresetNotice('Couldn’t read this preset. Choose an exported album preset JSON file.');
     }
   }
 
   function downloadPreset() {
-    const json = JSON.stringify(exportPreset(settings), null, 2);
-    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(exportPreset(saved), null, 2)], { type: 'application/json' })
+    );
     const link = document.createElement('a');
     link.href = url;
     link.download = 'album-preset.json';
     link.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return (
-    <div className='space-y-8'>
-      <header className='space-y-2'>
-        <h1 className='text-3xl font-semibold'>Settings</h1>
-        <p className='text-muted-foreground text-sm'>
-          These choices apply to future rounds. The album and its takes stay in place.
-        </p>
-      </header>
-      <section className='grid gap-5 rounded-2xl border border-white/10 p-5 sm:grid-cols-2'>
-        <Field label='Preset'>
-          <select
-            value={settings.preset}
-            onChange={e => {
-              const preset = e.target.value as AlbumSettingsValue['preset'];
-              change('preset', preset);
-              if (preset === 'small-test')
-                setSettings(p => ({
-                  ...p,
-                  preset,
-                  promptVariations: 2,
-                  generationsPerPrompt: 1,
-                  promptWriter: 'grok-bot',
-                }));
-              if (preset === 'quick-start')
-                setSettings(p => ({
-                  ...p,
-                  preset,
-                  promptVariations: 5,
-                  generationsPerPrompt: 1,
-                  promptWriter: 'grok-bot',
-                }));
-              if (preset === 'studio')
-                setSettings(p => ({ ...p, preset, promptVariations: 5, promptWriter: 'cursor' }));
-            }}
-            className={inputClass}
-          >
-            <option value='quick-start'>Quick start</option>
-            <option value='studio'>Studio</option>
-            <option value='small-test'>Small test</option>
-            <option value='imported'>Imported</option>
-          </select>
-        </Field>
-        <Field label='Suno model'>
-          <input
-            value={settings.sunoModel}
-            onChange={e => change('sunoModel', e.target.value)}
-            className={inputClass}
-            list='suno-models'
-          />
-          <datalist id='suno-models'>
-            <option value='auto' />
-            {lastSunoCheck?.models.map(model => (
-              <option key={model} value={model} />
-            ))}
-          </datalist>
-          <small className='text-muted-foreground'>
-            Auto resolves against your connected Suno account before each round.{' '}
-            {lastSunoCheck === null
-              ? 'No account model list has been saved yet.'
-              : `Last checked ${lastSunoCheck.checkedAt.slice(0, 16).replace('T', ' ')} UTC; resolved ${lastSunoCheck.resolvedModel ?? 'unavailable'}. Refresh in chat before a round.`}
-          </small>
-        </Field>
-        <Field label='Prompt writer'>
-          <select
-            value={settings.promptWriter}
-            onChange={e =>
-              change('promptWriter', e.target.value as AlbumSettingsValue['promptWriter'])
-            }
-            className={inputClass}
-          >
-            <option value='grok-bot'>Grok Bot · model undisclosed</option>
-            <option value='cursor'>Cursor · requires verified handoff</option>
-          </select>
-          <small className='text-muted-foreground'>
-            Cursor execution and model identity must be verified before a round begins.
-          </small>
-        </Field>
-        <Field label='Listening details'>
-          <select
-            value={settings.listeningDetails}
-            onChange={e =>
-              change('listeningDetails', e.target.value as AlbumSettingsValue['listeningDetails'])
-            }
-            className={inputClass}
-          >
-            <option value='visible'>Visible</option>
-            <option value='reveal-after-vote'>Reveal after voting</option>
-            <option value='keep-hidden'>Keep hidden</option>
-          </select>
-        </Field>
-        <Field label='Prompt variations per track'>
-          <input
-            type='number'
-            min='1'
-            max='20'
-            value={settings.promptVariations}
-            onChange={e => change('promptVariations', Number(e.target.value))}
-            className={inputClass}
-          />
-        </Field>
-        <Field label='Generations per prompt'>
-          <input
-            type='number'
-            min='1'
-            max='10'
-            value={settings.generationsPerPrompt}
-            onChange={e => change('generationsPerPrompt', Number(e.target.value))}
-            className={inputClass}
-          />
-        </Field>
-        <Field label='Mood'>
-          <input
-            value={settings.mood}
-            onChange={e => change('mood', e.target.value)}
-            className={inputClass}
-            placeholder='Use the album brief'
-          />
-        </Field>
-        <Field label='Vocals'>
-          <select
-            value={settings.vocals}
-            onChange={e => change('vocals', e.target.value as AlbumSettingsValue['vocals'])}
-            className={inputClass}
-          >
-            <option value='instrumental'>Instrumental</option>
-            <option value='sung'>Sung vocals</option>
-            <option value='chops'>Vocal chops</option>
-          </select>
-        </Field>
-        <Field label='Musical constraints'>
-          <textarea
-            value={settings.musicalConstraints}
-            onChange={e => change('musicalConstraints', e.target.value)}
-            className={inputClass}
-            rows={3}
-            placeholder='Optional'
-          />
-        </Field>
-        <Field label='Album site visibility'>
-          <select
-            value={settings.visibility}
-            onChange={e => change('visibility', e.target.value as AlbumSettingsValue['visibility'])}
-            className={inputClass}
-          >
-            <option value='unset'>Not chosen</option>
-            <option value='public'>Public listening page</option>
-            <option value='private' disabled={!privateStorage}>
-              Private album
-            </option>
-          </select>
-          <small className='text-muted-foreground'>
-            {privateStorage
-              ? 'Public lets anyone open the home page and Listen, which plays pinned takes. Private lets you and people with an invitation open those pages. Neither choice lets other people vote, upload, or change Settings.'
-              : 'Public lets anyone open the home page and Listen, which plays pinned takes. Private needs a private Blob store. Existing public takes must be migrated before selection.'}
-          </small>
-        </Field>
-        <Field label='Who can vote'>
-          <select
-            value={settings.listenerVoting ? 'listeners' : 'owner'}
-            onChange={event => change('listenerVoting', event.target.value === 'listeners')}
-            className={inputClass}
-          >
-            <option value='owner'>Only you</option>
-            <option value='listeners'>You and listeners</option>
-          </select>
-          <small className='text-muted-foreground'>
-            Off by default. Listener scores are stored on their own ballots and never change your
-            scores, your picks, or the next round. Listeners always hear shuffled labels, even when
-            your own listening details are visible. They cannot pin, move takes, open Studio, or
-            change Settings. On a public album any visitor can vote. On a private album only someone
-            with an invitation can.
-          </small>
-        </Field>
-      </section>
-      <section className='space-y-4 rounded-2xl border border-white/10 p-5'>
-        <h2 className='text-xl font-medium'>Round limits</h2>
-        <p className='text-muted-foreground text-sm'>
-          Limits constrain estimates; saving them does not authorize spending.
-        </p>
-        <div className='grid gap-5 sm:grid-cols-3'>
-          <Field label='Generation credits'>
-            <NullableNumber
-              value={settings.generationCreditLimit}
-              onChange={value => change('generationCreditLimit', value)}
-            />
-          </Field>
-          <Field label='Downloads'>
-            <NullableNumber
-              value={settings.downloadLimit}
-              onChange={value => change('downloadLimit', value)}
-            />
-          </Field>
-          <Field label='External USD'>
-            <NullableNumber
-              value={settings.externalSpendLimitUsd}
-              onChange={value => change('externalSpendLimitUsd', value)}
-            />
-          </Field>
+    <div className='min-w-0 space-y-5'>
+      <header className='flex flex-wrap items-end justify-between gap-4'>
+        <div className='min-w-0 space-y-2'>
+          <p className='text-muted-foreground text-sm break-words'>{albumTitle}</p>
+          <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>Album settings</h1>
+          <p className={muted}>Saved online for this album. Grok Bot uses these same settings.</p>
         </div>
-      </section>
-      <section className='space-y-2 rounded-2xl border border-white/10 p-5'>
-        <h2 className='text-xl font-medium'>Connections</h2>
-        <p className='text-muted-foreground text-sm'>
-          Grok Bot and Suno account capabilities are checked in chat before a round. The site cannot
-          inspect those sessions.{' '}
-          {lastSunoCheck === null
-            ? 'No Suno capability snapshot yet.'
-            : `Last known Suno models: ${lastSunoCheck.models.join(', ')}.`}{' '}
-          A Cursor project is optional.
-        </p>
-      </section>
-      <ShareControls visibility={settings.visibility} listenerVoting={settings.listenerVoting} />
-      {settings.visibility === 'private' && privateStorage ? (
-        <InviteControls listenerVoting={settings.listenerVoting} />
-      ) : null}
-      <OwnerKeyControls albumKeyValue={albumKeyValue} />
-      <p className='text-muted-foreground text-sm'>
-        For Cursor,{' '}
-        <a className='underline' href='/api/owner/handoff' download='cursor-handoff.json'>
-          download a credential-free project handoff
-        </a>
-        . Open the same repository in Cursor and verify its actual model records before using
-        comparisons.
-      </p>
-      <div className='flex items-center gap-4'>
-        <button
-          type='button'
-          disabled={saving}
-          onClick={() => void save()}
-          className='bg-primary text-primary-foreground rounded-full px-5 py-2 text-sm font-medium disabled:opacity-50'
+        <Link
+          href='/intake'
+          className='inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border border-white/15 px-3 text-sm hover:bg-white/6'
         >
-          Save settings
-        </button>
-        <p role='status' className='text-sm'>
-          {notice}
-        </p>
-      </div>
-      <section className='space-y-3 border-t border-white/10 pt-6'>
-        <h2 className='text-xl font-medium'>Portable preset</h2>
-        <p className='text-muted-foreground text-sm'>
-          Exports omit album content, account details, credentials, publication choice and
-          approvals.
-        </p>
-        <button
-          type='button'
-          onClick={downloadPreset}
-          className='rounded-full border border-white/15 px-4 py-2 text-sm'
-        >
-          Export preset
-        </button>
-        <Field label='Import preset JSON'>
-          <textarea
-            value={importText}
-            onChange={e => setImportText(e.target.value)}
-            className={inputClass}
-            rows={4}
-          />
-        </Field>
-        <button
-          type='button'
-          onClick={() => void importSettings()}
-          className='rounded-full border border-white/15 px-4 py-2 text-sm'
-        >
-          Import preset
-        </button>
-      </section>
+          <Upload aria-hidden='true' className='size-4' />
+          Upload takes
+        </Link>
+      </header>
+
+      <form onSubmit={save} className='space-y-5'>
+        <div className='bg-background/95 sticky top-0 z-30 space-y-2 rounded-xl border border-white/12 p-2.5 shadow-lg shadow-black/15 backdrop-blur sm:px-4'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <p role='status' className='flex items-center gap-2 text-sm'>
+              {dirty ? (
+                <Circle aria-hidden='true' className='size-2 fill-current text-amber-300' />
+              ) : (
+                <Check aria-hidden='true' className='text-muted-foreground size-4' />
+              )}
+              {saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Up to date'}
+            </p>
+            <div className='flex flex-wrap items-center justify-end gap-1.5'>
+              {dirty ? (
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='min-h-11'
+                  disabled={saving}
+                  onClick={() => {
+                    setDraft(saved);
+                    setError('');
+                    setPresetNotice('');
+                  }}
+                >
+                  Discard
+                </Button>
+              ) : null}
+              <Button type='submit' className='min-h-11' disabled={saving || !dirty}>
+                Save changes
+              </Button>
+            </div>
+          </div>
+          {error.length > 0 ? (
+            <p role='alert' className='text-destructive px-1 text-sm'>
+              {error}
+            </p>
+          ) : null}
+        </div>
+
+        <fieldset disabled={saving} className='min-w-0 space-y-5'>
+          <Section
+            title='Sharing'
+            description='Choose who can open the album and compare takes.'
+            badge={visibilityLabels[saved.visibility]}
+          >
+            <div className='grid gap-4 sm:grid-cols-2'>
+              <Field
+                label='Album access'
+                hint={
+                  privateStorage
+                    ? 'Private albums require a listener invitation.'
+                    : 'Ask Grok Bot to connect private audio storage to enable invitations.'
+                }
+              >
+                <select
+                  value={draft.visibility}
+                  onChange={e =>
+                    change('visibility', e.target.value as AlbumSettingsValue['visibility'])
+                  }
+                  className={inputClass}
+                >
+                  <option value='unset'>Only you</option>
+                  <option value='public'>Public · anyone can listen</option>
+                  <option value='private' disabled={!privateStorage}>
+                    Private · by invitation
+                  </option>
+                </select>
+              </Field>
+              <Field
+                label='Who can vote'
+                hint='Allow listeners to preview current takes and score them on a separate ballot.'
+              >
+                <select
+                  value={draft.listenerVoting ? 'listeners' : 'owner'}
+                  onChange={e => change('listenerVoting', e.target.value === 'listeners')}
+                  className={inputClass}
+                >
+                  <option value='owner'>Only you</option>
+                  <option value='listeners'>You and listeners</option>
+                </select>
+              </Field>
+            </div>
+            {sharingDirty ? (
+              <p className='rounded-xl border border-white/8 bg-white/3 p-4 text-sm'>
+                Save your sharing changes to get the right listener link.
+              </p>
+            ) : saved.visibility === 'public' ? (
+              <ShareControls listenerVoting={saved.listenerVoting} />
+            ) : saved.visibility === 'private' && privateStorage ? (
+              <InviteControls listenerVoting={saved.listenerVoting} />
+            ) : (
+              <p className={muted}>
+                {saved.visibility === 'unset'
+                  ? 'The album is visible to you. Choose Public or Private and save to share it.'
+                  : 'Connect private audio storage before creating invitations.'}
+              </p>
+            )}
+          </Section>
+
+          <Section
+            title='Listening'
+            description='Decide when prompts, writers, and Suno models are visible.'
+          >
+            <div className='max-w-md'>
+              <Field label='Take details' hint='Affects Listen and Compare as soon as you save.'>
+                <select
+                  value={draft.listeningDetails}
+                  onChange={e =>
+                    change(
+                      'listeningDetails',
+                      e.target.value as AlbumSettingsValue['listeningDetails']
+                    )
+                  }
+                  className={inputClass}
+                >
+                  <option value='visible'>Show details</option>
+                  <option value='reveal-after-vote'>Reveal after voting</option>
+                  <option value='keep-hidden'>Keep details hidden</option>
+                </select>
+              </Field>
+            </div>
+          </Section>
+
+          <Section
+            title='Next rounds'
+            description='Changes here apply when Grok Bot starts a new round.'
+          >
+            <div className='grid gap-4 sm:grid-cols-2'>
+              <Field
+                label='Preset'
+                hint={
+                  draft.preset === 'studio'
+                    ? 'Studio needs a connected Cursor project.'
+                    : draft.preset === 'small-test'
+                      ? 'Two prompts for a small trial.'
+                      : 'Pick a starting point, then adjust the counts below.'
+                }
+              >
+                <select
+                  value={draft.preset}
+                  onChange={e =>
+                    setDraft(previous => ({
+                      ...previous,
+                      ...presetSettings(e.target.value as AlbumSettingsValue['preset']),
+                    }))
+                  }
+                  className={inputClass}
+                >
+                  {Object.entries(presetLabels)
+                    .filter(([value]) => value !== 'imported' || draft.preset === 'imported')
+                    .map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+              <Field
+                label='Suno model'
+                hint={
+                  lastSunoCheck?.resolvedModel
+                    ? `Last used: ${lastSunoCheck.resolvedModel}. Grok Bot checks availability before each round.`
+                    : 'Grok Bot checks your Suno account before each round.'
+                }
+              >
+                <select
+                  value={draft.sunoModel}
+                  onChange={e => change('sunoModel', e.target.value)}
+                  className={inputClass}
+                >
+                  <option value='auto'>Auto (recommended)</option>
+                  {models.map(model => (
+                    <option key={model} value={model}>
+                      {model}
+                      {lastSunoCheck?.models.includes(model) ? '' : ' (saved)'}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label='Prompts per track'>
+                <input
+                  type='number'
+                  min='1'
+                  max='20'
+                  required
+                  value={draft.promptVariations || ''}
+                  onChange={e => change('promptVariations', Number(e.target.value))}
+                  className={inputClass}
+                />
+              </Field>
+              <Field label='Generations per prompt'>
+                <input
+                  type='number'
+                  min='1'
+                  max='10'
+                  required
+                  value={draft.generationsPerPrompt || ''}
+                  onChange={e => change('generationsPerPrompt', Number(e.target.value))}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+          </Section>
+
+          <Disclosure
+            title='Advanced music settings'
+            description='Prompt writer, sound, limits, and presets'
+          >
+            <div className='grid gap-4 sm:grid-cols-2'>
+              <Field
+                label='Prompt writer'
+                hint={
+                  draft.promptWriter === 'cursor'
+                    ? 'Grok Bot will check the connected Cursor project before starting.'
+                    : 'Grok Bot chooses its own model.'
+                }
+              >
+                <select
+                  value={draft.promptWriter}
+                  onChange={e =>
+                    change('promptWriter', e.target.value as AlbumSettingsValue['promptWriter'])
+                  }
+                  className={inputClass}
+                >
+                  <option value='grok-bot'>Grok Bot</option>
+                  <option value='cursor'>Cursor · connected project required</option>
+                </select>
+              </Field>
+              <Field label='Vocals'>
+                <select
+                  value={draft.vocals}
+                  onChange={e => change('vocals', e.target.value as AlbumSettingsValue['vocals'])}
+                  className={inputClass}
+                >
+                  <option value='instrumental'>Instrumental</option>
+                  <option value='sung'>Sung vocals</option>
+                  <option value='chops'>Vocal chops</option>
+                </select>
+              </Field>
+              <Field label='Mood'>
+                <input
+                  value={draft.mood}
+                  maxLength={200}
+                  onChange={e => change('mood', e.target.value)}
+                  className={inputClass}
+                  placeholder='Use the album brief'
+                />
+              </Field>
+              <Field label='Musical constraints'>
+                <textarea
+                  value={draft.musicalConstraints}
+                  maxLength={2000}
+                  onChange={e => change('musicalConstraints', e.target.value)}
+                  className={inputClass}
+                  rows={2}
+                  placeholder='Optional'
+                />
+              </Field>
+            </div>
+            {draft.promptWriter === 'cursor' ? (
+              <a
+                href='/api/owner/handoff'
+                download='cursor-handoff.json'
+                className='inline-flex min-h-11 items-center text-sm underline underline-offset-4'
+              >
+                Download Cursor project handoff
+              </a>
+            ) : null}
+            <div className='space-y-3 border-t border-white/10 pt-4'>
+              <h3 className='font-medium'>Round limits</h3>
+              <p className={muted}>Grok Bot still asks you to approve each round’s cost.</p>
+              <div className='grid gap-4 sm:grid-cols-3'>
+                <LimitField
+                  label='Generation credits'
+                  value={draft.generationCreditLimit}
+                  onChange={value => change('generationCreditLimit', value)}
+                />
+                <LimitField
+                  label='Downloads'
+                  value={draft.downloadLimit}
+                  onChange={value => change('downloadLimit', value)}
+                />
+                <LimitField
+                  label='External spend (USD)'
+                  value={draft.externalSpendLimitUsd}
+                  onChange={value => change('externalSpendLimitUsd', value)}
+                  step='any'
+                />
+              </div>
+            </div>
+            <div className='space-y-3 border-t border-white/10 pt-4'>
+              <h3 className='font-medium'>Portable preset</h3>
+              <p className={muted}>
+                Move your music settings between albums. Presets contain no keys, sharing settings,
+                or spending approvals.
+              </p>
+              <div className='flex flex-wrap items-center gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='min-h-11'
+                  onClick={downloadPreset}
+                >
+                  Export saved preset
+                </Button>
+                <label className='focus-within:ring-ring inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-white/15 px-3 text-sm focus-within:ring-2 hover:bg-white/6'>
+                  Import preset
+                  <input
+                    type='file'
+                    accept='.json,application/json'
+                    className='sr-only'
+                    onChange={event => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = '';
+                      if (file !== undefined) void loadPreset(file);
+                    }}
+                  />
+                </label>
+              </div>
+              {presetNotice.length > 0 ? (
+                <p role='status' className={muted}>
+                  {presetNotice}
+                </p>
+              ) : null}
+            </div>
+          </Disclosure>
+        </fieldset>
+      </form>
+
+      <Disclosure title='Owner access' description='Sign in on another device or view your key'>
+        <OwnerKeyControls />
+      </Disclosure>
     </div>
   );
 }
 
-const inputClass = 'w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm';
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className='flex flex-col gap-2 text-sm font-medium'>
-      {label}
-      {children}
-    </label>
-  );
-}
-function NullableNumber({
-  value,
-  onChange,
+function Section({
+  title,
+  description,
+  badge,
+  children,
 }: {
-  value: number | null;
-  onChange: (value: number | null) => void;
+  title: string;
+  description: string;
+  badge?: string;
+  children: ReactNode;
 }) {
   return (
-    <input
-      type='number'
-      min='0'
-      step='any'
-      value={value ?? ''}
-      onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
-      className={inputClass}
-      placeholder='No limit set'
-    />
+    <section className='bg-card/45 space-y-4 rounded-2xl border border-white/10 p-4 sm:p-6'>
+      <div className='flex flex-wrap items-start justify-between gap-2'>
+        <div className='space-y-1'>
+          <h2 className='text-lg font-semibold tracking-tight'>{title}</h2>
+          <p className={muted}>{description}</p>
+        </div>
+        {badge === undefined ? null : (
+          <span className='text-muted-foreground rounded-full border border-white/12 bg-white/5 px-2.5 py-1 text-xs'>
+            Live: {badge}
+          </span>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Disclosure({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <details
+      className='group bg-card/45 rounded-2xl border border-white/10'
+      onToggle={event => setExpanded(event.currentTarget.open)}
+    >
+      <summary className='flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3.5 sm:px-6 [&::-webkit-details-marker]:hidden'>
+        <span className='space-y-1'>
+          <span className='block font-medium'>{title}</span>
+          <span className='text-muted-foreground block text-sm'>{description}</span>
+        </span>
+        <ChevronDown
+          aria-hidden='true'
+          className='text-muted-foreground size-4 shrink-0 transition-transform group-open:rotate-180'
+        />
+      </summary>
+      {expanded ? (
+        <div className='space-y-5 border-t border-white/10 p-4 sm:p-6'>{children}</div>
+      ) : null}
+    </details>
+  );
+}
+
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className='min-w-0 space-y-1.5'>
+      <label className='flex flex-col gap-2 text-sm font-medium'>
+        {label}
+        {children}
+      </label>
+      {hint === undefined ? null : (
+        <p className='text-muted-foreground text-xs leading-relaxed'>{hint}</p>
+      )}
+    </div>
+  );
+}
+
+function LimitField({
+  label,
+  value,
+  onChange,
+  step = '1',
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+  step?: string;
+}) {
+  return (
+    <Field label={label}>
+      <input
+        type='number'
+        min='0'
+        step={step}
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        className={inputClass}
+        placeholder='No limit'
+      />
+    </Field>
   );
 }

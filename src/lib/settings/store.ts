@@ -39,28 +39,42 @@ export async function saveSettingsPatch(
   target: 'defaults' | 'overrides' = 'overrides'
 ): Promise<StoredSettings> {
   const valid = settingsPatchSchema.parse(patch);
-  return prisma.$transaction(async tx => {
-    const current = decode(await tx.albumSettings.findUnique({ where: { id: 'default' } }));
-    const defaults =
-      target === 'defaults'
-        ? settingsSchema.parse({ ...current.defaults, ...valid })
-        : current.defaults;
-    const overrides =
-      target === 'overrides' ? { ...current.overrides, ...valid } : current.overrides;
-    const row = await tx.albumSettings.upsert({
-      where: { id: 'default' },
-      create: {
-        id: 'default',
-        version: SETTINGS_VERSION,
-        defaults: defaults as Prisma.InputJsonValue,
-        overrides: overrides as Prisma.InputJsonValue,
-      },
-      update: {
-        version: SETTINGS_VERSION,
-        defaults: defaults as Prisma.InputJsonValue,
-        overrides: overrides as Prisma.InputJsonValue,
-      },
-    });
-    return decode(row);
-  });
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async tx => {
+          const current = decode(await tx.albumSettings.findUnique({ where: { id: 'default' } }));
+          const defaults =
+            target === 'defaults'
+              ? settingsSchema.parse({ ...current.defaults, ...valid })
+              : current.defaults;
+          const overrides =
+            target === 'overrides' ? { ...current.overrides, ...valid } : current.overrides;
+          const values = {
+            version: SETTINGS_VERSION,
+            defaults: defaults as Prisma.InputJsonValue,
+            overrides: overrides as Prisma.InputJsonValue,
+          };
+          return decode(
+            await tx.albumSettings.upsert({
+              where: { id: 'default' },
+              create: { id: 'default', ...values },
+              update: values,
+            })
+          );
+        },
+        { isolationLevel: 'Serializable' }
+      );
+    } catch (error) {
+      // Retry a write conflict so simultaneous chat and site patches merge.
+      if (
+        attempt >= 2 ||
+        typeof error !== 'object' ||
+        error === null ||
+        !('code' in error) ||
+        error.code !== 'P2034'
+      )
+        throw error;
+    }
+  }
 }

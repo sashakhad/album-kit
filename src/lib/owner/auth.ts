@@ -77,9 +77,16 @@ export async function isOwner(): Promise<boolean> {
   return cookie !== undefined && safeEqual(cookie, ownerCookieValue(key));
 }
 
-export function safeNextPath(next: string | undefined): string {
-  if (next === undefined || !next.startsWith('/') || next.startsWith('//') || next.includes('\\')) {
-    return '/vote';
+export function safeNextPath(next: string | undefined, fallback = '/vote'): string {
+  if (
+    next === undefined ||
+    !next.startsWith('/') ||
+    next.startsWith('//') ||
+    next.includes('\\') ||
+    /\s/.test(next) ||
+    new URL(next, 'https://album.invalid').origin !== 'https://album.invalid'
+  ) {
+    return fallback;
   }
   return next;
 }

@@ -149,6 +149,11 @@ model AccessInvite {
   createdAt  DateTime @default(now())
 }
 
+model OwnerSignInLink {
+  tokenHash String   @id
+  expiresAt DateTime
+}
+
 model VoteAttempt {
   id        String   @id @default(cuid())
   bucket    String

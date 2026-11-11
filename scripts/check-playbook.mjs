@@ -5,20 +5,14 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SKILLS_DIR = path.join(ROOT, '.cursor', 'skills');
 const EXAMPLES_DIR = path.join(ROOT, 'examples');
+const APP_DIR = path.join(ROOT, 'src', 'app');
+const packageJson = JSON.parse(await readFile(path.join(ROOT, 'package.json'), 'utf8'));
+const allowedScripts = new Set(['install', 'exec', ...Object.keys(packageJson.scripts)]);
+const routes = (await listFiles(path.join(APP_DIR, 'api')))
+  .filter(file => path.basename(file) === 'route.ts')
+  .map(file => path.relative(APP_DIR, path.dirname(file)).split(path.sep));
 
-const ALLOWED_SCRIPTS = new Set(['setup:site', 'takes:upload', 'publish:album', 'install', 'dev']);
-const ALLOWED_ROUTES = new Set([
-  '/api/owner/session',
-  '/api/votes',
-  '/api/pass',
-  '/api/downloads',
-  '/api/audio',
-  '/api/owner/upload',
-  '/api/owner/takes/move',
-  '/api/owner/takes/park',
-]);
-
-const PNPM_SCRIPT = /\bpnpm\s+(?:run\s+)?([A-Za-z][\w:-]*)/g;
+const PNPM_SCRIPT = /(?:^\s*|`)pnpm\s+(?:run\s+)?([A-Za-z][\w:-]*)/g;
 const API_PATH = /\/api\/[\w\-.~/<>[\]{}$]*/g;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const SUNO_CDN = /cdn1\.suno\.ai/gi;
@@ -99,7 +93,12 @@ function trimRoute(raw) {
 }
 
 function isAllowedRoute(route) {
-  return ALLOWED_ROUTES.has(route) || route.startsWith('/api/audio/');
+  const parts = route.slice(1).split('/');
+  return routes.some(
+    template =>
+      parts.length <= template.length &&
+      parts.every((part, index) => template[index] === part || /^\[.+\]$/.test(template[index]))
+  );
 }
 
 function checkFrontmatter(file, text) {
@@ -120,7 +119,7 @@ function checkCommandsAndRoutes(file, lines) {
   for (const [index, line] of lines.entries()) {
     for (const match of line.matchAll(PNPM_SCRIPT)) {
       const script = match[1].replace(/[:-]+$/, '');
-      if (!ALLOWED_SCRIPTS.has(script)) {
+      if (!allowedScripts.has(script)) {
         report(file, index + 1, `names pnpm ${script}, which is not a playbook script`);
       }
     }
@@ -165,8 +164,8 @@ async function main() {
     checkFrontmatter(skillFile, text);
   }
 
-  const skillFiles = await listFiles(SKILLS_DIR);
-  for (const file of skillFiles) {
+  const playbookFiles = [...(await listFiles(SKILLS_DIR)), path.join(ROOT, 'grokbot', 'BOT.md')];
+  for (const file of playbookFiles) {
     const lines = (await readFile(file, 'utf8')).split(/\r?\n/);
     checkCommandsAndRoutes(file, lines);
     checkForLeaks(file, lines);

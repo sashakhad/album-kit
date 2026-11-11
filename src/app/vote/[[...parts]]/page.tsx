@@ -53,6 +53,7 @@ export default async function VotePage({ params }: VotePageProps) {
       trackSlug,
       versionSlug,
       takeSlug,
+      signInHref: `/key?next=${encodeURIComponent(votePath(parts))}`,
       visibility: settings.visibility,
       listeningDetails: settings.listeningDetails,
     });
@@ -82,11 +83,7 @@ export default async function VotePage({ params }: VotePageProps) {
       awaitingReveal={awaitingReveal}
       track={track}
       initialTake={initialTake}
-      note={
-        settings.listenerVoting
-          ? 'Listener scores, when other people have voted, appear beside yours. They stay off your picks, and only you start the next round.'
-          : null
-      }
+      showListenerScores={settings.listenerVoting}
     />
   );
 }
@@ -95,6 +92,7 @@ async function listenerVotePage(args: {
   trackSlug: string | undefined;
   versionSlug: string | undefined;
   takeSlug: string | undefined;
+  signInHref: string;
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
 }) {
@@ -123,7 +121,7 @@ async function listenerVotePage(args: {
       awaitingReveal={awaitingReveal}
       track={track}
       initialTake={initialTake}
-      note='Play a take, then tap + or − to score it.'
+      signInHref={args.signInHref}
     />
   );
 }
@@ -135,7 +133,8 @@ function VoteMain({
   awaitingReveal,
   track,
   initialTake,
-  note,
+  signInHref,
+  showListenerScores = false,
 }: {
   version: AlbumVersion;
   votes: VoteSnapshot;
@@ -143,51 +142,38 @@ function VoteMain({
   awaitingReveal: boolean;
   track: AlbumTrack | null;
   initialTake: { label: string } | null;
-  note: string | null;
+  signInHref?: string;
+  showListenerScores?: boolean;
 }) {
   return (
-    <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10'>
-      {note === null ? null : (
-        <p className='text-muted-foreground mb-5 max-w-2xl text-sm'>{note}</p>
-      )}
-      {voter === 'listener' ? (
+    <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8'>
+      <div className='mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-white/10 pb-2'>
+        <p className='text-muted-foreground text-sm'>
+          <span className='text-foreground font-medium'>
+            {voter === 'owner' ? `Owner · Round ${votes.currentRound}` : 'Listener ballot'}
+          </span>
+          <span className='ml-2'>Tap + or − to score a take.</span>
+        </p>
         <Link
-          href='/key?next=/vote'
-          className='text-muted-foreground mb-5 inline-flex min-h-11 items-center text-sm underline underline-offset-4'
+          href={signInHref ?? '/final'}
+          className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-sm underline underline-offset-4'
         >
-          Owner sign-in
+          {voter === 'owner' ? 'Choose final picks' : 'Sign in as owner'}
         </Link>
-      ) : null}
-      {track === null ? (
-        <AlbumPlayer
-          version={version}
-          votes={votes}
-          surface='vote'
-          voter={voter}
-          awaitingReveal={awaitingReveal}
-        />
-      ) : initialTake === null ? (
-        <AlbumPlayer
-          version={version}
-          votes={votes}
-          surface='vote'
-          voter={voter}
-          awaitingReveal={awaitingReveal}
-          initialTrackNumber={track.number}
-          initialTrackTitle={track.title}
-        />
-      ) : (
-        <AlbumPlayer
-          version={version}
-          votes={votes}
-          surface='vote'
-          voter={voter}
-          awaitingReveal={awaitingReveal}
-          initialTrackNumber={track.number}
-          initialTrackTitle={track.title}
-          initialTakeLabel={initialTake.label}
-        />
-      )}
+      </div>
+      <AlbumPlayer
+        key={`${voter}-${votes.currentRound}`}
+        version={version}
+        votes={votes}
+        surface='vote'
+        voter={voter}
+        awaitingReveal={awaitingReveal}
+        showListenerScores={showListenerScores}
+        {...(track === null
+          ? {}
+          : { initialTrackNumber: track.number, initialTrackTitle: track.title })}
+        {...(initialTake === null ? {} : { initialTakeLabel: initialTake.label })}
+      />
     </main>
   );
 }

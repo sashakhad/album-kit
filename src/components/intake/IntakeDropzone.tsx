@@ -108,12 +108,12 @@ export function IntakeDropzone({ access = 'public' }: { access?: 'public' | 'pri
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
         className={cn(
-          'flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-10 text-center',
+          'focus-within:ring-ring flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-8 text-center focus-within:ring-2 sm:p-10',
           dragging ? 'border-primary bg-white/6' : 'border-white/15 hover:bg-white/4'
         )}
       >
         <Upload className='text-muted-foreground size-6' />
-        <span className='text-sm'>Drop .mp3 takes here, or click to pick files</span>
+        <span className='text-sm'>Choose MP3 files or drop them here</span>
         <input
           type='file'
           accept='.mp3,audio/mpeg'
