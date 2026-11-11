@@ -1,5 +1,7 @@
 import type { AlbumConfig, AlbumConfigTrack } from '@/lib/album/album-config';
 import { parseCanonicalTake } from '@/lib/album/parse-filename';
+import { takeDisplayLabel } from '@/lib/album/take-label';
+import { voteHref } from '@/lib/album/play-path';
 import { resolveTrack } from '@/lib/album/play-path';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 
@@ -57,14 +59,22 @@ export function buildListenVersion(args: {
     if (main === null) {
       continue;
     }
-    tracks.push(trackWithTake(configTrack.number, configTrack.title, main));
+    tracks.push({
+      ...trackWithTake(configTrack.number, configTrack.title, main),
+      listenSlug: configTrack.slug,
+      status: 'picked',
+    });
 
     if (configTrack.vip === undefined) {
       continue;
     }
     const vip = pinnedTake(args.versions, configTrack.number, configTrack.vip);
     if (vip !== null) {
-      tracks.push(trackWithTake(configTrack.number, listenVipTitle(configTrack), vip));
+      tracks.push({
+        ...trackWithTake(configTrack.number, listenVipTitle(configTrack), vip),
+        listenSlug: `${configTrack.slug}-vip`,
+        status: 'picked',
+      });
     }
   }
 
@@ -125,7 +135,14 @@ function pinnedTake(
     return null;
   }
   return {
-    label: `${version.title} ${take.voteLabel}`,
+    label: takeDisplayLabel(
+      versions
+        .flatMap(
+          item =>
+            item.tracks.find(row => row.kind === 'album' && row.number === trackNumber)?.takes ?? []
+        )
+        .findIndex(item => item.filename === take.filename)
+    ),
     filename: take.filename,
     audioUrl: take.audioUrl,
     versionSlug: take.versionSlug,
@@ -159,4 +176,52 @@ function numberListenTracks(tracks: readonly AlbumTrack[]): AlbumTrack[] {
 
 function trackByTitle(listen: AlbumVersion, title: string): AlbumTrack | null {
   return listen.tracks.find(track => track.title === title) ?? null;
+}
+
+/** One playable choice per track; previews never write a final selection. */
+export function buildListeningQueue(
+  config: AlbumConfig,
+  pinned: AlbumVersion,
+  preview: AlbumVersion | null
+): AlbumVersion {
+  const tracks: AlbumTrack[] = [];
+  for (const item of config.tracks.filter(track => track.parked !== true)) {
+    const selected = pinned.tracks.find(track => track.listenSlug === item.slug);
+    const current = preview?.tracks.find(track => track.number === item.number);
+    const compareHref =
+      preview === null || current?.takes.length === 0 || current === undefined
+        ? undefined
+        : voteHref({ title: item.title });
+    const first = current?.takes[0];
+    const base: AlbumTrack = selected ?? {
+      number: item.number,
+      title: item.title,
+      kind: 'album',
+      takes: first === undefined ? [] : [first],
+      parkedTakes: [],
+      filename: first?.filename ?? null,
+      audioUrl: first?.audioUrl ?? null,
+      prompt: null,
+      status: first === undefined ? 'waiting' : 'preview',
+      listenSlug: item.slug,
+    };
+    const pinnedDetails =
+      selected === undefined
+        ? undefined
+        : current?.takes.find(
+            take =>
+              take.versionSlug === selected.takes[0]?.versionSlug &&
+              take.filename === selected.takes[0]?.filename
+          );
+    tracks.push({
+      ...base,
+      ...(compareHref === undefined ? {} : { compareHref }),
+      ...(pinnedDetails === undefined
+        ? {}
+        : { takes: [pinnedDetails], audioUrl: pinnedDetails.audioUrl }),
+    });
+    const vip = pinned.tracks.find(track => track.listenSlug === `${item.slug}-vip`);
+    if (vip !== undefined) tracks.push(vip);
+  }
+  return { ...pinned, tracks: numberListenTracks(tracks) };
 }

@@ -103,8 +103,35 @@ describe('AlbumPlayer', () => {
     expect(screen.getByRole('heading', { name: 'Track One' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^01track one/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /track two/i })).toBeDisabled();
-    expect(screen.getByRole('heading', { name: 'Prompt for A' })).toBeInTheDocument();
-    expect(screen.getByText('Warm and wide.')).toBeInTheDocument();
+    expect(screen.getByText('Prompt · Take A')).toBeInTheDocument();
+    expect(screen.getByText('Warm and wide.')).not.toBeVisible();
+    expect(document.querySelector('[data-prompt]')).not.toHaveAttribute('open');
+  });
+
+  it('keeps the prompt below playback, closed initially, and open while switching takes', async () => {
+    const user = userEvent.setup();
+    render(<AlbumPlayer version={sampleVersion} />);
+    const prompt = document.querySelector('[data-prompt]')!;
+    const controls = document.querySelector('[data-player-controls]')!;
+    expect(
+      controls.compareDocumentPosition(prompt) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(prompt).not.toHaveAttribute('open');
+    await user.click(screen.getByText('Prompt · Take A'));
+    expect(prompt).toHaveAttribute('open');
+    await user.click(screen.getAllByRole('button', { name: 'Take B' })[0]!);
+    expect(prompt).toHaveAttribute('open');
+    expect(screen.getByText('Prompt · Take B')).toBeInTheDocument();
+  });
+
+  it('shows audio failures and lets the listener retry', async () => {
+    const user = userEvent.setup();
+    render(<AlbumPlayer version={sampleVersion} />);
+    fireEvent.error(audioElement());
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not load');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('plays a ready track when selected', async () => {
@@ -136,7 +163,7 @@ describe('AlbumPlayer', () => {
     }
     await user.click(takeB);
 
-    expect(screen.getByText(/take B/i)).toBeInTheDocument();
+    expect(screen.getByText(/0[13] · Take B/)).toBeInTheDocument();
     expect(audioElement().getAttribute('src')).toBe('/api/audio/v1/01-track-one-takeb.mp3');
   });
 
@@ -156,7 +183,7 @@ describe('AlbumPlayer', () => {
     const user = userEvent.setup();
     render(<AlbumPlayer version={sampleVersion} />);
 
-    await user.click(screen.getByRole('button', { name: 'Variations' }));
+    await user.click(screen.getByRole('button', { name: 'Compare this track' }));
     await user.click(screen.getByRole('button', { name: 'Play' }));
     fireEvent.ended(audioElement());
 
@@ -169,8 +196,8 @@ describe('AlbumPlayer', () => {
     const user = userEvent.setup();
     render(<AlbumPlayer version={sampleVersion} />);
 
-    await user.click(screen.getByRole('button', { name: 'Variations' }));
-    await user.click(screen.getByRole('button', { name: 'Start at B' }));
+    await user.click(screen.getByRole('button', { name: 'Compare this track' }));
+    await user.click(screen.getAllByRole('button', { name: 'Take B' })[0]!);
     fireEvent.ended(audioElement());
 
     expect(screen.getByRole('heading', { name: 'Track One' })).toBeInTheDocument();
@@ -181,11 +208,11 @@ describe('AlbumPlayer', () => {
     const user = userEvent.setup();
     render(<AlbumPlayer version={sampleVersion} />);
 
-    await user.click(screen.getByRole('button', { name: 'Variations' }));
+    await user.click(screen.getByRole('button', { name: 'Compare this track' }));
     await user.click(screen.getByRole('button', { name: 'Next variation' }));
     expect(audioElement().getAttribute('src')).toBe('/api/audio/v1/01-track-one-takeb.mp3');
 
-    await user.click(screen.getByRole('button', { name: 'Album' }));
+    await user.click(screen.getByRole('button', { name: 'Play album' }));
     await user.click(screen.getByRole('button', { name: 'Next track' }));
     expect(screen.getByRole('heading', { name: 'Track Three' })).toBeInTheDocument();
   });
@@ -194,7 +221,7 @@ describe('AlbumPlayer', () => {
     render(<AlbumPlayer version={sampleVersion} initialTrackNumber={3} initialTakeLabel='B' />);
 
     expect(screen.getByRole('heading', { name: 'Track Three' })).toBeInTheDocument();
-    expect(screen.getByText(/take B/i)).toBeInTheDocument();
+    expect(screen.getByText(/0[13] · Take B/)).toBeInTheDocument();
     expect(audioElement().getAttribute('src')).toBe('/api/audio/v1/03-track-three-takeb.mp3');
   });
 
@@ -268,7 +295,7 @@ describe('AlbumPlayer', () => {
 
     expect(screen.getAllByRole('button', { name: 'Take A' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: 'Take B' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('-1').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('−1').length).toBeGreaterThan(0);
   });
 
   it('keeps showing a score from an earlier round', () => {
@@ -289,7 +316,7 @@ describe('AlbumPlayer', () => {
     );
 
     expect(screen.getAllByRole('button', { name: 'Take A' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('-2').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('−2').length).toBeGreaterThan(0);
   });
 
   it('shows the round controls on the vote surface', () => {
@@ -297,7 +324,8 @@ describe('AlbumPlayer', () => {
       <AlbumPlayer version={passVersion} votes={{ ...EMPTY_VOTE_SNAPSHOT, currentRound: 2 }} />
     );
 
-    expect(screen.getAllByText('Round 2')).toHaveLength(2);
+    fireEvent.click(screen.getByText('Round 2 · Manage round'));
+    expect(screen.getByText('Round 2')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next round' })).toBeInTheDocument();
   });
 
@@ -318,7 +346,7 @@ describe('AlbumPlayer', () => {
               takes: [keeper],
               parkedTakes: [
                 {
-                  label: 'Bubu D',
+                  label: 'D',
                   filename: 'v1-11-track-eleven-p2-taked.mp3',
                   audioUrl: '/d.mp3',
                   versionSlug: 'v1',
@@ -332,9 +360,9 @@ describe('AlbumPlayer', () => {
     );
 
     expect(screen.getByText('Possible renames')).toBeInTheDocument();
-    expect(screen.getByText('Bubu D')).toBeInTheDocument();
+    expect(screen.getByText('D')).toBeInTheDocument();
     expect(screen.getByText('1 take parked under Possible renames.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Take Bubu D' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Take D' })).not.toBeInTheDocument();
   });
 
   it('keeps a fully parked track off the shortlist and under Possible renames', async () => {
@@ -353,7 +381,7 @@ describe('AlbumPlayer', () => {
               takes: [],
               parkedTakes: [
                 {
-                  label: 'Bubu F',
+                  label: 'F',
                   filename: 'v1-21-track-twenty-one-p3-takef.mp3',
                   audioUrl: '/twenty-one-f.mp3',
                   versionSlug: 'v1',
@@ -368,10 +396,10 @@ describe('AlbumPlayer', () => {
     );
 
     expect(screen.getByText('Possible renames')).toBeInTheDocument();
-    expect(screen.getByText('Bubu F')).toBeInTheDocument();
+    expect(screen.getByText('F')).toBeInTheDocument();
     expect(screen.queryByText('Waiting')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^21track twenty-onebubu f/i }));
+    await user.click(screen.getByRole('button', { name: /^21track twenty-onef/i }));
 
     expect(screen.getByRole('heading', { name: 'Track Twenty-One' })).toBeInTheDocument();
     expect(audioElement().getAttribute('src')).toBe('/twenty-one-f.mp3');
@@ -381,7 +409,7 @@ describe('AlbumPlayer', () => {
     const user = userEvent.setup();
     render(<AlbumPlayer version={passVersion} />);
 
-    await user.click(screen.getByRole('button', { name: 'Variations' }));
+    await user.click(screen.getByRole('button', { name: 'Compare this track' }));
     await user.click(screen.getByRole('button', { name: 'Play' }));
     fireEvent.ended(audioElement());
 
@@ -442,14 +470,14 @@ const passVersion: AlbumVersion = {
       audioUrl: '/c.mp3',
       takes: [
         {
-          label: 'Bubu C',
+          label: 'A',
           filename: 'v1-11-track-eleven-p1-takec.mp3',
           audioUrl: '/c.mp3',
           versionSlug: 'v1',
           voteLabel: 'C',
         },
         {
-          label: 'Lulu B',
+          label: 'B',
           filename: 'v2-11-track-eleven-p1-takeb.mp3',
           audioUrl: '/b.mp3',
           versionSlug: 'v2',

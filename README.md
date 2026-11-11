@@ -33,7 +33,7 @@ The owner-only `/settings` page controls the Suno model policy, prompt writer, v
 
 Auto resolves against the connected Suno account's supported quality model before each round. [Suno currently recommends v6](https://help.suno.com/en/articles/13924737) for eligible accounts; that version is not pinned forever. Grok Bot prompt records say **model undisclosed**. A Cursor model label is verified only from its runtime output. The site has no Cursor execution adapter yet, so selecting Cursor requires a real Cursor handoff and a verified external estimate before a paid round can begin.
 
-Visible listening shows the selected take's Style prompt from its track sheet beside the player, plus saved provenance when available. This applies to owners and listeners. Reveal after voting waits until every available take has a vote in the round. Keep hidden omits those details from voting. Blind voting saves a randomized order, uses neutral labels and opaque audio URLs, and omits filenames and prompt details from the browser payload. Deliberately opening Studio records exposure, so later votes can be interpreted correctly. New uploads strip common MP3 metadata; migrate or scrub older takes before claiming a legacy round is blind.
+Visible listening shows the selected take's Style prompt from its track sheet in the collapsed Prompt section below the playback controls, plus saved provenance when available. This applies to owners and listeners. Reveal after voting waits until every available take has a vote in the round. Keep hidden omits those details from voting. Blind voting saves a randomized order, uses neutral labels and opaque audio URLs, and omits filenames and prompt details from the browser payload. Deliberately opening Studio records exposure, so later votes can be interpreted correctly. New uploads strip common MP3 metadata; migrate or scrub older takes before claiming a legacy round is blind.
 
 The bot saves each round's settings, resolved model, capability snapshot, estimate and authorization. It records operation IDs before Suno calls, and provider IDs after acceptance. Retry a known job by polling it, not by making another paid generation. Per-take provenance is recorded through `/api/owner/provenance`; missing model information stays explicitly unverified.
 
@@ -57,3 +57,7 @@ Run `pnpm check` for formatting, lint, types and tests. Run `pnpm publish:album 
 - No title joke or joke-derived musical premise goes in a Suno Style prompt.
 - The owner judges takes; the bot does not choose winners.
 - No live Suno credits or third-party model spend are used by repository tests.
+
+### Listening and previews
+
+Listen is the primary listening page. It plays an owner's final pick when one exists, or the first available current take as a Preview for owners and people allowed to vote. Preview playback never saves a final pick. With listener voting off, visitors can only play published picks. Private albums still require an invitation. Compare takes opens the scoring screen; each neutral take label keeps a score visible, including zero. Prompts start collapsed below the player and follow the saved visibility/reveal policy. Source-set names are retained internally, not used as listening labels.

@@ -11,6 +11,7 @@ export function DownloadButton({
   trackNumber,
   versionSlug,
   takeLabel,
+  displayLabel = takeLabel,
   trackTitle,
   audioUrl,
   votes,
@@ -19,6 +20,7 @@ export function DownloadButton({
   trackNumber: number;
   versionSlug: string;
   takeLabel: string;
+  displayLabel?: string;
   trackTitle: string;
   audioUrl: string;
   votes: VoteSnapshot;
@@ -63,11 +65,11 @@ export function DownloadButton({
       aria-pressed={saved}
       aria-label={
         saved
-          ? `Saved take ${takeLabel} of ${trackTitle}`
-          : `Save take ${takeLabel} of ${trackTitle}`
+          ? `Saved take ${displayLabel} of ${trackTitle}`
+          : `Save take ${displayLabel} of ${trackTitle}`
       }
       className={cn(
-        'flex size-10 items-center justify-center rounded-md',
+        'flex size-11 shrink-0 items-center justify-center rounded-md',
         saved
           ? 'text-primary bg-primary/12'
           : 'text-muted-foreground hover:text-foreground hover:bg-white/6'

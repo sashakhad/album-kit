@@ -31,6 +31,9 @@ export type AlbumTrack = {
   parked?: boolean;
   prompt: string | null;
   videoUrl?: string | null;
+  status?: 'preview' | 'picked' | 'waiting';
+  listenSlug?: string;
+  compareHref?: string;
 };
 
 export type AlbumVersion = {

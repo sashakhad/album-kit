@@ -111,6 +111,6 @@ describe('VoteButton', () => {
       })
     );
     expect(downvote).not.toHaveAttribute('aria-pressed');
-    expect(screen.getByText('-2')).toBeInTheDocument();
+    expect(screen.getByText('−2')).toBeInTheDocument();
   });
 });

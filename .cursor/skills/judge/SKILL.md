@@ -30,7 +30,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - From round 2 on, a take is out if it ended an earlier round with a negative score, and a parked take moves under Possible renames.
    - When a new round starts, each take's latest positive score carries into it. Zero and negative scores don't carry. Takes at zero and takes with no votes stay in.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
-   - Visible mode shows the selected take's Style prompt beside the player. Blind modes hide it until the selected reveal point.
+   - Visible mode shows the selected take's Style prompt in the collapsed Prompt section below the playback controls. Blind modes hide it until the selected reveal point.
    - When the owner is ready to choose album versions, open `/final`. Picks made there appear on `/listen` immediately.
 
 2. **Read the scores.**
@@ -49,7 +49,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 
    It answers with `currentRound` and the new scores.
 
-4. **Find a take's file.** In Visible mode, match the displayed set and letter to the sheet's Canonical files table. In a blind mode, displayed letters are shuffled aliases; never guess the canonical filename from them. Resolve it only after the owner deliberately reveals assignments in Studio, which records that exposure, or use a supported server-side operation that accepts an alias without showing the assignment in chat.
+4. **Find a take's file.** Visible listening uses neutral display letters across sets too. Resolve the take through its server-side set and canonical letter; do not infer a filename from the display letter. In a blind mode, displayed letters are shuffled aliases; never guess the canonical filename from them. Resolve it only after the owner deliberately reveals assignments in Studio, which records that exposure, or use a supported server-side operation that accepts an alias without showing the assignment in chat.
 
 5. **Park or unpark a take.**
 

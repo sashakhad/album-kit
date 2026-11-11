@@ -1,3 +1,4 @@
+import { takeDisplayLabel } from '@/lib/album/take-label';
 import type { CanonicalTrack } from '@/lib/album/build-version';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 
@@ -182,6 +183,7 @@ export function buildConsolidatedPassVersion(args: {
     const parkedTakes: AlbumTake[] = [];
     let prompt: string | null = null;
     let hadAnyTake = false;
+    let takeIndex = 0;
 
     for (const version of args.versions) {
       const track = version.tracks.find(
@@ -196,7 +198,7 @@ export function buildConsolidatedPassVersion(args: {
       for (const take of track.takes) {
         hadAnyTake = true;
         const labeled = {
-          label: `${version.title} ${take.voteLabel}`,
+          label: takeDisplayLabel(takeIndex++),
           filename: take.filename,
           audioUrl: take.audioUrl,
           versionSlug: take.versionSlug,
