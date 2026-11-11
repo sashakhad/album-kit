@@ -9,23 +9,40 @@ export function SiteHeader({
   albumTitle,
   isOwner,
   showVote = isOwner,
+  showListen = true,
 }: {
   albumTitle: string;
   isOwner: boolean;
   showVote?: boolean;
+  showListen?: boolean;
 }) {
   const pathname = usePathname();
 
   return (
     <header className='border-b border-white/8'>
-      <div className='mx-auto flex max-w-6xl flex-wrap items-baseline justify-between gap-4 px-4 py-4 sm:px-6'>
-        <Link href='/' className='text-foreground hover:text-primary text-2xl tracking-tight'>
+      <div className='mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6'>
+        <Link
+          href={showListen ? '/' : '/key'}
+          className='text-foreground hover:text-primary inline-flex min-h-11 min-w-0 items-center text-xl tracking-tight sm:text-2xl'
+        >
           {albumTitle}
         </Link>
-        <nav aria-label='Album' className='flex max-w-full flex-wrap items-center gap-1'>
-          <NavPill href='/listen' active={isSection(pathname, '/listen')}>
-            Listen
-          </NavPill>
+        <nav
+          aria-label='Album'
+          className={cn(
+            'max-w-full items-center gap-1',
+            isOwner ? 'grid w-full grid-cols-4 sm:flex sm:w-auto' : 'flex flex-wrap'
+          )}
+        >
+          {showListen ? (
+            <NavPill href='/listen' active={isSection(pathname, '/listen')}>
+              Listen
+            </NavPill>
+          ) : (
+            <NavPill href='/key' active={isSection(pathname, '/key')}>
+              Owner sign-in
+            </NavPill>
+          )}
           {showVote ? (
             <NavPill href='/vote' active={isSection(pathname, '/vote')}>
               Compare takes
@@ -36,25 +53,9 @@ export function SiteHeader({
               <NavPill href='/final' active={isSection(pathname, '/final')}>
                 Final picks
               </NavPill>
-              <details className='relative'>
-                <summary className='text-muted-foreground flex min-h-11 cursor-pointer items-center rounded-lg px-3 text-sm hover:bg-white/6'>
-                  Tools
-                </summary>
-                <div className='bg-background absolute right-0 z-50 mt-2 w-40 rounded-xl border border-white/15 p-2 shadow-xl'>
-                  <Link
-                    href='/intake'
-                    className='flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-white/6'
-                  >
-                    Intake
-                  </Link>
-                  <Link
-                    href='/settings'
-                    className='flex min-h-11 items-center rounded-lg px-3 text-sm hover:bg-white/6'
-                  >
-                    Settings
-                  </Link>
-                </div>
-              </details>
+              <NavPill href='/settings' active={isSection(pathname, '/settings')}>
+                Settings
+              </NavPill>
             </>
           ) : null}
         </nav>
@@ -69,7 +70,7 @@ function NavPill({ href, active, children }: { href: string; active: boolean; ch
       href={href}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'inline-flex min-h-11 items-center rounded-lg px-3 text-sm',
+        'inline-flex min-h-11 items-center justify-center rounded-lg px-2 text-center text-sm leading-tight sm:px-3',
         active
           ? 'bg-primary text-primary-foreground'
           : 'text-muted-foreground hover:text-foreground hover:bg-white/6'

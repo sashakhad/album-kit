@@ -147,9 +147,8 @@ describe('AlbumPlayer', () => {
   it('shows an upload hint when a version has no audio', () => {
     render(<AlbumPlayer version={emptyVersion} />);
 
-    expect(screen.getByText(/no takes yet/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Intake' })).toHaveAttribute('href', '/intake');
-    expect(screen.getByText('v1-01-track-one-p1-takea.mp3')).toBeInTheDocument();
+    expect(screen.getByText(/no takes to compare yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'upload takes' })).toHaveAttribute('href', '/intake');
     expect(screen.getByRole('button', { name: 'Play' })).toBeDisabled();
   });
 
@@ -325,8 +324,7 @@ describe('AlbumPlayer', () => {
     );
 
     fireEvent.click(screen.getByText('Round 2 · Manage round'));
-    expect(screen.getByText('Round 2')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Next round' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start round 3' })).toBeInTheDocument();
   });
 
   it('names parked takes on the round without putting them on the shortlist', () => {
@@ -422,7 +420,7 @@ describe('AlbumPlayer', () => {
 
     expect(screen.queryByRole('button', { name: /upvote/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /downvote/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Next round/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Start round/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Take / })).not.toBeInTheDocument();
     expect(screen.queryByText(/Bubu C/)).not.toBeInTheDocument();
   });

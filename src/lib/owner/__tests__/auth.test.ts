@@ -143,5 +143,6 @@ describe('safeNextPath', () => {
     expect(safeNextPath('https://example.com')).toBe('/vote');
     expect(safeNextPath('//example.com')).toBe('/vote');
     expect(safeNextPath('/\\example.com')).toBe('/vote');
+    expect(safeNextPath('/\t/example.com')).toBe('/vote');
   });
 });

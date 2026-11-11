@@ -23,12 +23,12 @@ When Suno accepts the call, immediately PATCH the job with `status: accepted` an
 
 Download every take in the authorized allowance once. Save it under the canonical filename from the sheet in `album/audio/`, then use `pnpm takes:upload <files...>`. The uploader skips existing names. It strips Suno tags. If downloads, uploads or capabilities differ from the estimate, pause only the affected step and show the precise difference; never silently expand the batch.
 
-Before sending a voting link, POST `/api/owner/rounds/<id>/ready`. It verifies every planned job is complete and every recorded take has matching provenance and stored audio; report any named blocker it returns. Check actual output counts against the estimate, audio playback and the site's visibility. Send the owner `$SITE/vote`. Tell them to open `$SITE/key` while signed in, or Settings, to see and copy the album key onto another device. Never paste the key into chat, and never put it in a URL.
+Before sending a voting link, POST `/api/owner/rounds/<id>/ready`. It verifies every planned job is complete and every recorded take has matching provenance and stored audio; report any named blocker it returns. Check actual output counts against the estimate, audio playback and the site's visibility. Run `pnpm owner:link /vote` in the album checkout and give the owner **Compare takes as owner** in their private chat. They tap **Continue as owner**. An owner link works once and expires in ten minutes. Create a fresh one if needed. Never paste the permanent album key into chat or a URL.
 
-Read `listenerVoting` and `visibility` from `/api/owner/settings` before you say who else can vote.
+Read `listenerVoting` and `visibility` from `pnpm album:settings` before sharing.
 
-- When listener voting is off, say that `/vote` signs in the owner. Someone else who opens it sees the key page, which points them to Listen.
-- When listener voting is on and the album is public, friends can open the same `/vote` link and vote without the key. Their scores stay off the owner's ballot.
-- When listener voting is on and the album is private, create an invitation with POST `/api/owner/invites` and send that link. The secret is in the fragment after `#`, not in a query string. The invitation lets them listen and vote. It is not the owner key.
+- Public: share `/listen`. It plays final picks and, when listener voting is on, previews with links to Compare takes.
+- Private: create a listener invitation with POST `/api/owner/invites` or Settings → Sharing. Its secret is in the URL fragment. It grants listener access only.
+- Unset: keep the album unshared until the owner chooses visibility. Owner links still work.
 
 If listening mode is blind, do not show identifying prompts or model details in chat, filenames, downloads or public routes. If the owner has already seen assignments, say the current round is exposed. Report meaningful events only: preparing, awaiting sign-in, generating after Suno acceptance, collecting audio, ready to listen, or a named blocker. Follow `publish` for sheet and log changes when permitted.

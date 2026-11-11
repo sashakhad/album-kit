@@ -55,6 +55,7 @@ export function AlbumPlayer({
   surface,
   awaitingReveal = false,
   voter = 'owner',
+  showListenerScores = true,
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -64,6 +65,7 @@ export function AlbumPlayer({
   surface?: PlayerSurface;
   awaitingReveal?: boolean;
   voter?: 'owner' | 'listener';
+  showListenerScores?: boolean;
 }) {
   const router = useRouter();
   const revealRefreshRequested = useRef(false);
@@ -119,6 +121,12 @@ export function AlbumPlayer({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
   const [voteSnapshot, setVoteSnapshot] = useState(votes);
+  const displayedVotes = useMemo(() => {
+    if (showListenerScores) return voteSnapshot;
+    const visible = { ...voteSnapshot };
+    delete visible.listenerTallies;
+    return visible;
+  }, [showListenerScores, voteSnapshot]);
 
   useEffect(() => {
     if (!awaitingReveal || revealRefreshRequested.current) return;
@@ -624,7 +632,7 @@ export function AlbumPlayer({
                   isPlaying={isPlaying && currentOnShortlist}
                   selectedTake={isParkedTake(track, selectedTake) ? null : selectedTake}
                   takeCounts={takeCountsForTrack(voteSnapshot, track)}
-                  votes={voteSnapshot}
+                  votes={displayedVotes}
                   versionSlug={version.slug}
                   showVotes={playerSurface !== 'listen'}
                   showTakes={playerSurface !== 'listen'}
@@ -649,7 +657,7 @@ export function AlbumPlayer({
             currentTrack={currentTrack}
             currentTake={currentTake}
             isPlaying={isPlaying}
-            votes={voteSnapshot}
+            votes={displayedVotes}
             voter={voter}
             onVoteSnapshot={setVoteSnapshot}
             onPlay={(index, label) => playIndex(index, label)}
@@ -1230,12 +1238,14 @@ function EmptyAudioHint({
         <p>No takes in this round yet.</p>
       ) : surface === 'vote' ? (
         <p>
-          No takes yet. Upload them on{' '}
-          <Link href='/intake' className='text-foreground underline-offset-2 hover:underline'>
-            Intake
+          No takes to compare yet. Ask Grok Bot to make a round, or{' '}
+          <Link
+            href='/intake'
+            className='text-foreground inline-flex min-h-11 items-center underline underline-offset-4'
+          >
+            upload takes
           </Link>{' '}
-          or with <code className='text-foreground'>pnpm takes:upload</code>, named like{' '}
-          <code className='text-foreground'>v1-01-track-one-p1-takea.mp3</code>.
+          you already have.
         </p>
       ) : (
         <p>Music is on the way. Tracks will appear here as they become available.</p>

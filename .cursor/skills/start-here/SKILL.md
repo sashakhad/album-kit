@@ -20,13 +20,13 @@ Extract all essentials already supplied. Ask for missing album name, genre and t
 The user's explicit request overrides these presets. The default site Settings page can change future rounds. Ask two questions before publishing album content, and leave both answers unset until the owner answers.
 
 1. **“Should the album site be public, or private for you and people you invite?”**
-   - Public means anyone can open the home page and Listen. Listen plays pinned takes only.
+   - Public means anyone can open the home page and Listen. Listen plays final picks first. Enabling listener voting also lets people preview current takes.
    - Private means only the owner and people who open an invitation can see the home page and Listen. An invitation does not include the album key.
    - Neither answer lets other people vote, upload, move takes, or open Studio or Settings.
      Leave visibility unset until answered. Private requires protected pages and private storage. Do not promise private sharing until it has been verified on a second browser.
 
 2. **“Who should be able to vote on takes: only you, or you and listeners?”**
-   - Only the owner, the default: `/vote` asks for the album key. Point the owner to `/key` while they are signed in, or to Settings, where the key is shown with a copy button. Never paste the key into chat, and never put it in a URL.
+   - Only the owner, the default: send an owner link from `pnpm owner:link /vote` in the owner’s private chat. They tap Continue as owner. Never paste the permanent album key into chat or a URL.
    - Listeners too: people who can already hear the album can score takes. On a public album that is any visitor. On a private album that is someone with an invitation. Their scores stay on separate ballots and do not change the owner's scores, picks, pins, or rounds. The owner still pins takes, moves them, and uses Studio and Settings.
 
 Set both through the authenticated `/api/owner/settings` record, for example `{ "patch": { "visibility": "public", "listenerVoting": false } }`. `listenerVoting` stays false until the owner asks for listeners to vote.
@@ -41,7 +41,7 @@ Install Node 24 and pnpm if needed. Connect the official Suno MCP server at `htt
 
 Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
 
-Run `pnpm setup:site --name <album-slug>` for the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. Setup gives the owner key and URL; the key stays outside git and out of chat. Confirm the owner can sign in at `/key` and reach `/settings`. A signed-in owner sees the key there, with a copy button. Settings and the bot use the same authenticated `/api/owner/settings` record. Set visibility and `listenerVoting` only after the owner has answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass.
+Run `pnpm setup:site --name <album-slug>` for the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. Setup gives the owner key and URL; the key stays outside git and out of chat. Run `pnpm owner:link /settings` from the album checkout and offer **Open album settings** in the owner’s private chat. The link is single use and expires in ten minutes. Confirm the owner can reach Settings. In Settings, **Owner access** can create another owner link or reveal the album key. The website and `pnpm album:settings` use the same authenticated `/api/owner/settings` record in the album database. Set visibility and `listenerVoting` only after the owner has answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass.
 
 Before paid work, use `suno-run` preflight to resolve a supported model and show a compact estimate for generation credits, expected output count, download allowance, separate Cursor model spend if any, and hosting eligibility. Obtain one explicit round allowance. Continue through generation, download, upload and voting inside it.
 
@@ -51,6 +51,6 @@ Before paid work, use `suno-run` preflight to resolve a supported model and show
 - The album brief reflects the user's actual input; the prompt count matches the selected scope.
 - Suno capability checks were made in the connected account; no retired model was assumed.
 - The owner can reach Settings. Publication visibility and listener voting are the owner's answers, and stay unset or off if they have not answered.
-- When you tell the owner how to sign in on another device, point to `/key` or Settings. Do not paste the album key.
+- Owner handoff links open the requested page as owner. Use listener links only for sharing. Do not paste the album key.
 - The site, storage and database belong to the user; private access works before claiming privacy.
 - Any unresolved account connection or publication block is named precisely.

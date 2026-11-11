@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { Geist, Geist_Mono } from 'next/font/google';
 
 import { SiteHeader } from '@/components/album/SiteHeader';
@@ -48,13 +49,15 @@ export default async function RootLayout({
     loadSettings(),
     isViewer(),
   ]);
+  const canListen = canViewAlbum(settings.visibility, owner, viewer);
 
   return (
     <html lang='en' className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className='font-sans antialiased'>
         <SiteHeader
-          albumTitle={canViewAlbum(settings.visibility, owner, viewer) ? title : 'Private album'}
+          albumTitle={canListen ? title : 'Private album'}
           isOwner={owner}
+          showListen={canListen}
           showVote={canCastVote({
             visibility: settings.visibility,
             listenerVoting: settings.listenerVoting,
@@ -63,6 +66,16 @@ export default async function RootLayout({
           })}
         />
         {children}
+        {canListen && !owner ? (
+          <footer className='mx-auto max-w-6xl border-t border-white/8 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6'>
+            <Link
+              href='/key'
+              className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-xs underline-offset-4 hover:underline'
+            >
+              Owner sign-in
+            </Link>
+          </footer>
+        ) : null}
       </body>
     </html>
   );

@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
+import { CopyableValue } from '@/components/owner/CopyableValue';
+import { Button } from '@/components/ui/button';
+
 type Invite = {
   id: string;
+  createdAt: string;
   expiresAt: string;
   redeemedAt: string | null;
   revokedAt: string | null;
@@ -11,118 +15,123 @@ type Invite = {
 
 export function InviteControls({ listenerVoting }: { listenerVoting: boolean }) {
   const [invites, setInvites] = useState<Invite[]>([]);
-  const [link, setLink] = useState('');
-  const [message, setMessage] = useState('');
+  const [issued, setIssued] = useState<{ id: string; link: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
-  async function load() {
-    const response = await fetch('/api/owner/invites');
-    if (response.ok) setInvites(await response.json());
-  }
   useEffect(() => {
-    void fetch('/api/owner/invites')
-      .then(response => (response.ok ? response.json() : []))
-      .then((rows: Invite[]) => setInvites(rows));
+    const controller = new AbortController();
+    void fetch('/api/owner/invites', { signal: controller.signal, cache: 'no-store' })
+      .then(async response => {
+        if (!response.ok) throw new Error();
+        setInvites(await response.json());
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError('Couldn’t load invitations. Reload to try again.');
+      });
+    return () => controller.abort();
   }, []);
 
   async function create() {
-    const response = await fetch('/api/owner/invites', { method: 'POST' });
-    const result = await response.json();
-    if (!response.ok) {
-      setMessage(result.error ?? 'Could not create invitation.');
-      return;
+    if (busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/owner/invites', { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok || typeof result.link !== 'string') throw new Error();
+      setIssued({ id: result.id, link: result.link });
+      setInvites(current => [
+        {
+          id: result.id,
+          createdAt: new Date().toISOString(),
+          expiresAt: result.expiresAt,
+          redeemedAt: null,
+          revokedAt: null,
+        },
+        ...current,
+      ]);
+    } catch {
+      setError('Couldn’t create the invitation. Check your sharing settings and try again.');
+    } finally {
+      setBusy(false);
     }
-    setLink(result.link);
-    setMessage(
-      listenerVoting
-        ? 'This link works once and expires in 15 minutes. The secret is after #. Opening it signs the listener in for 30 days, lets them hear pinned takes, and lets them vote. It is not your album key.'
-        : 'This link works once and expires in 15 minutes. The secret is after #. Opening it signs the listener in for 30 days so they can hear pinned takes. Listener voting is off, so they cannot score takes.'
-    );
-    await load();
   }
 
   async function revoke(id: string) {
-    const response = await fetch(`/api/owner/invites/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (response.ok) await load();
-  }
-
-  return (
-    <section className='space-y-3 rounded-2xl border border-white/10 p-5'>
-      <h2 className='text-xl font-medium'>Private invitations</h2>
-      <p className='text-muted-foreground text-sm'>
-        Create one link per browser or phone. The link secret stays after #, so it is not sent in
-        the page request. It grants Listen
-        {listenerVoting ? ' and Vote' : ''}. It does not include your album key.
-      </p>
-      <button
-        type='button'
-        onClick={() => void create()}
-        className='rounded-full border border-white/15 px-4 py-2 text-sm'
-      >
-        Create invitation
-      </button>
-      {link.length > 0 ? (
-        <div className='flex flex-wrap items-center gap-2'>
-          <input
-            readOnly
-            value={link}
-            aria-label='Invitation link'
-            className='min-w-0 flex-1 rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm'
-          />
-          <button
-            type='button'
-            onClick={() => void navigator.clipboard.writeText(link)}
-            className='rounded-full border border-white/15 px-4 py-2 text-sm'
-          >
-            Copy
-          </button>
-          <button
-            type='button'
-            onClick={() => void shareInvite(link)}
-            className='rounded-full border border-white/15 px-4 py-2 text-sm'
-          >
-            Share
-          </button>
-        </div>
-      ) : null}
-      <p role='status' className='text-muted-foreground text-sm'>
-        {message}
-      </p>
-      <ul className='space-y-2 text-sm'>
-        {invites.map(invite => (
-          <li key={invite.id} className='flex items-center justify-between gap-3'>
-            <span>
-              {invite.revokedAt !== null
-                ? 'Revoked'
-                : invite.redeemedAt !== null
-                  ? 'Opened'
-                  : new Date(invite.expiresAt) < new Date()
-                    ? 'Expired'
-                    : 'Waiting to open'}
-            </span>
-            {invite.revokedAt === null ? (
-              <button type='button' onClick={() => void revoke(invite.id)} className='underline'>
-                Revoke
-              </button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-async function shareInvite(url: string) {
-  if (typeof navigator.share === 'function') {
+    if (busy) return;
+    setBusy(true);
+    setError('');
     try {
-      await navigator.share({ url });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        return;
-      }
+      const response = await fetch(`/api/owner/invites/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error();
+      setInvites(current => current.filter(invite => invite.id !== id));
+      setIssued(current => (current?.id === id ? null : current));
+    } catch {
+      setError('Couldn’t remove access. Try again.');
+    } finally {
+      setBusy(false);
     }
   }
-  await navigator.clipboard.writeText(url);
+
+  const active = invites.filter(
+    invite =>
+      invite.revokedAt === null &&
+      (invite.redeemedAt !== null || new Date(invite.expiresAt) > new Date())
+  );
+  return (
+    <div className='space-y-3 rounded-xl border border-white/8 bg-white/3 p-4'>
+      <h3 className='text-sm font-medium'>Listener invitations</h3>
+      <p className='text-muted-foreground text-sm leading-relaxed'>
+        {listenerVoting
+          ? 'Invite someone to listen and compare takes.'
+          : 'Invite someone to hear your final picks.'}{' '}
+        Each link works once and expires in 15 minutes. Open it on the browser they’ll use to
+        listen.
+      </p>
+      <Button
+        type='button'
+        variant='outline'
+        disabled={busy}
+        onClick={() => void create()}
+        className='min-h-11'
+      >
+        Create listener invitation
+      </Button>
+      {issued === null ? null : <CopyableValue value={issued.link} label='Listener invitation' />}
+      {error.length === 0 ? null : (
+        <p role='alert' className='text-destructive text-sm'>
+          {error}
+        </p>
+      )}
+      {active.length === 0 ? null : (
+        <ul className='divide-y divide-white/8 border-t border-white/8'>
+          {active.map(invite => (
+            <li key={invite.id} className='flex flex-wrap items-center justify-between gap-1 py-1'>
+              <span className='text-muted-foreground text-sm'>
+                {invite.redeemedAt === null ? 'Waiting to open' : 'Opened'} ·{' '}
+                {new Date(invite.createdAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </span>
+              <Button
+                type='button'
+                variant='ghost'
+                disabled={busy}
+                onClick={() => void revoke(invite.id)}
+                className='min-h-11 text-xs'
+              >
+                Remove access
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

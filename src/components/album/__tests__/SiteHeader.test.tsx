@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SiteHeader } from '../SiteHeader';
@@ -18,12 +18,12 @@ describe('SiteHeader', () => {
     expect(screen.queryByRole('link', { name: 'Intake' })).not.toBeInTheDocument();
   });
 
-  it('adds Vote and Intake for the owner', () => {
+  it('keeps settings and final picks directly available to the owner', () => {
     render(<SiteHeader albumTitle='Fixture Album' isOwner />);
 
     expect(screen.getByRole('link', { name: 'Compare takes' })).toHaveAttribute('href', '/vote');
-    fireEvent.click(screen.getByText('Tools'));
-    expect(screen.getByRole('link', { name: 'Intake' })).toHaveAttribute('href', '/intake');
+    expect(screen.getByRole('link', { name: 'Final picks' })).toHaveAttribute('href', '/final');
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
   });
 
   it('shows Vote to a listener without owner controls', () => {
