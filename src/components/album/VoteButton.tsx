@@ -5,13 +5,14 @@ import { Minus, Plus } from 'lucide-react';
 
 import { countForTake, choiceForTake } from '@/lib/votes/tally';
 import type { VoteDelta, VoteSnapshot } from '@/lib/votes/types';
-import { formatSignedScore } from '@/lib/formatters';
+import { formatSignedScore, formatCompactScore } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
 export function VoteButton({
   trackNumber,
   versionSlug,
   takeLabel,
+  displayLabel = takeLabel,
   trackTitle,
   initialCount,
   initialValue,
@@ -20,6 +21,7 @@ export function VoteButton({
   trackNumber: number;
   versionSlug: string;
   takeLabel: string;
+  displayLabel?: string;
   trackTitle: string;
   initialCount: number;
   initialValue: number;
@@ -28,6 +30,7 @@ export function VoteButton({
   const [count, setCount] = useState(initialCount);
   const [myScore, setMyScore] = useState(initialValue);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState(false);
 
   async function cast(event: MouseEvent<HTMLButtonElement>, value: VoteDelta) {
     event.preventDefault();
@@ -37,6 +40,7 @@ export function VoteButton({
     }
 
     setPending(true);
+    setError(false);
     try {
       const response = await fetch('/api/votes', {
         method: 'POST',
@@ -44,6 +48,7 @@ export function VoteButton({
         body: JSON.stringify({ trackNumber, versionSlug, takeLabel, value }),
       });
       if (!response.ok) {
+        setError(true);
         return;
       }
       const snapshot: unknown = await response.json();
@@ -53,22 +58,24 @@ export function VoteButton({
       setCount(countForTake(snapshot, trackNumber, versionSlug, takeLabel));
       setMyScore(choiceForTake(snapshot, trackNumber, versionSlug, takeLabel));
       onSnapshot?.(snapshot);
+    } catch {
+      setError(true);
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <div className='flex shrink-0 flex-col items-center gap-1'>
+    <div className='relative flex shrink-0 flex-col items-center gap-1'>
       <span className='text-muted-foreground text-[10px] tracking-wide uppercase'>Score</span>
       <div className='flex items-center rounded-lg border border-white/15 bg-black/15 p-0.5'>
         <button
           type='button'
           onClick={event => void cast(event, -1)}
           disabled={pending}
-          aria-label={`Subtract one from take ${takeLabel} of ${trackTitle}`}
+          aria-label={`Subtract one from take ${displayLabel} of ${trackTitle}`}
           className={cn(
-            'flex size-9 items-center justify-center rounded-md',
+            'flex size-11 shrink-0 items-center justify-center rounded-md',
             myScore < 0
               ? 'text-destructive bg-destructive/12'
               : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
@@ -76,16 +83,21 @@ export function VoteButton({
         >
           <Minus className='size-4' />
         </button>
-        <span aria-live='polite' className='min-w-8 text-center font-mono text-sm'>
-          {formatSignedScore(count)}
+        <span
+          aria-live='polite'
+          aria-label={`Score ${formatSignedScore(count)}`}
+          title={formatSignedScore(count)}
+          className='w-[6ch] shrink-0 text-center font-mono text-sm tabular-nums'
+        >
+          {formatCompactScore(count)}
         </span>
         <button
           type='button'
           onClick={event => void cast(event, 1)}
           disabled={pending}
-          aria-label={`Add one to take ${takeLabel} of ${trackTitle}`}
+          aria-label={`Add one to take ${displayLabel} of ${trackTitle}`}
           className={cn(
-            'flex size-9 items-center justify-center rounded-md',
+            'flex size-11 shrink-0 items-center justify-center rounded-md',
             myScore > 0
               ? 'text-primary bg-primary/12'
               : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
@@ -94,6 +106,14 @@ export function VoteButton({
           <Plus className='size-4' />
         </button>
       </div>
+      {error ? (
+        <span
+          role='alert'
+          className='text-destructive absolute top-full right-0 text-xs whitespace-nowrap'
+        >
+          Score not saved. Try again.
+        </span>
+      ) : null}
     </div>
   );
 }

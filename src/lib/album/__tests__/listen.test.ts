@@ -4,6 +4,7 @@ import { parseAlbumConfig, type AlbumConfig } from '../album-config';
 import {
   applyListenSelections,
   buildListenVersion,
+  buildListeningQueue,
   findListenTrack,
   isListenFile,
 } from '../listen';
@@ -137,7 +138,7 @@ describe('buildListenVersion', () => {
     const one = listen.tracks.find(item => item.title === 'Track One');
     expect(one?.takes.map(item => [item.versionSlug, item.voteLabel])).toEqual([['v2', 'C']]);
     expect(one?.audioUrl).toBe('/api/audio/v2/v2-01-track-one-p1-takec.mp3');
-    expect(one?.takes[0]?.label).toBe('Lulu C');
+    expect(one?.takes[0]?.label).toBe('C');
 
     const vip = listen.tracks.find(item => item.title === 'Track Three // VIP');
     expect(vip?.takes.map(item => item.voteLabel)).toEqual(['G']);
@@ -199,5 +200,69 @@ describe('isListenFile', () => {
     expect(isListenFile(config, 'v1', 'v1-05-track-five-p1-takea.mp3')).toBe(false);
     expect(isListenFile(config, 'v1', 'v1-09-track-nine-p1-takea.mp3')).toBe(false);
     expect(isListenFile(config, 'v2', 'v2-01-track-one-takec.mp3')).toBe(false);
+  });
+});
+
+describe('listening queue', () => {
+  it('uses picks before previews, retains VIPs, and marks unavailable tracks', () => {
+    const pinned = buildListenVersion({ config, versions: [bubu, lulu] });
+    const queue = buildListeningQueue(config, pinned, bubu);
+    expect(queue.tracks[0]?.takes[0]?.filename).toBe('v2-01-track-one-p1-takec.mp3');
+    expect(queue.tracks[0]?.status).toBe('picked');
+    expect(queue.tracks[1]?.status).toBe('preview');
+    expect(queue.tracks[1]?.compareHref).toBe('/vote/track-two');
+    expect(queue.tracks.find(track => track.listenSlug === 'track-three-vip')?.status).toBe(
+      'picked'
+    );
+    expect(queue.tracks.at(-1)?.status).toBe('waiting');
+    expect(queue.tracks.at(-1)?.audioUrl).toBeNull();
+    expect(config.tracks[1]?.listen).toBeUndefined();
+  });
+  it('never supplies previews when listener access is disabled', () => {
+    const pinned = buildListenVersion({ config, versions: [bubu, lulu] });
+    const queue = buildListeningQueue(config, pinned, null);
+    expect(queue.tracks.find(track => track.listenSlug === 'track-two')?.audioUrl).toBeNull();
+    expect(queue.tracks.every(track => track.compareHref === undefined)).toBe(true);
+    expect(queue.tracks.filter(track => track.status === 'picked')).toHaveLength(
+      pinned.tracks.length
+    );
+  });
+  it('can start an unpicked album without saving winners', () => {
+    const unpicked = {
+      ...config,
+      tracks: config.tracks.map(({ listen: _listen, vip: _vip, ...track }) => track),
+    };
+    const empty = buildListenVersion({ config: unpicked, versions: [bubu, lulu] });
+    const queue = buildListeningQueue(unpicked, empty, bubu);
+    expect(queue.tracks[0]?.status).toBe('preview');
+    expect(queue.tracks[0]?.takes).toHaveLength(1);
+    expect(empty.tracks).toEqual([]);
+    expect(queue.tracks.at(-1)?.status).toBe('waiting');
+  });
+});
+
+describe('complete final listening picks', () => {
+  it('keeps existing canonical picks and uses cross-set display letters', () => {
+    const duplicate = {
+      ...lulu,
+      tracks: [track(1, 'Track One', [take('v2', 'v2-01-track-one-p1-takea.mp3', 'A')])],
+    };
+    const complete = parseAlbumConfig({
+      ...config,
+      tracks: [
+        { number: 1, title: 'Track One', slug: 'track-one', listen: { set: 'v2', take: 'A' } },
+        { number: 2, title: 'Track Two', slug: 'track-two', listen: { set: 'v1', take: 'C' } },
+      ],
+    });
+    const pinned = buildListenVersion({ config: complete, versions: [bubu, duplicate] });
+    const queue = buildListeningQueue(complete, pinned, null);
+    expect(queue.tracks.map(row => row.status)).toEqual(['picked', 'picked']);
+    expect(queue.tracks[0]?.takes[0]).toMatchObject({
+      label: 'C',
+      voteLabel: 'A',
+      versionSlug: 'v2',
+      filename: 'v2-01-track-one-p1-takea.mp3',
+    });
+    expect(queue.tracks.every(row => row.audioUrl !== null)).toBe(true);
   });
 });

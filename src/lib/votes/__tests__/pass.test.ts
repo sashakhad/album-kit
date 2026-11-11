@@ -335,11 +335,11 @@ describe('buildConsolidatedPassVersion', () => {
     expect(pass.slug).toBe('pass');
     expect(pass.title).toBe('Round 2');
     const one = pass.tracks.find(track => track.number === 1);
-    expect(one?.takes.map(take => take.label)).toEqual(['Bubu A', 'Bubu B', 'Lulu C']);
+    expect(one?.takes.map(take => take.label)).toEqual(['A', 'B', 'C']);
     expect(one?.takes[0]?.versionSlug).toBe('v1');
     expect(one?.takes[0]?.voteLabel).toBe('A');
     const eleven = pass.tracks.find(track => track.number === 11);
-    expect(eleven?.takes.map(take => take.label)).toEqual(['Bubu A', 'Bubu C']);
+    expect(eleven?.takes.map(take => take.label)).toEqual(['A', 'B']);
   });
 
   it('keeps title candidates on the pass with no takes', () => {
@@ -370,8 +370,8 @@ describe('buildConsolidatedPassVersion', () => {
     });
 
     const eleven = pass.tracks.find(track => track.number === 11);
-    expect(eleven?.takes.map(take => take.label)).toEqual(['Bubu C']);
-    expect(eleven?.parkedTakes?.map(take => take.label)).toEqual(['Bubu A']);
+    expect(eleven?.takes.map(take => take.label)).toEqual(['B']);
+    expect(eleven?.parkedTakes?.map(take => take.label)).toEqual(['A']);
   });
 
   it('keeps a fully parked track for Possible renames', () => {
@@ -420,7 +420,7 @@ describe('buildConsolidatedPassVersion', () => {
     expect(parked?.title).toBe('Track Twenty-One');
     expect(parked?.takes).toEqual([]);
     expect(parked?.audioUrl).toBeNull();
-    expect(parked?.parkedTakes?.map(take => take.label)).toEqual(['Bubu A', 'Bubu F']);
+    expect(parked?.parkedTakes?.map(take => take.label)).toEqual(['A', 'B']);
   });
 });
 
@@ -531,7 +531,7 @@ describe('later pass keeps unvoted takes', () => {
 
     const twentyFour = pass.tracks.find(track => track.number === 24);
     expect(twentyFour?.title).toBe('Track Twenty-Four');
-    expect(twentyFour?.takes.map(take => take.label)).toEqual(['Bubu A']);
+    expect(twentyFour?.takes.map(take => take.label)).toEqual(['A']);
   });
 
   it('keeps never-voted extra letters next to a voted letter', () => {
@@ -594,7 +594,7 @@ describe('later pass keeps unvoted takes', () => {
     const one = pass.tracks.find(track => track.number === 1);
     expect(one?.takes.map(take => take.voteLabel)).toEqual(['A', 'C', 'D', 'E', 'F']);
     expect(pass.tracks.find(track => track.number === 24)?.takes[0]?.voteLabel).toBe('A');
-    expect(pass.tracks.find(track => track.number === 23)?.takes[0]?.label).toBe('Lulu A');
+    expect(pass.tracks.find(track => track.number === 23)?.takes[0]?.label).toBe('A');
   });
 
   it('still drops downvotes', () => {
@@ -644,9 +644,46 @@ describe('later pass keeps unvoted takes', () => {
     });
 
     expect(pass.tracks.find(track => track.number === 24)?.takes[0]?.voteLabel).toBe('A');
-    expect(pass.tracks.find(track => track.number === 23)?.takes[0]?.label).toBe('Lulu A');
+    expect(pass.tracks.find(track => track.number === 23)?.takes[0]?.label).toBe('A');
     expect(
       pass.tracks.find(track => track.number === 1)?.takes.map(take => take.voteLabel)
     ).toEqual(['A', 'B', 'C', 'D', 'E', 'F']);
+  });
+});
+
+describe('neutral presentation labels', () => {
+  it('disambiguates duplicate canonical letters and retains letters across filtering', () => {
+    const first = bubu.tracks[0]!;
+    const original = first.takes[0]!;
+    const other = {
+      ...bubu,
+      slug: 'v2',
+      tracks: [
+        {
+          ...first,
+          takes: [{ ...original, versionSlug: 'v2', filename: 'v2-01-track-one-p1-takea.mp3' }],
+        },
+      ],
+    };
+    const full = buildConsolidatedPassVersion({
+      versions: [bubu, other],
+      currentRound: 1,
+      votes: [],
+      tracklist: TRACKLIST,
+    });
+    expect(
+      full.tracks[0]?.takes.map(take => [take.label, take.versionSlug, take.voteLabel])
+    ).toEqual([
+      ['A', 'v1', 'A'],
+      ['B', 'v1', 'B'],
+      ['C', 'v2', 'A'],
+    ]);
+    const filtered = buildConsolidatedPassVersion({
+      versions: [bubu, other],
+      currentRound: 2,
+      votes: [{ versionSlug: 'v1', trackNumber: 1, takeLabel: 'A', round: 1, value: -1 }],
+      tracklist: TRACKLIST,
+    });
+    expect(filtered.tracks[0]?.takes.map(take => take.label)).toEqual(['B', 'C']);
   });
 });

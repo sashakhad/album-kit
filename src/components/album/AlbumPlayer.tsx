@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Pause, Play, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import {
+  ChevronDown,
+  LoaderCircle,
+  Pause,
+  Play,
+  SkipBack,
+  SkipForward,
+  Volume2,
+} from 'lucide-react';
 
 import {
   audioUrlForTrack,
@@ -27,7 +35,12 @@ import { PassControls } from '@/components/album/PassControls';
 import { VoteButton } from '@/components/album/VoteButton';
 import { choiceForTake, countForTake, takeCountsForTrack } from '@/lib/votes/tally';
 import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
-import { formatDuration, formatNumberExact, formatSignedScore } from '@/lib/formatters';
+import {
+  formatDuration,
+  formatNumberExact,
+  formatSignedScore,
+  formatCompactScore,
+} from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 
 type PlaybackMode = 'album' | 'variations';
@@ -89,6 +102,19 @@ export function AlbumPlayer({
     return { [trackKey(track)]: initialTakeLabel };
   });
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [showMini, setShowMini] = useState(false);
+  const controlsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined' || controlsRef.current === null) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry !== undefined)
+        setShowMini(!entry.isIntersecting && entry.boundingClientRect.top < 0);
+    });
+    observer.observe(controlsRef.current);
+    return () => observer.disconnect();
+  }, []);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
@@ -151,7 +177,9 @@ export function AlbumPlayer({
             versionSlug: currentTake.versionSlug,
             takeLabel: currentTake.voteLabel,
           })
-        : listenHref({ title: currentTrack.title });
+        : currentTrack.listenSlug === undefined
+          ? listenHref({ title: currentTrack.title })
+          : `/listen/${currentTrack.listenSlug}`;
     document.title =
       playerSurface === 'vote'
         ? `${currentTrack.title} · ${currentTake.label} · ${version.title}`
@@ -179,12 +207,20 @@ export function AlbumPlayer({
       audio.src = url;
     }
 
-    void audio.play().catch((error: unknown) => {
-      if (isAbortError(error) || audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) {
-        return;
-      }
-      setIsPlaying(false);
-    });
+    setPlaybackError(null);
+    setIsLoading(true);
+    if (audio.error) audio.load();
+    void audio
+      .play()
+      .then(() => {
+        if (audio.src === nextSrc) setIsLoading(false);
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error) || audio.src !== nextSrc) return;
+        setIsPlaying(false);
+        setIsLoading(false);
+        setPlaybackError('Could not play this track. Try again.');
+      });
   }, []);
 
   const playIndex = useCallback(
@@ -214,6 +250,7 @@ export function AlbumPlayer({
 
       setCurrentIndex(index);
       setCurrentTime(0);
+      setDuration(0);
       setIsPlaying(true);
       playSource(url);
     },
@@ -312,6 +349,7 @@ export function AlbumPlayer({
     }
     if (isPlaying) {
       setIsPlaying(false);
+      setIsLoading(false);
       audioRef.current?.pause();
       return;
     }
@@ -355,7 +393,11 @@ export function AlbumPlayer({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (isTypingTarget(event.target)) {
+      if (
+        isTypingTarget(event.target) ||
+        (event.target instanceof Element &&
+          event.target.closest('button, a, summary, [role=slider]') !== null)
+      ) {
         return;
       }
 
@@ -414,122 +456,74 @@ export function AlbumPlayer({
     setCurrentTime(seconds);
   }
 
+  const PlayerHeading = playerSurface === 'listen' ? 'h2' : 'h1';
+  const playLabel = isPlaying ? 'Pause' : playerSurface === 'listen' ? 'Play album' : 'Play';
   return (
-    <section className='grid gap-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]'>
-      <div className='space-y-6'>
+    <section className='grid min-w-0 gap-8 pb-24 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)] lg:pb-0'>
+      <div className='min-w-0 space-y-5'>
         <div className='space-y-2'>
-          <p className='text-muted-foreground text-sm'>{version.title}</p>
-          <p className='text-primary/80 text-xs tracking-[0.2em] uppercase'>Now playing</p>
-          <h1 className='font-display text-4xl leading-tight tracking-tight'>
+          <p className='text-muted-foreground text-xs tracking-widest uppercase'>
+            {hasAudio ? 'Now playing' : 'Coming soon'}
+          </p>
+          <PlayerHeading className='font-display text-3xl leading-tight tracking-tight break-words sm:text-4xl'>
             {currentTrack?.title ?? version.title}
-          </h1>
+          </PlayerHeading>
           {currentTrack !== null ? (
-            <p className='text-muted-foreground font-mono text-sm'>
+            <p className='text-muted-foreground text-sm'>
               {padTrackNumber(currentTrack.number)}
-              {currentTrack.kind === 'bonus' ? ' · bonus' : ''}
-              {isParkedTake(currentTrack, currentTake) ? ' · possible rename' : ''}
-              {playerSurface !== 'listen' &&
-              currentTake !== null &&
-              (currentTrack.takes.length > 0 || isParkedTake(currentTrack, currentTake))
-                ? currentTake.label === currentTake.voteLabel
-                  ? ` · take ${currentTake.label}`
-                  : ` · ${currentTake.label}`
+              {playerSurface === 'vote' && currentTake !== null
+                ? ` · Take ${currentTake.label}`
                 : ''}
+              {currentTrack.status === 'preview' ? ' · Preview' : ''}
+              {isParkedTake(currentTrack, currentTake) ? ' · Possible rename' : ''}
             </p>
           ) : null}
         </div>
 
-        {playerSurface === 'vote' && currentPrompt !== null ? (
-          <section className='rounded-xl border border-white/12 bg-white/4 p-4'>
-            <h2 className='text-primary/80 text-xs font-medium tracking-[0.16em] uppercase'>
-              Prompt for {currentTake?.label ?? 'this track'}
-            </h2>
-            <p className='mt-3 text-sm leading-relaxed whitespace-pre-line'>{currentPrompt}</p>
-            {currentTake?.details === undefined ? null : (
-              <p className='text-muted-foreground mt-3 text-xs'>
-                {currentTake.details.writer} · Suno {currentTake.details.sunoModel}
-              </p>
-            )}
-          </section>
-        ) : null}
-
-        {hasVariations && playerSurface !== 'listen' ? (
-          <PlaybackModeControl mode={playbackMode} onChange={setPlaybackMode} />
-        ) : null}
-
-        {playerSurface === 'vote' ? (
-          <div className='space-y-3'>
-            {voter === 'owner' ? (
-              <PassControls currentRound={voteSnapshot.currentRound} />
-            ) : (
-              <p className='text-primary/80 text-xs tracking-[0.2em] uppercase'>
-                Round {voteSnapshot.currentRound}
-              </p>
-            )}
-            {currentTrack !== null ? <ParkedCount track={currentTrack} /> : null}
+        <div ref={controlsRef} data-player-controls className='space-y-3'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <IconButton
+              label={playbackMode === 'variations' ? 'Previous variation' : 'Previous track'}
+              onClick={playPrevious}
+              disabled={!hasAudio}
+            >
+              <SkipBack className='size-5 fill-current' />
+            </IconButton>
+            <button
+              type='button'
+              onClick={togglePlay}
+              disabled={!hasAudio}
+              aria-label={playLabel}
+              className='bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-medium disabled:opacity-40'
+            >
+              {isLoading ? (
+                <LoaderCircle className='size-5 animate-spin' />
+              ) : isPlaying ? (
+                <Pause className='size-5 fill-current' />
+              ) : (
+                <Play className='size-5 fill-current' />
+              )}
+              {playLabel}
+            </button>
+            <IconButton
+              label={playbackMode === 'variations' ? 'Next variation' : 'Next track'}
+              onClick={() => playNext(true)}
+              disabled={!hasAudio}
+            >
+              <SkipForward className='size-5 fill-current' />
+            </IconButton>
           </div>
-        ) : null}
-
-        {playbackMode === 'variations' && currentTrack !== null ? (
-          currentTrack.takes.length > 1 ? (
-            <div className='space-y-2'>
-              <TakeSwitcher
-                labels={currentTrack.takes.map(take => take.label)}
-                selectedLabel={currentTake?.label ?? null}
-                legend='Start at'
-                onSelect={label => playIndex(currentIndex, label)}
-              />
-              <p className='text-muted-foreground text-xs'>
-                Plays every variation of this song in order. Next stays on this song.
-              </p>
-            </div>
-          ) : (
-            <p className='text-muted-foreground text-xs'>This song has one available variation.</p>
-          )
-        ) : null}
-
-        <div className='space-y-4'>
           <SeekBar
             currentTime={currentTime}
             duration={duration}
-            disabled={!hasAudio}
+            disabled={!hasAudio || duration <= 0}
             onSeek={handleSeek}
           />
-          <div className='text-muted-foreground flex justify-between font-mono text-xs'>
-            <span>{formatDuration(currentTime)}</span>
-            <span>{formatDuration(duration)}</span>
-          </div>
-          <div className='flex items-center justify-between gap-4'>
-            <div className='flex items-center gap-2'>
-              <IconButton
-                label={playbackMode === 'variations' ? 'Previous variation' : 'Previous track'}
-                onClick={playPrevious}
-                disabled={!hasAudio}
-              >
-                <SkipBack className='size-5 fill-current' />
-              </IconButton>
-              <button
-                type='button'
-                onClick={togglePlay}
-                disabled={!hasAudio}
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-                className='bg-primary text-primary-foreground hover:bg-primary/90 flex size-16 items-center justify-center rounded-full disabled:opacity-40'
-              >
-                {isPlaying ? (
-                  <Pause className='size-7 fill-current' />
-                ) : (
-                  <Play className='size-7 fill-current pl-0.5' />
-                )}
-              </button>
-              <IconButton
-                label={playbackMode === 'variations' ? 'Next variation' : 'Next track'}
-                onClick={() => playNext(true)}
-                disabled={!hasAudio}
-              >
-                <SkipForward className='size-5 fill-current' />
-              </IconButton>
-            </div>
-            <label className='text-muted-foreground flex items-center gap-2 text-sm'>
+          <div className='text-muted-foreground flex items-center justify-between gap-3 text-xs'>
+            <span className='shrink-0 font-mono tabular-nums'>
+              {formatDuration(currentTime)} / {duration > 0 ? formatDuration(duration) : '—:—'}
+            </span>
+            <label className='flex min-h-11 items-center gap-2'>
               <Volume2 className='size-4' />
               <span className='sr-only'>Volume</span>
               <input
@@ -539,21 +533,87 @@ export function AlbumPlayer({
                 step={0.01}
                 value={volume}
                 onChange={event => setVolume(Number(event.target.value))}
-                className='accent-primary w-24'
+                className='accent-primary h-11 w-24 max-w-full'
               />
             </label>
           </div>
+          <div className='min-h-6 text-sm' aria-live='polite'>
+            {playbackError !== null ? (
+              <p role='alert' className='text-destructive'>
+                {playbackError}{' '}
+                <button
+                  type='button'
+                  className='inline-flex min-h-11 items-center underline'
+                  onClick={togglePlay}
+                >
+                  Retry
+                </button>
+              </p>
+            ) : (
+              <p className='text-muted-foreground'>
+                {!hasAudio
+                  ? 'No audio yet'
+                  : isLoading
+                    ? 'Loading audio…'
+                    : isPlaying
+                      ? 'Playing'
+                      : currentTime > 0
+                        ? 'Paused'
+                        : 'Ready to play'}
+              </p>
+            )}
+          </div>
         </div>
 
+        {currentPrompt !== null ? (
+          <details className='group rounded-xl border border-white/12 bg-white/3' data-prompt>
+            <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium [&::-webkit-details-marker]:hidden'>
+              <span>Prompt{currentTake === null ? '' : ` · Take ${currentTake.label}`}</span>
+              <ChevronDown className='size-4 transition-transform group-open:rotate-180' />
+            </summary>
+            <div className='space-y-3 px-4 pb-4'>
+              <p className='text-sm leading-relaxed whitespace-pre-line'>{currentPrompt}</p>
+              {currentTake?.details === undefined ? null : (
+                <p className='text-muted-foreground text-xs leading-relaxed'>
+                  {currentTake.details.writer} · Suno {currentTake.details.sunoModel}
+                </p>
+              )}
+            </div>
+          </details>
+        ) : null}
+
+        {hasVariations && playerSurface === 'vote' ? (
+          <PlaybackModeControl mode={playbackMode} onChange={setPlaybackMode} />
+        ) : null}
+        {playbackMode === 'variations' && currentTrack !== null ? (
+          <p className='text-muted-foreground text-xs'>
+            Plays each take of this track in order. Next stays on this track.
+          </p>
+        ) : null}
+        {playerSurface === 'vote' && voter === 'owner' ? (
+          <details className='border-t border-white/10 pt-2'>
+            <summary className='text-muted-foreground flex min-h-11 cursor-pointer items-center text-sm'>
+              Round {voteSnapshot.currentRound} · Manage round
+            </summary>
+            <PassControls currentRound={voteSnapshot.currentRound} />
+            {currentTrack === null ? null : <ParkedCount track={currentTrack} />}
+          </details>
+        ) : null}
         {!hasAudio ? <EmptyAudioHint surface={playerSurface} voter={voter} /> : null}
       </div>
 
-      <div className='space-y-6 lg:row-span-2'>
-        <ol className='bg-card/60 divide-y divide-white/6 rounded-2xl border border-white/8'>
+      <div className='min-w-0 space-y-6'>
+        <div className='flex items-baseline justify-between px-1'>
+          <h2 className='text-sm font-medium'>
+            {playerSurface === 'listen' ? 'Tracks' : 'Choose a take'}
+          </h2>
+          <span className='text-muted-foreground text-xs'>
+            {playableIndexes.length} ready to play
+          </span>
+        </div>
+        <ol className='bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10'>
           {version.tracks.map((track, index) => {
-            if (!isOnAlbumShortlist(track)) {
-              return null;
-            }
+            if (!isOnAlbumShortlist(track)) return null;
             const selectedTake = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
             const currentOnShortlist = index === currentIndex && !isParkedTake(track, selectedTake);
             return (
@@ -572,11 +632,10 @@ export function AlbumPlayer({
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
                     const selected = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
-                    if (isParkedTake(track, selected)) {
-                      playIndex(index, track.takes[0]?.label);
-                      return;
-                    }
-                    playIndex(index);
+                    playIndex(
+                      index,
+                      isParkedTake(track, selected) ? track.takes[0]?.label : undefined
+                    );
                   }}
                   onSelectTake={label => playIndex(index, label)}
                 />
@@ -598,14 +657,65 @@ export function AlbumPlayer({
         ) : null}
       </div>
 
+      {showMini && hasAudio ? (
+        <div
+          className='bg-background/95 fixed inset-x-0 bottom-0 z-40 border-t border-white/15 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden'
+          data-mini-player
+        >
+          <div className='mx-auto flex max-w-3xl items-center gap-3'>
+            <div className='min-w-0 flex-1'>
+              <p className='truncate text-sm font-medium'>{currentTrack?.title}</p>
+              <p className='text-muted-foreground text-xs'>
+                {playbackError !== null
+                  ? 'Playback unavailable'
+                  : isLoading
+                    ? 'Loading…'
+                    : `${formatDuration(currentTime)} / ${duration > 0 ? formatDuration(duration) : '—:—'}`}
+              </p>
+            </div>
+            <IconButton
+              label={isPlaying ? 'Pause playback' : 'Resume playback'}
+              onClick={togglePlay}
+              disabled={!hasAudio}
+            >
+              {isLoading ? (
+                <LoaderCircle className='size-5 animate-spin' />
+              ) : isPlaying ? (
+                <Pause className='size-5 fill-current' />
+              ) : (
+                <Play className='size-5 fill-current' />
+              )}
+            </IconButton>
+            <IconButton label='Skip to next' onClick={() => playNext(true)} disabled={!hasAudio}>
+              <SkipForward className='size-5 fill-current' />
+            </IconButton>
+          </div>
+        </div>
+      ) : null}
       {currentAudioUrl !== null ? (
         <audio
           ref={audioRef}
           src={currentAudioUrl}
-          preload='auto'
+          preload='metadata'
           playsInline
           onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
-          onDurationChange={event => setDuration(event.currentTarget.duration)}
+          onDurationChange={event =>
+            setDuration(
+              Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0
+            )
+          }
+          onPlaying={() => {
+            setIsLoading(false);
+            setPlaybackError(null);
+          }}
+          onWaiting={() => {
+            if (isPlaying) setIsLoading(true);
+          }}
+          onError={() => {
+            setIsPlaying(false);
+            setIsLoading(false);
+            setPlaybackError('Could not load this track. Try again.');
+          }}
           onEnded={() => playNext(false)}
         />
       ) : null}
@@ -623,32 +733,32 @@ function PlaybackModeControl({
   return (
     <div className='space-y-2'>
       <p className='text-muted-foreground text-xs tracking-[0.2em] uppercase'>Playback mode</p>
-      <div className='inline-flex rounded-full border border-white/15 p-1'>
+      <div className='inline-flex max-w-full rounded-xl border border-white/15 p-1'>
         <button
           type='button'
           onClick={() => onChange('album')}
           aria-pressed={mode === 'album'}
           className={cn(
-            'rounded-full px-3 py-1 text-xs',
+            'min-h-11 rounded-lg px-3 text-sm',
             mode === 'album'
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          Album
+          Play album
         </button>
         <button
           type='button'
           onClick={() => onChange('variations')}
           aria-pressed={mode === 'variations'}
           className={cn(
-            'rounded-full px-3 py-1 text-xs',
+            'min-h-11 rounded-lg px-3 text-sm',
             mode === 'variations'
               ? 'bg-primary text-primary-foreground'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          Variations
+          Compare this track
         </button>
       </div>
     </div>
@@ -746,7 +856,7 @@ function ParkedTakeRow({
   return (
     <div
       className={cn(
-        'flex w-full items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4',
+        'flex w-full flex-wrap items-center gap-3 px-4 py-3',
         isCurrent && 'bg-white/6'
       )}
     >
@@ -775,6 +885,7 @@ function ParkedTakeRow({
             trackNumber={track.number}
             versionSlug={take.versionSlug}
             takeLabel={take.voteLabel}
+            displayLabel={take.label}
             trackTitle={track.title}
             audioUrl={take.audioUrl}
             votes={votes}
@@ -793,6 +904,7 @@ function ParkedTakeRow({
           trackNumber={track.number}
           versionSlug={take.versionSlug}
           takeLabel={take.voteLabel}
+          displayLabel={take.label}
           trackTitle={track.title}
           initialCount={countForTake(votes, track.number, take.versionSlug, take.voteLabel)}
           initialValue={choiceForTake(votes, track.number, take.versionSlug, take.voteLabel)}
@@ -820,18 +932,15 @@ function ListenerScore({
     return null;
   }
   const count = votes.listenerTallies[trackNumber]?.[versionSlug]?.[takeLabel] ?? 0;
-  if (count === 0) {
-    return null;
-  }
   const label = formatSignedScore(count);
   return (
     <span
-      className='text-muted-foreground w-14 text-right font-mono text-[10px] leading-tight'
+      className='text-muted-foreground w-12 shrink-0 text-right text-[10px] leading-tight tabular-nums'
       aria-label={`Listener score ${label}, separate from your score`}
     >
       listeners
       <br />
-      {label}
+      {formatCompactScore(count)}
     </span>
   );
 }
@@ -887,25 +996,16 @@ function TrackRow({
   const showTakePills = showTakes && track.takes.length > 0;
 
   return (
-    <div
-      className={cn(
-        'flex w-full items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4',
-        ready ? '' : 'opacity-40',
-        isCurrent && 'bg-white/6'
-      )}
-    >
-      <div className='min-w-0 flex-1'>
+    <div data-track-row className={cn('@container min-w-0 px-4 py-4', isCurrent && 'bg-white/6')}>
+      <div className='flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2'>
         <button
           type='button'
           onClick={onSelect}
           disabled={!ready}
           aria-current={isCurrent ? true : undefined}
-          className={cn(
-            'flex w-full items-center gap-3 text-left',
-            ready ? 'hover:text-foreground' : 'cursor-not-allowed'
-          )}
+          className='flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default'
         >
-          <span className='text-muted-foreground flex w-8 shrink-0 items-center font-mono text-xs'>
+          <span className='text-muted-foreground flex w-6 shrink-0 items-center font-mono text-xs'>
             {isPlaying ? (
               <Play className='fill-primary text-primary size-3' />
             ) : (
@@ -913,14 +1013,31 @@ function TrackRow({
             )}
           </span>
           <span className='min-w-0 flex-1'>
-            <span className='block truncate text-sm'>{track.title}</span>
+            <span className={cn('block text-sm break-words', !ready && 'text-muted-foreground')}>
+              {track.title}
+            </span>
+            {track.status === 'preview' ? (
+              <span className='text-muted-foreground text-xs'>Preview</span>
+            ) : null}
             {track.kind === 'bonus' ? (
               <span className='text-muted-foreground text-xs'>Bonus</span>
             ) : null}
           </span>
         </button>
-        {showTakePills ? (
-          <div className='mt-1.5 pl-11 sm:hidden'>
+        {!ready ? (
+          <span className='text-muted-foreground text-xs'>Coming soon</span>
+        ) : track.compareHref === undefined ? null : (
+          <Link
+            href={track.compareHref}
+            className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-xs underline underline-offset-4'
+          >
+            Compare takes
+          </Link>
+        )}
+      </div>
+      {showTakePills || canVote ? (
+        <div className='mt-2 flex flex-col items-start gap-3 @min-[26rem]:flex-row @min-[26rem]:items-end @min-[26rem]:justify-between'>
+          {showTakePills ? (
             <TakeSwitcher
               labels={track.takes.map(take => take.label)}
               selectedLabel={selectedTake?.label ?? null}
@@ -928,54 +1045,44 @@ function TrackRow({
               onSelect={onSelectTake}
               compact
             />
-          </div>
-        ) : null}
-      </div>
-      {showTakePills ? (
-        <div className='hidden sm:block'>
-          <TakeSwitcher
-            labels={track.takes.map(take => take.label)}
-            selectedLabel={selectedTake?.label ?? null}
-            counts={takeCounts}
-            onSelect={onSelectTake}
-            compact
-          />
-        </div>
-      ) : null}
-      {canVote && selectedTake !== null ? (
-        <div className='flex shrink-0 items-center gap-1'>
-          {voter === 'owner' ? (
-            <DownloadButton
-              key={`save-${track.number}-${voteVersionSlug}-${takeLabel}`}
-              trackNumber={track.number}
-              versionSlug={voteVersionSlug}
-              takeLabel={takeLabel}
-              trackTitle={track.title}
-              audioUrl={selectedTake.audioUrl}
-              votes={votes}
-              onSnapshot={onVoteSnapshot}
-            />
           ) : null}
-          <ListenerScore
-            votes={votes}
-            voter={voter}
-            trackNumber={track.number}
-            versionSlug={voteVersionSlug}
-            takeLabel={takeLabel}
-          />
-          <VoteButton
-            key={`${track.number}-${voteVersionSlug}-${takeLabel}`}
-            trackNumber={track.number}
-            versionSlug={voteVersionSlug}
-            takeLabel={takeLabel}
-            trackTitle={track.title}
-            initialCount={countForTake(votes, track.number, voteVersionSlug, takeLabel)}
-            initialValue={choiceForTake(votes, track.number, voteVersionSlug, takeLabel)}
-            onSnapshot={onVoteSnapshot}
-          />
+          {canVote && selectedTake !== null ? (
+            <div className='flex shrink-0 items-end gap-1 self-end'>
+              {voter === 'owner' ? (
+                <DownloadButton
+                  key={`save-${track.number}-${voteVersionSlug}-${takeLabel}`}
+                  trackNumber={track.number}
+                  versionSlug={voteVersionSlug}
+                  takeLabel={takeLabel}
+                  displayLabel={selectedTake.label}
+                  trackTitle={track.title}
+                  audioUrl={selectedTake.audioUrl}
+                  votes={votes}
+                  onSnapshot={onVoteSnapshot}
+                />
+              ) : null}
+              <ListenerScore
+                votes={votes}
+                voter={voter}
+                trackNumber={track.number}
+                versionSlug={voteVersionSlug}
+                takeLabel={takeLabel}
+              />
+              <VoteButton
+                key={`${track.number}-${voteVersionSlug}-${takeLabel}`}
+                trackNumber={track.number}
+                versionSlug={voteVersionSlug}
+                takeLabel={takeLabel}
+                displayLabel={selectedTake.label}
+                trackTitle={track.title}
+                initialCount={countForTake(votes, track.number, voteVersionSlug, takeLabel)}
+                initialValue={choiceForTake(votes, track.number, voteVersionSlug, takeLabel)}
+                onSnapshot={onVoteSnapshot}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
-      {!ready ? <span className='text-muted-foreground text-xs'>Waiting</span> : null}
     </div>
   );
 }
@@ -996,36 +1103,48 @@ function TakeSwitcher({
   counts?: Record<string, number>;
 }) {
   return (
-    <div className={cn('flex flex-wrap items-center gap-2', compact ? '' : 'pt-1')}>
+    <div className={cn('flex min-w-0 flex-wrap items-center gap-2', compact ? '' : 'pt-1')}>
       {legend === undefined ? null : (
-        <p className='text-muted-foreground mr-2 text-xs tracking-[0.2em] uppercase'>{legend}</p>
+        <p className='text-muted-foreground w-full text-xs'>{legend}</p>
       )}
       {labels.map(label => {
         const selected = label === selectedLabel;
         const count = counts?.[label] ?? 0;
         return (
-          <span key={label} className='inline-flex items-center gap-1'>
-            <button
-              type='button'
-              onClick={() => onSelect(label)}
-              aria-pressed={selected}
-              aria-label={legend === undefined ? `Take ${label}` : `${legend} ${label}`}
-              className={cn(
-                'rounded-lg border font-mono text-xs transition-colors',
-                compact ? 'px-2.5 py-1.5' : 'px-3 py-2',
-                selected
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'text-muted-foreground hover:text-foreground border-white/15 hover:border-white/30'
-              )}
-            >
-              {label}
-            </button>
-            {count !== 0 ? (
-              <span className='text-muted-foreground min-w-5 font-mono text-xs'>
-                {formatSignedScore(count)}
+          <button
+            key={label}
+            type='button'
+            onClick={() => onSelect(label)}
+            aria-pressed={selected}
+            aria-label={legend === undefined ? `Take ${label}` : `${legend} ${label}`}
+            title={
+              counts === undefined
+                ? `Take ${label}`
+                : `Take ${label}, score ${formatSignedScore(count)}`
+            }
+            data-take-button
+            className={cn(
+              'grid h-11 shrink-0 items-center rounded-lg border text-sm transition-colors',
+              counts === undefined ? 'w-11 grid-cols-1' : 'w-24 grid-cols-[2rem_1fr]',
+              selected
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground border-white/15 hover:border-white/35'
+            )}
+          >
+            <span className='font-medium'>{label}</span>
+            {counts === undefined ? null : (
+              <span
+                aria-label={`Score ${formatSignedScore(count)}`}
+                className={cn(
+                  'border-l px-1 font-mono text-xs tabular-nums',
+                  selected ? 'border-black/15' : 'border-white/15',
+                  count === 0 && 'opacity-50'
+                )}
+              >
+                {formatCompactScore(count)}
               </span>
-            ) : null}
-          </span>
+            )}
+          </button>
         );
       })}
     </div>
@@ -1064,7 +1183,7 @@ function SeekBar({
       aria-valuemax={Math.max(0, Math.floor(duration))}
       aria-valuenow={Math.floor(currentTime)}
       aria-valuetext={`${formatDuration(currentTime)} of ${formatDuration(duration)}`}
-      className={cn('group relative h-8', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}
+      className={cn('group relative h-11', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}
       onPointerDown={event => {
         event.currentTarget.setPointerCapture(event.pointerId);
         seekFromClientX(event.currentTarget, event.clientX);
@@ -1119,7 +1238,7 @@ function EmptyAudioHint({
           <code className='text-foreground'>v1-01-track-one-p1-takea.mp3</code>.
         </p>
       ) : (
-        <p>Nothing here yet.</p>
+        <p>Music is on the way. Tracks will appear here as they become available.</p>
       )}
     </div>
   );
@@ -1142,7 +1261,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className='flex size-11 items-center justify-center rounded-full hover:bg-white/6 disabled:opacity-40'
+      className='flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-white/6 disabled:opacity-40'
     >
       {children}
     </button>

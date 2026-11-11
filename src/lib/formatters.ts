@@ -94,3 +94,15 @@ export function formatDuration(seconds: number): string {
   const secs = total % 60;
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+/** Fits a reserved score slot; the full value is exposed separately. */
+export function formatCompactScore(value: number): string {
+  const magnitude = Math.abs(value);
+  const amount =
+    magnitude < 1000
+      ? String(magnitude)
+      : new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 })
+          .format(magnitude)
+          .toLowerCase();
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${amount}`;
+}

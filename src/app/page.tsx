@@ -44,9 +44,9 @@ export default async function Home() {
           <div className='flex flex-wrap gap-3'>
             <Link
               href='/listen'
-              className='bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-5 py-2 text-sm font-medium'
+              className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex min-h-12 items-center rounded-xl px-5 py-2 text-sm font-medium'
             >
-              Listen
+              Listen now
             </Link>
             {canCastVote({
               visibility: settings.visibility,
@@ -56,9 +56,9 @@ export default async function Home() {
             }) ? (
               <Link
                 href='/vote'
-                className='rounded-full border border-white/15 px-5 py-2 text-sm font-medium hover:bg-white/6'
+                className='inline-flex min-h-12 items-center rounded-xl border border-white/15 px-5 py-2 text-sm font-medium hover:bg-white/6'
               >
-                Vote
+                Compare takes
               </Link>
             ) : null}
             {owner ? (
@@ -73,11 +73,16 @@ export default async function Home() {
         </section>
       )}
 
-      <p className='text-muted-foreground text-sm'>
-        <a href={MAKE_AN_ALBUM_URL} className='hover:text-foreground underline underline-offset-2'>
-          How to make an album with this kit
-        </a>
-      </p>
+      {owner ? (
+        <p className='text-muted-foreground text-sm'>
+          <a
+            href={MAKE_AN_ALBUM_URL}
+            className='hover:text-foreground underline underline-offset-2'
+          >
+            How to make an album with this kit
+          </a>
+        </p>
+      ) : null}
     </main>
   );
 }

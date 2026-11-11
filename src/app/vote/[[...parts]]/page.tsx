@@ -8,21 +8,13 @@ import { findTakeByVersionAndLabel } from '@/lib/album/playback';
 import { parseTakeSegment, resolveTrack, voteHref } from '@/lib/album/play-path';
 import type { AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
-import { isViewer, viewerInviteId } from '@/lib/owner/viewer';
+import { isViewer } from '@/lib/owner/viewer';
 import { canCastVote } from '@/lib/settings/access';
-import { getVoteSnapshot } from '@/lib/votes/board';
-import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
-import { blindSnapshot, blindVersion } from '@/lib/votes/blind';
+import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
 import { loadSettings } from '@/lib/settings/store';
-import { isBlindForListenerSnapshot, markExposed } from '@/lib/votes/exposure';
-import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
+import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
-import { withVisibleDetails } from '@/lib/votes/provenance';
-import {
-  inviteListenerVisitorId,
-  listenerIdFromPage,
-  publicListenerVisitorId,
-} from '@/lib/votes/listener-id';
+import { listenerJudgingView } from '@/lib/votes/listener-view';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +24,7 @@ type VotePageProps = {
 
 export async function generateMetadata(): Promise<Metadata> {
   if (!(await isOwner())) {
-    return { title: 'Vote' };
+    return { title: 'Compare takes' };
   }
   const round = await getVisitorCurrentRound(OWNER_VISITOR_ID).catch(() => 1);
   return { title: `Round ${round}` };
@@ -106,36 +98,10 @@ async function listenerVotePage(args: {
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
 }) {
-  const [config, originalVersion, ownerRound, inviteId, publicId] = await Promise.all([
+  const [config, { version, votes, awaitingReveal }] = await Promise.all([
     loadAlbumConfig(),
-    getConsolidatedPassVersion(OWNER_VISITOR_ID),
-    getVisitorCurrentRound(OWNER_VISITOR_ID),
-    args.visibility === 'private' ? viewerInviteId() : Promise.resolve(null),
-    listenerIdFromPage(),
+    listenerJudgingView(args),
   ]);
-  const visitorId =
-    inviteId !== null
-      ? inviteListenerVisitorId(inviteId)
-      : publicId !== null
-        ? publicListenerVisitorId(publicId)
-        : '';
-  const originalVotes =
-    visitorId.length === 0
-      ? { ...EMPTY_VOTE_SNAPSHOT, currentRound: ownerRound }
-      : await getVoteSnapshot(visitorId, { round: ownerRound, carry: false }).catch(
-          (): VoteSnapshot => ({ ...EMPTY_VOTE_SNAPSHOT, currentRound: ownerRound })
-        );
-  const blind = await isBlindForListenerSnapshot(
-    visitorId,
-    args.listeningDetails,
-    originalVotes,
-    originalVersion
-  );
-  if (!blind && visitorId.length > 0) await markExposed(visitorId, ownerRound);
-  const version = blind
-    ? await blindVersion(originalVersion, ownerRound)
-    : await withVisibleDetails(originalVersion);
-  const votes = blind ? await blindSnapshot(originalVotes) : originalVotes;
   const configTrack = config.tracks.find(track => track.slug === args.trackSlug);
   const track =
     args.trackSlug === undefined
@@ -154,7 +120,7 @@ async function listenerVotePage(args: {
       version={version}
       votes={votes}
       voter='listener'
-      awaitingReveal={args.listeningDetails === 'reveal-after-vote' && blind}
+      awaitingReveal={awaitingReveal}
       track={track}
       initialTake={initialTake}
       note='Play a take, then tap + or − to score it.'
@@ -180,16 +146,16 @@ function VoteMain({
   note: string | null;
 }) {
   return (
-    <main className='mx-auto max-w-5xl px-6 py-12'>
+    <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-10'>
       {note === null ? null : (
-        <p className='text-muted-foreground mb-8 max-w-2xl text-sm'>{note}</p>
+        <p className='text-muted-foreground mb-5 max-w-2xl text-sm'>{note}</p>
       )}
       {voter === 'listener' ? (
         <Link
           href='/key?next=/vote'
-          className='mb-6 inline-flex rounded-lg border border-white/20 px-4 py-2 text-sm font-medium hover:bg-white/8'
+          className='text-muted-foreground mb-5 inline-flex min-h-11 items-center text-sm underline underline-offset-4'
         >
-          Making this album? Sign in to choose final picks
+          Owner sign-in
         </Link>
       ) : null}
       {track === null ? (

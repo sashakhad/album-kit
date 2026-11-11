@@ -40,7 +40,7 @@ export function shareTarget(
     return { grant: 'unavailable', path: null, invite: false };
   }
   if (listenerVoting) {
-    return { grant: 'listen-and-vote', path: '/vote', invite: visibility === 'private' };
+    return { grant: 'listen-and-vote', path: '/listen', invite: visibility === 'private' };
   }
   return { grant: 'listen', path: '/listen', invite: visibility === 'private' };
 }

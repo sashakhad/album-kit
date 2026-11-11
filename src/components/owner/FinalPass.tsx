@@ -103,7 +103,7 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
           href='/vote'
           className='text-muted-foreground hover:text-foreground underline underline-offset-4'
         >
-          Back to voting
+          Compare takes
         </Link>
       </div>
       {error === null ? null : (
@@ -146,7 +146,7 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
                           type='button'
                           onClick={() => toggleAudio(take.token, take.audioUrl)}
                           aria-label={`${playing === take.token ? 'Pause' : 'Play'} ${take.label} of ${track.title}`}
-                          className='bg-primary text-primary-foreground hover:bg-primary/90 flex size-10 shrink-0 items-center justify-center rounded-full'
+                          className='bg-primary text-primary-foreground hover:bg-primary/90 flex size-11 shrink-0 items-center justify-center rounded-full'
                         >
                           {playing === take.token ? (
                             <Pause className='size-4 fill-current' />
@@ -163,9 +163,14 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
                               : ` · listeners ${formatSignedScore(take.listenerScore)}`}
                           </p>
                           {take.prompt === null ? null : (
-                            <p className='text-muted-foreground mt-2 max-w-2xl text-xs leading-relaxed whitespace-pre-line'>
-                              {take.prompt}
-                            </p>
+                            <details className='text-muted-foreground mt-2 max-w-2xl text-xs'>
+                              <summary className='flex min-h-11 cursor-pointer items-center'>
+                                Prompt
+                              </summary>
+                              <p className='pb-3 leading-relaxed whitespace-pre-line'>
+                                {take.prompt}
+                              </p>
+                            </details>
                           )}
                         </div>
                         <div className='flex flex-wrap gap-2'>
@@ -174,7 +179,7 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
                             disabled={pending !== null || main}
                             onClick={() => void save(track.number, 'main', take.token)}
                             className={cn(
-                              'rounded-lg border px-3 py-2 text-xs font-medium disabled:cursor-default',
+                              'min-h-11 rounded-lg border px-3 py-2 text-xs font-medium disabled:cursor-default',
                               main
                                 ? 'border-primary/40 bg-primary/12 text-primary'
                                 : 'border-white/20 hover:bg-white/8'
@@ -194,7 +199,7 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
                             disabled={pending !== null || vip}
                             onClick={() => void save(track.number, 'vip', take.token)}
                             className={cn(
-                              'rounded-lg border px-3 py-2 text-xs disabled:cursor-default',
+                              'min-h-11 rounded-lg border px-3 py-2 text-xs disabled:cursor-default',
                               vip
                                 ? 'border-primary/40 bg-primary/12 text-primary'
                                 : 'text-muted-foreground hover:text-foreground border-white/15 hover:bg-white/8'
@@ -215,7 +220,7 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
                       type='button'
                       disabled={pending !== null}
                       onClick={() => void save(track.number, 'main', null)}
-                      className='hover:text-foreground underline underline-offset-4'
+                      className='hover:text-foreground min-h-11 underline underline-offset-4'
                     >
                       Remove album pick{selected.mainToken === null ? ' from an earlier round' : ''}
                     </button>
@@ -225,7 +230,7 @@ export function FinalPass({ tracks, round }: { tracks: FinalTrack[]; round: numb
                       type='button'
                       disabled={pending !== null}
                       onClick={() => void save(track.number, 'vip', null)}
-                      className='hover:text-foreground underline underline-offset-4'
+                      className='hover:text-foreground min-h-11 underline underline-offset-4'
                     >
                       Remove VIP{selected.vipToken === null ? ' from an earlier round' : ''}
                     </button>

@@ -5,7 +5,7 @@ description: Use when the owner is ready to choose album or VIP takes for Listen
 
 # Finish · version 3
 
-The owner picks the keepers. `/final` is the owner screen for making those choices. A pick appears on `/listen` as soon as it is saved. Never choose a winner just because it has the highest score.
+The owner picks the keepers. `/final` is the owner screen for making those choices. A pick replaces that track’s Preview on `/listen` as soon as it is saved. Before a pick exists, listeners with comparison access can play the first current take; that preview is never a saved winner. Never choose a winner just because it has the highest score.
 
 ## When to use
 
@@ -32,4 +32,4 @@ If the owner asks to version the final choices in `album/album.json`, update the
 
 - The owner has not chosen a take, or their words could mean more than one take.
 - The requested take is out or parked. Confirm before changing the shortlist.
-- An unpinned take answers `200` without the key. Do not share the link until access is fixed.
+- An unpinned canonical `/api/audio/` URL answers `200` without the key. Authorized opaque preview URLs are expected to play. Do not share the link until access is fixed.

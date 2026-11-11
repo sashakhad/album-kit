@@ -19,7 +19,6 @@ export default async function FinalPage() {
     getListenConfig(),
     ownerJudgingView(),
   ]);
-  const setNames = new Map(config.sets.map(set => [set.id, set.name]));
   const tracks: FinalTrack[] = config.tracks
     .filter(track => track.parked !== true)
     .map(track => {
@@ -41,9 +40,7 @@ export default async function FinalPage() {
         hasVip: selected?.vip !== undefined,
         takes: (displayed?.takes ?? []).map(take => ({
           token: take.filename,
-          label: view.blind
-            ? `Take ${take.label}`
-            : `${setNames.get(take.versionSlug) ?? take.versionSlug} · take ${take.label}`,
+          label: `Take ${take.label}`,
           prompt: take.prompt ?? take.details?.style ?? null,
           audioUrl: take.audioUrl,
           score: countForTake(view.votes, track.number, take.versionSlug, take.voteLabel),

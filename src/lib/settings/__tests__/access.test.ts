@@ -62,7 +62,7 @@ describe('album access', () => {
     });
     expect(shareTarget('public', true)).toEqual({
       grant: 'listen-and-vote',
-      path: '/vote',
+      path: '/listen',
       invite: false,
     });
     expect(shareTarget('private', false)).toEqual({
@@ -72,7 +72,7 @@ describe('album access', () => {
     });
     expect(shareTarget('private', true)).toEqual({
       grant: 'listen-and-vote',
-      path: '/vote',
+      path: '/listen',
       invite: true,
     });
   });
