@@ -18,11 +18,11 @@ describe('SiteHeader', () => {
     expect(screen.queryByRole('link', { name: 'Intake' })).not.toBeInTheDocument();
   });
 
-  it('keeps settings and final picks directly available to the owner', () => {
+  it('keeps comparison and settings directly available to the owner', () => {
     render(<SiteHeader albumTitle='Fixture Album' isOwner />);
 
     expect(screen.getByRole('link', { name: 'Compare takes' })).toHaveAttribute('href', '/vote');
-    expect(screen.getByRole('link', { name: 'Final picks' })).toHaveAttribute('href', '/final');
+    expect(screen.queryByRole('link', { name: 'Final picks' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
   });
 

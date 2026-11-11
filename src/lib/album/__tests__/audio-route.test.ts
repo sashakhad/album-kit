@@ -10,6 +10,7 @@ const UNPINNED = 'v1-01-track-one-p1-takeb.mp3';
 const ownerState = { owner: false };
 const viewerState = { viewer: false };
 const settingsState = { visibility: 'public', listenerVoting: false };
+const published = { takes: [] as { filename: string; versionSlug: string }[] };
 const fetchMock = vi.fn();
 const privateGetMock = vi.fn();
 
@@ -34,17 +35,22 @@ vi.mock('@/lib/album/album-config', async importOriginal => {
 });
 vi.mock('@/lib/album/listen-store', () => ({
   getListenConfig: async () => (await import('@/lib/album/album-config')).loadAlbumConfig(),
+  getListenVersion: async () => ({ tracks: [published] }),
+  listenAudioToken: (_key: string, filename: string) =>
+    (filename === UNPINNED ? 'b' : 'a').repeat(32),
 }));
 vi.mock('@/lib/album/blob-audio', () => ({
   resolveBlobAudioUrl: async (args: { filename: string }) => `${BLOB_URL}${args.filename}`,
 }));
 vi.mock('@/lib/owner/auth', () => ({
+  albumKey: () => 'test-owner-key',
   isOwnerRequest: () => ownerState.owner,
 }));
 vi.mock('@/lib/settings/store', () => ({ loadSettings: async () => settingsState }));
 vi.mock('@/lib/owner/viewer', () => ({ isViewerRequest: async () => viewerState.viewer }));
 
 import { GET } from '@/app/api/audio/[set]/[file]/route';
+import { GET as getPublished } from '@/app/api/listen-audio/[token]/route';
 
 function get(set: string, file: string, headers: Record<string, string> = {}) {
   return GET(new Request(`http://localhost/api/audio/${set}/${file}`, { headers }), {
@@ -57,10 +63,42 @@ beforeEach(() => {
   viewerState.viewer = false;
   settingsState.visibility = 'public';
   settingsState.listenerVoting = false;
+  published.takes = [];
   fetchMock.mockReset();
   privateGetMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
   vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent-album-kit-root');
+});
+
+describe('GET /api/listen-audio/[token]', () => {
+  function listen(token: string) {
+    return getPublished(new Request(`http://localhost/api/listen-audio/${token}`), {
+      params: Promise.resolve({ token }),
+    });
+  }
+
+  it('streams a scored winner with listener voting off and keeps its canonical URL protected', async () => {
+    published.takes = [{ filename: UNPINNED, versionSlug: 'v1' }];
+    fetchMock.mockResolvedValueOnce(new Response('audio', { status: 200 }));
+    const response = await listen('b'.repeat(32));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect((await get('v1', UNPINNED)).status).toBe(401);
+    published.takes = [];
+    expect((await listen('b'.repeat(32))).status).toBe(404);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires an invitation for a private scored winner', async () => {
+    settingsState.visibility = 'private';
+    published.takes = [{ filename: UNPINNED, versionSlug: 'v1' }];
+    const token = 'b'.repeat(32);
+    expect((await listen(token)).status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+    viewerState.viewer = true;
+    fetchMock.mockResolvedValueOnce(new Response('audio', { status: 200 }));
+    expect((await listen(token)).status).toBe(200);
+  });
 });
 
 afterEach(() => {

@@ -25,8 +25,8 @@ export function ShareControls({ listenerVoting }: { listenerVoting: boolean }) {
       <p className='text-sm font-medium'>Listener link</p>
       <p className='text-muted-foreground text-sm leading-relaxed'>
         {listenerVoting
-          ? 'Anyone with this link can hear final picks and previews, then compare takes. Their scores stay separate from yours.'
-          : 'Anyone with this link can hear the takes you choose in Final picks. Allow listener voting to share previews before you make picks.'}
+          ? 'Anyone with this link can hear the chosen takes and previews, then compare takes. Their scores stay separate from yours.'
+          : 'Anyone with this link can hear your highest-scored or chosen takes. Allow listener voting to share previews for tracks you haven’t scored yet.'}
       </p>
       {origin.length > 0 ? (
         <CopyableValue value={`${origin}/listen`} label='Listener link' />

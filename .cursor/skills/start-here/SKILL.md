@@ -20,7 +20,7 @@ Extract all essentials already supplied. Ask for missing album name, genre and t
 The user's explicit request overrides these presets. The default site Settings page can change future rounds. Ask two questions before publishing album content, and leave both answers unset until the owner answers.
 
 1. **“Should the album site be public, or private for you and people you invite?”**
-   - Public means anyone can open the home page and Listen. Listen plays final picks first. Enabling listener voting also lets people preview current takes.
+   - Public means anyone can open the home page and Listen. Listen plays the owner’s chosen or highest-scored takes. Enabling listener voting also lets people preview current takes.
    - Private means only the owner and people who open an invitation can see the home page and Listen. An invitation does not include the album key.
    - Neither answer lets other people vote, upload, move takes, or open Studio or Settings.
      Leave visibility unset until answered. Private requires protected pages and private storage. Do not promise private sharing until it has been verified on a second browser.

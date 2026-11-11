@@ -3,7 +3,9 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { loadAlbumConfig } from '@/lib/album/album-config';
+import { getListenConfig } from '@/lib/album/listen-store';
 import { findTakeByVersionAndLabel } from '@/lib/album/playback';
 import { parseTakeSegment, resolveTrack, voteHref } from '@/lib/album/play-path';
 import type { AlbumTrack, AlbumVersion } from '@/lib/album/types';
@@ -11,6 +13,7 @@ import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { isViewer } from '@/lib/owner/viewer';
 import { canCastVote } from '@/lib/settings/access';
 import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
+import { opaqueAudioId } from '@/lib/votes/blind';
 import { loadSettings } from '@/lib/settings/store';
 import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
@@ -58,10 +61,44 @@ export default async function VotePage({ params }: VotePageProps) {
       listeningDetails: settings.listeningDetails,
     });
   }
-  const [config, { version, votes, awaitingReveal }] = await Promise.all([
-    loadAlbumConfig(),
+  const [config, { version, originalVersion, votes, blind, awaitingReveal }] = await Promise.all([
+    getListenConfig(),
     ownerJudgingView(),
   ]);
+  const listenChoices: Record<number, ListenChoice> = Object.fromEntries(
+    config.tracks.map(item => {
+      const original = trackByNumber(originalVersion, item.number);
+      const take = original?.takes.find(
+        take => take.versionSlug === item.listen?.set && take.voteLabel === item.listen.take
+      );
+      const token =
+        take === undefined
+          ? null
+          : blind
+            ? opaqueAudioId(votes.currentRound, take.filename)
+            : take.filename;
+      return [
+        item.number,
+        { manual: item.listen !== undefined, token, hasBonus: item.vip !== undefined },
+      ];
+    })
+  );
+  const savedOutsideRound: AlbumTrack[] = config.tracks
+    .filter(
+      item =>
+        !item.parked &&
+        (item.listen !== undefined || item.vip !== undefined) &&
+        trackByNumber(version, item.number) === null
+    )
+    .map(item => ({
+      number: item.number,
+      title: item.title,
+      kind: 'album',
+      filename: null,
+      audioUrl: null,
+      takes: [],
+      prompt: null,
+    }));
   const configTrack = config.tracks.find(track => track.slug === trackSlug);
   const track =
     trackSlug === undefined
@@ -77,13 +114,17 @@ export default async function VotePage({ params }: VotePageProps) {
 
   return (
     <VoteMain
-      version={version}
+      version={{
+        ...version,
+        tracks: [...version.tracks, ...savedOutsideRound].sort((a, b) => a.number - b.number),
+      }}
       votes={votes}
       voter='owner'
       awaitingReveal={awaitingReveal}
       track={track}
       initialTake={initialTake}
       showListenerScores={settings.listenerVoting}
+      listenChoices={listenChoices}
     />
   );
 }
@@ -135,6 +176,7 @@ function VoteMain({
   initialTake,
   signInHref,
   showListenerScores = false,
+  listenChoices,
 }: {
   version: AlbumVersion;
   votes: VoteSnapshot;
@@ -144,6 +186,7 @@ function VoteMain({
   initialTake: { label: string } | null;
   signInHref?: string;
   showListenerScores?: boolean;
+  listenChoices?: Record<number, ListenChoice>;
 }) {
   return (
     <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8'>
@@ -152,13 +195,17 @@ function VoteMain({
           <span className='text-foreground font-medium'>
             {voter === 'owner' ? `Owner · Round ${votes.currentRound}` : 'Listener ballot'}
           </span>
-          <span className='ml-2'>Tap + or − to score a take.</span>
+          <span className='ml-2'>
+            {voter === 'owner'
+              ? 'Your highest positive scores play on Listen, including ties.'
+              : 'Tap + or − to score a take.'}
+          </span>
         </p>
         <Link
-          href={signInHref ?? '/final'}
+          href={signInHref ?? '/listen'}
           className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-sm underline underline-offset-4'
         >
-          {voter === 'owner' ? 'Choose final picks' : 'Sign in as owner'}
+          {voter === 'owner' ? 'Open Listen' : 'Sign in as owner'}
         </Link>
       </div>
       <AlbumPlayer
@@ -169,6 +216,7 @@ function VoteMain({
         voter={voter}
         awaitingReveal={awaitingReveal}
         showListenerScores={showListenerScores}
+        {...(listenChoices === undefined ? {} : { listenChoices })}
         {...(track === null
           ? {}
           : { initialTrackNumber: track.number, initialTrackTitle: track.title })}
