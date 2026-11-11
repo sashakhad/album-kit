@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
 import { buildListeningQueue, findListenTrack } from '@/lib/album/listen';
-import { getListenConfig, getListenVersion } from '@/lib/album/listen-store';
+import { getListenConfig, getListenVersion, withPublishedPlayback } from '@/lib/album/listen-store';
 import { isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
 import { canCastVote, canViewAlbum } from '@/lib/settings/access';
@@ -38,7 +37,7 @@ export default async function ListenPage({ params }: ListenPageProps) {
         : listenerJudgingView(settings)
       : Promise.resolve(null),
   ]);
-  const listen = buildListeningQueue(config, pinned, view?.version ?? null);
+  const listen = withPublishedPlayback(buildListeningQueue(config, pinned, view?.version ?? null));
   const selected =
     parts[0] === undefined
       ? undefined
@@ -64,14 +63,6 @@ export default async function ListenPage({ params }: ListenPageProps) {
                 : 'Music is on the way. Check back soon.'}
           </p>
         </div>
-        {owner ? (
-          <Link
-            href='/final'
-            className='inline-flex min-h-11 items-center rounded-lg border border-white/15 px-4 text-sm hover:bg-white/6'
-          >
-            Choose final picks
-          </Link>
-        ) : null}
       </header>
       {hasAudio ? (
         <AlbumPlayer

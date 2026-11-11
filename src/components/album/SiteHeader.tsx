@@ -31,7 +31,7 @@ export function SiteHeader({
           aria-label='Album'
           className={cn(
             'max-w-full items-center gap-1',
-            isOwner ? 'grid w-full grid-cols-4 sm:flex sm:w-auto' : 'flex flex-wrap'
+            isOwner ? 'grid w-full grid-cols-3 sm:flex sm:w-auto' : 'flex flex-wrap'
           )}
         >
           {showListen ? (
@@ -49,14 +49,9 @@ export function SiteHeader({
             </NavPill>
           ) : null}
           {isOwner ? (
-            <>
-              <NavPill href='/final' active={isSection(pathname, '/final')}>
-                Final picks
-              </NavPill>
-              <NavPill href='/settings' active={isSection(pathname, '/settings')}>
-                Settings
-              </NavPill>
-            </>
+            <NavPill href='/settings' active={isSection(pathname, '/settings')}>
+              Settings
+            </NavPill>
           ) : null}
         </nav>
       </div>

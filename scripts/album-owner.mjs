@@ -35,7 +35,7 @@ async function main() {
     body = { patch: JSON.parse(readFileSync(0, 'utf8')) };
   } else {
     throw new Error(
-      'Use pnpm owner:link [/settings|/vote|/final] or pnpm album:settings [--patch]. Pass a JSON patch on stdin.'
+      'Use pnpm owner:link [/settings|/vote] or pnpm album:settings [--patch]. Pass a JSON patch on stdin.'
     );
   }
 

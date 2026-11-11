@@ -28,9 +28,11 @@ import {
   trackKey,
 } from '@/lib/album/playback';
 import { indexForTrackNumber, listenHref, voteHref } from '@/lib/album/play-path';
+import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { DownloadButton } from '@/components/album/DownloadButton';
+import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
 import { VoteButton } from '@/components/album/VoteButton';
 import { choiceForTake, countForTake, takeCountsForTrack } from '@/lib/votes/tally';
@@ -56,6 +58,7 @@ export function AlbumPlayer({
   awaitingReveal = false,
   voter = 'owner',
   showListenerScores = true,
+  listenChoices,
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -66,6 +69,7 @@ export function AlbumPlayer({
   awaitingReveal?: boolean;
   voter?: 'owner' | 'listener';
   showListenerScores?: boolean;
+  listenChoices?: Record<number, ListenChoice>;
 }) {
   const router = useRouter();
   const revealRefreshRequested = useRef(false);
@@ -94,14 +98,25 @@ export function AlbumPlayer({
   const [playbackMode, setPlaybackMode] = useState<PlaybackMode>('album');
   const [preferredTakeLabel] = useState(initialTakeLabel ?? 'A');
   const [selectedTakeByTrack, setSelectedTakeByTrack] = useState<Record<string, string>>(() => {
-    if (initialTakeLabel === undefined) {
-      return {};
+    const selected: Record<string, string> = {};
+    if (listenChoices !== undefined) {
+      for (const track of version.tracks) {
+        const choice = listenChoices[track.number];
+        const take = choice?.manual
+          ? track.takes.find(take => take.filename === choice.token)
+          : rankListenTakes(track.takes, takeCountsForTrack(votes, track)).winners[0];
+        if (take !== undefined) selected[trackKey(track)] = take.label;
+      }
     }
     const track = version.tracks[startIndex];
-    if (track === undefined || findTakeOnTrack(track, initialTakeLabel) === null) {
-      return {};
+    if (
+      initialTakeLabel !== undefined &&
+      track !== undefined &&
+      findTakeOnTrack(track, initialTakeLabel) !== null
+    ) {
+      selected[trackKey(track)] = initialTakeLabel;
     }
-    return { [trackKey(track)]: initialTakeLabel };
+    return selected;
   });
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -621,7 +636,8 @@ export function AlbumPlayer({
         </div>
         <ol className='bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10'>
           {version.tracks.map((track, index) => {
-            if (!isOnAlbumShortlist(track)) return null;
+            const choice = listenChoices?.[track.number];
+            if (!isOnAlbumShortlist(track) && !choice?.manual && !choice?.hasBonus) return null;
             const selectedTake = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
             const currentOnShortlist = index === currentIndex && !isParkedTake(track, selectedTake);
             return (
@@ -636,6 +652,7 @@ export function AlbumPlayer({
                   versionSlug={version.slug}
                   showVotes={playerSurface !== 'listen'}
                   showTakes={playerSurface !== 'listen'}
+                  listenChoice={choice}
                   voter={voter}
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
@@ -978,6 +995,7 @@ function TrackRow({
   versionSlug,
   showVotes,
   showTakes,
+  listenChoice,
   voter,
   onSelect,
   onSelectTake,
@@ -992,6 +1010,7 @@ function TrackRow({
   versionSlug: string;
   showVotes: boolean;
   showTakes: boolean;
+  listenChoice: ListenChoice | undefined;
   voter: 'owner' | 'listener';
   onSelect: () => void;
   onSelectTake: (label: string) => void;
@@ -1002,6 +1021,7 @@ function TrackRow({
   const voteVersionSlug = selectedTake?.versionSlug ?? versionSlug;
   const canVote = showVotes && ready && track.kind === 'album' && selectedTake !== null;
   const showTakePills = showTakes && track.takes.length > 0;
+  const ranking = listenChoice === undefined ? null : rankListenTakes(track.takes, takeCounts);
 
   return (
     <div data-track-row className={cn('@container min-w-0 px-4 py-4', isCurrent && 'bg-white/6')}>
@@ -1033,7 +1053,11 @@ function TrackRow({
           </span>
         </button>
         {!ready ? (
-          <span className='text-muted-foreground text-xs'>Coming soon</span>
+          <span className='text-muted-foreground text-xs'>
+            {listenChoice?.manual || listenChoice?.hasBonus
+              ? 'No takes in this round'
+              : 'Coming soon'}
+          </span>
         ) : track.compareHref === undefined ? null : (
           <Link
             href={track.compareHref}
@@ -1047,7 +1071,7 @@ function TrackRow({
         <div className='mt-2 flex flex-col items-start gap-3 @min-[26rem]:flex-row @min-[26rem]:items-end @min-[26rem]:justify-between'>
           {showTakePills ? (
             <TakeSwitcher
-              labels={track.takes.map(take => take.label)}
+              labels={(ranking?.ordered ?? track.takes).map(take => take.label)}
               selectedLabel={selectedTake?.label ?? null}
               counts={takeCounts}
               onSelect={onSelectTake}
@@ -1090,6 +1114,18 @@ function TrackRow({
             </div>
           ) : null}
         </div>
+      ) : null}
+      {listenChoice !== undefined &&
+      ranking !== null &&
+      (ready || listenChoice.manual || listenChoice.hasBonus) ? (
+        <ListenChoiceControls
+          key={track.takes[0]?.filename ?? track.title}
+          track={track}
+          selectedTake={selectedTake}
+          winners={ranking.winners}
+          initialChoice={listenChoice}
+          round={votes.currentRound}
+        />
       ) : null}
     </div>
   );

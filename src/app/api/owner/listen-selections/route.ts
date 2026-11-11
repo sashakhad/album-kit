@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     getVisitorCurrentRound(OWNER_VISITOR_ID),
   ]);
   if (round !== currentRound) {
-    return NextResponse.json({ error: 'Round changed. Reload Final picks.' }, { status: 409 });
+    return NextResponse.json({ error: 'Round changed. Reload Compare takes.' }, { status: 409 });
   }
   const configTrack = config.tracks.find(track => track.number === trackNumber);
   if (configTrack === undefined || configTrack.parked === true) {

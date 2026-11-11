@@ -147,6 +147,10 @@ export async function applyPassFilterForVisitor(args: {
 }
 
 export async function getConsolidatedPassVersion(visitorId: string): Promise<AlbumVersion> {
+  return (await getConsolidatedPass(visitorId)).version;
+}
+
+export async function getConsolidatedPass(visitorId: string) {
   const [config, versions, currentRound, votes, parked] = await Promise.all([
     loadAlbumConfig(),
     listSets(),
@@ -155,13 +159,14 @@ export async function getConsolidatedPassVersion(visitorId: string): Promise<Alb
     loadParkedTakes(),
   ]);
 
-  return buildConsolidatedPassVersion({
+  const version = buildConsolidatedPassVersion({
     versions,
     currentRound,
     votes,
     parked,
     tracklist: albumTracklist(config),
   });
+  return { version, versions, currentRound, votes };
 }
 
 export async function upsertDownload(args: {

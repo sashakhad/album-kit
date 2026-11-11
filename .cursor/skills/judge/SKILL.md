@@ -31,7 +31,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - When a new round starts, each take's latest positive score carries into it. Zero and negative scores don't carry. Takes at zero and takes with no votes stay in.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
    - Visible mode shows the selected take's Style prompt in the collapsed Prompt section below the playback controls. Blind modes hide it until the selected reveal point.
-   - When the owner is ready to choose album versions, open `/final`. Picks made there appear on `/listen` immediately.
+   - Listen follows the highest positive owner score per track and includes ties. In Compare takes, the owner can choose a specific take or use **Follow scores** to return to automatic selection.
 
 2. **Read the scores.**
 

@@ -7,6 +7,7 @@ import {
   buildListeningQueue,
   findListenTrack,
   isListenFile,
+  rankListenTakes,
 } from '../listen';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '../types';
 
@@ -264,5 +265,51 @@ describe('complete final listening picks', () => {
       filename: 'v2-01-track-one-p1-takea.mp3',
     });
     expect(queue.tracks.every(row => row.audioUrl !== null)).toBe(true);
+  });
+});
+
+describe('automatic listening choices', () => {
+  const album = { ...config, tracks: [{ number: 1, title: 'Track One', slug: 'track-one' }] };
+  const takes = [...(bubu.tracks[0]?.takes ?? []), ...(lulu.tracks[0]?.takes ?? [])];
+
+  it('ranks takes by score and plays every positive leader as a separate album entry', () => {
+    const { ordered, winners } = rankListenTakes(takes, { A: 1, B: 2, C: 2 });
+    expect(ordered.map(take => take.label)).toEqual(['B', 'C', 'A']);
+    const defaults = new Map([[1, winners.map(take => ({ ...take, prompt: 'Hidden prompt' }))]]);
+    const published = buildListenVersion({ config: album, versions: [bubu, lulu], defaults });
+    const queue = buildListeningQueue(album, published, null);
+    expect(queue.tracks.map(track => [track.listenSlug, track.takes[0]?.voteLabel])).toEqual([
+      ['track-one', 'B'],
+      ['track-one~2', 'C'],
+    ]);
+    expect(JSON.stringify(queue)).not.toContain('Hidden prompt');
+  });
+
+  it('lets a saved choice override a tie and uses the scores again when cleared', () => {
+    const defaults = new Map([[1, rankListenTakes(takes, { B: 2, C: 2 }).winners]]);
+    const picked = applyListenSelections(album, [
+      { trackNumber: 1, slot: 'main', setId: 'v1', takeLabel: 'A' },
+    ]);
+    const versions = [bubu, lulu];
+    expect(
+      buildListenVersion({ config: picked, versions, defaults }).tracks.map(
+        track => track.takes[0]?.voteLabel
+      )
+    ).toEqual(['A']);
+    const cleared = applyListenSelections(picked, [
+      { trackNumber: 1, slot: 'main', setId: null, takeLabel: null },
+    ]);
+    expect(
+      buildListenVersion({ config: cleared, versions, defaults }).tracks.map(
+        track => track.takes[0]?.voteLabel
+      )
+    ).toEqual(['B', 'C']);
+  });
+
+  it('leaves zero and downvoted takes to the existing preview rules', () => {
+    const defaults = new Map([[1, rankListenTakes(takes, { A: 0, B: -1, C: -2 }).winners]]);
+    const published = buildListenVersion({ config: album, versions: [bubu, lulu], defaults });
+    expect(buildListeningQueue(album, published, null).tracks[0]?.status).toBe('waiting');
+    expect(buildListeningQueue(album, published, bubu).tracks[0]?.status).toBe('preview');
   });
 });
