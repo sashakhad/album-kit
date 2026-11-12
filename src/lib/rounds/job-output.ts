@@ -7,6 +7,8 @@ export const jobOutputSchema = z
         z.object({
           filename: z.string().min(1),
           outputId: z.string().nullable(),
+          clipId: z.string().min(1).nullable().optional(),
+          streamUrl: z.string().min(1).nullable().optional(),
           downloaded: z.boolean(),
           uploaded: z.boolean(),
         })

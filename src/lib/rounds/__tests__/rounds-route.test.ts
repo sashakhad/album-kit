@@ -68,7 +68,7 @@ describe('round creation', () => {
       generations: 2,
       expectedOutputs: 4,
       generationCredits: 20,
-      downloads: 4,
+      downloads: 0,
     });
     expect(result.round.snapshot.prompts).toHaveLength(2);
     expect(result.round.snapshot.prompts[0]).toMatchObject({

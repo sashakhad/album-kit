@@ -1,4 +1,5 @@
 import { parseTakeLabel, parseTrackNumber, titleFromFilename } from '@/lib/album/parse-filename';
+import { playbackAudioUrl, type StreamCatalogEntry } from '@/lib/album/stream-url';
 import {
   audioUrlFor,
   type AlbumTake,
@@ -21,6 +22,7 @@ export function buildVersion(args: {
   prompts: Map<number, string>;
   takePrompts?: Map<string, string> | undefined;
   tracklist: CanonicalTrack[];
+  streams?: ReadonlyMap<string, StreamCatalogEntry> | undefined;
 }): AlbumVersion {
   const albumSlug = args.meta.albumSlug ?? null;
   const tracklist = args.tracklist;
@@ -36,6 +38,7 @@ export function buildVersion(args: {
       usedFiles,
       trackNumber: canonical.number,
       takePrompts: args.takePrompts,
+      streams: args.streams,
     });
     const first = takes[0];
 
@@ -63,6 +66,7 @@ export function buildVersion(args: {
       filename,
       label: 'A',
       prompt: args.takePrompts?.get(filename),
+      streams: args.streams,
     });
     tracks.push({
       number: bonusNumber,
@@ -92,6 +96,7 @@ function collectTakes(args: {
   usedFiles: Set<string>;
   trackNumber: number;
   takePrompts?: Map<string, string> | undefined;
+  streams?: ReadonlyMap<string, StreamCatalogEntry> | undefined;
 }): AlbumTake[] {
   const matching: string[] = [];
 
@@ -116,7 +121,13 @@ function collectTakes(args: {
     const label = parsed !== null && !usedLabels.has(parsed) ? parsed : nextUnusedLabel(usedLabels);
     usedLabels.add(label);
     takes.push(
-      takeFromFile({ slug: args.slug, filename, label, prompt: args.takePrompts?.get(filename) })
+      takeFromFile({
+        slug: args.slug,
+        filename,
+        label,
+        prompt: args.takePrompts?.get(filename),
+        streams: args.streams,
+      })
     );
   }
 
@@ -140,11 +151,19 @@ function takeFromFile(args: {
   filename: string;
   label: string;
   prompt?: string | undefined;
+  streams?: ReadonlyMap<string, StreamCatalogEntry> | undefined;
 }): AlbumTake {
+  const stored = args.streams?.get(args.filename);
+  const fileUrl = audioUrlFor(args.slug, args.filename);
   return {
     label: args.label,
     filename: args.filename,
-    audioUrl: audioUrlFor(args.slug, args.filename),
+    audioUrl:
+      playbackAudioUrl({
+        streamUrl: stored?.streamUrl ?? null,
+        clipId: stored?.clipId ?? null,
+        fileUrl,
+      }) ?? fileUrl,
     versionSlug: args.slug,
     voteLabel: args.label,
     ...(args.prompt === undefined ? {} : { prompt: args.prompt }),

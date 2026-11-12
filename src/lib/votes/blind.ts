@@ -3,6 +3,7 @@ import 'server-only';
 import { createHmac, randomInt } from 'node:crypto';
 
 import type { Prisma } from '@/generated/prisma/client';
+import { listenerAudioUrl } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumVersion } from '@/lib/album/types';
 import { parseTakeLabel } from '@/lib/album/parse-filename';
 import { albumKey } from '@/lib/owner/auth';
@@ -76,7 +77,7 @@ export async function blindVersion(version: AlbumVersion, round: number): Promis
           voteLabel: alias,
           versionSlug: take.versionSlug,
           filename: token,
-          audioUrl: `/api/blind-audio/${round}/${token}`,
+          audioUrl: listenerAudioUrl(take.audioUrl, `/api/blind-audio/${round}/${token}`),
         };
       };
       const takes = track.takes.map(disguise);

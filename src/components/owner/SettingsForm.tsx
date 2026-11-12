@@ -415,7 +415,10 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
             ) : null}
             <div className='space-y-3 border-t border-white/10 pt-4'>
               <h3 className='font-medium'>Round limits</h3>
-              <p className={muted}>Grok Bot still asks you to approve each round’s cost.</p>
+              <p className={muted}>
+                Grok Bot still asks you to approve each round’s cost. Review plays streams and does
+                not use download credits.
+              </p>
               <div className='grid gap-4 sm:grid-cols-3'>
                 <LimitField
                   label='Generation credits'
@@ -423,7 +426,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                   onChange={value => change('generationCreditLimit', value)}
                 />
                 <LimitField
-                  label='Downloads'
+                  label='Final downloads'
                   value={draft.downloadLimit}
                   onChange={value => change('downloadLimit', value)}
                 />
