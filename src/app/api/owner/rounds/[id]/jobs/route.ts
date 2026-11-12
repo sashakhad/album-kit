@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { parseCanonicalTake } from '@/lib/album/parse-filename';
+import { takeIsCollected, takeStreamProblem } from '@/lib/album/stream-url';
 import { requireOwner } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 import { jobOutputSchema } from '@/lib/rounds/job-output';
@@ -128,6 +129,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (output !== null) {
     const filenames = new Set<string>();
     const outputIds = new Set<string>();
+    const streamUrls = new Set<string>();
     const round = await prisma.generationRound.findUnique({ where: { id } });
     const snapshot = round?.snapshot as
       { prompts?: Array<{ id: string; trackNumber: number; lane: number }> } | undefined;
@@ -147,6 +149,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           { status: 400 }
         );
       }
+      const streamProblem = takeStreamProblem(take);
+      if (streamProblem !== null) {
+        return NextResponse.json({ error: streamProblem }, { status: 400 });
+      }
+      if (take.streamUrl !== undefined && take.streamUrl !== null && take.streamUrl.length > 0) {
+        if (streamUrls.has(take.streamUrl)) {
+          return NextResponse.json(
+            { error: 'Job outputs must be unique canonical takes for its prompt' },
+            { status: 400 }
+          );
+        }
+        streamUrls.add(take.streamUrl);
+      }
       filenames.add(take.filename);
       if (take.outputId !== null) outputIds.add(take.outputId);
     }
@@ -155,10 +170,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     parsed.data.status === 'complete' &&
     (output === null ||
       output.takes.length === 0 ||
-      output.takes.some(take => !take.downloaded || !take.uploaded))
+      output.takes.some(take => !takeIsCollected(take)))
   ) {
     return NextResponse.json(
-      { error: 'Complete requires every actual take downloaded and uploaded' },
+      {
+        error:
+          'Complete requires a Suno stream for every take, or a stored file for an older upload',
+      },
       { status: 409 }
     );
   }

@@ -5,7 +5,7 @@ description: Use while the owner votes on /vote, to explain or start rounds, par
 
 # Judge · version 2
 
-The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
+The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. Takes under review play from their stored Suno stream URL. Do not download them. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
 ## When to use
 
@@ -159,7 +159,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
   curl -sSL -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/audio/<set>/<old file>"
   ```
 
-  You want `200`, then `404`.
+  You want `200`, then `404`. That check is for an uploaded file. A streamed take has no `/api/audio/` object; confirm it plays on Compare takes instead.
 
 - Changes to `album/album.json` and the sheets went through the `publish` skill, and its checks passed.
 - After a cleanup, the storage count dropped by the number of files you deleted.

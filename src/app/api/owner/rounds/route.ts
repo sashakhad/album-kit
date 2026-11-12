@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   const checkedAt = Date.parse(parsed.data.capabilities.checkedAt);
   if (checkedAt > Date.now() + 5 * 60_000 || Date.now() - checkedAt > 60 * 60_000) {
     return NextResponse.json(
-      { error: 'Refresh Suno models, credits, and download allowance before creating a round' },
+      { error: 'Refresh Suno models and generation credits before creating a round' },
       { status: 409 }
     );
   }

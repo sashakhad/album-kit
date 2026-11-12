@@ -31,6 +31,7 @@
     "album:settings": "node scripts/album-owner.mjs settings",
     "check:kit": "node scripts/check-kit.mjs",
     "takes:upload": "node scripts/takes-upload.mjs",
+    "takes:refresh": "node scripts/refresh-streams.mjs",
     "publish:album": "node scripts/publish-album.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky"

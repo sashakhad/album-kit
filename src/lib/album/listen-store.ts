@@ -5,6 +5,7 @@ import { cache } from 'react';
 
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { applyListenSelections, buildListenVersion, rankListenTakes } from '@/lib/album/listen';
+import { listenerAudioUrl } from '@/lib/album/stream-url';
 import type { AlbumVersion } from '@/lib/album/types';
 import { albumKey, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { getPrisma } from '@/lib/prisma';
@@ -57,7 +58,7 @@ export function withPublishedPlayback(version: AlbumVersion): AlbumVersion {
       const take = track.takes[0];
       if (track.status !== 'picked' || take === undefined) return track;
       const token = listenAudioToken(key, take.filename);
-      const audioUrl = `/api/listen-audio/${token}`;
+      const audioUrl = listenerAudioUrl(take.audioUrl, `/api/listen-audio/${token}`);
       return {
         ...track,
         filename: token,

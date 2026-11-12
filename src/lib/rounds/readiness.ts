@@ -1,3 +1,4 @@
+import { isPlayableStream, resolvedClipId } from '@/lib/album/stream-url';
 import { jobOutputSchema } from '@/lib/rounds/job-output';
 
 type JobRecord = {
@@ -11,6 +12,8 @@ type ProvenanceRecord = {
   promptId: string;
   roundId: string;
   outputId: string | null;
+  clipId?: string | null;
+  streamUrl?: string | null;
 };
 
 export function checkRoundReadiness(args: {
@@ -42,9 +45,10 @@ export function checkRoundReadiness(args: {
       actualOutputs++;
       if (seen.has(take.filename)) problems.push(`${take.filename} appears in more than one job.`);
       seen.add(take.filename);
-      if (!take.downloaded || !take.uploaded)
+      const streamed = isPlayableStream(take.streamUrl, resolvedClipId(take));
+      if (!streamed && (!take.downloaded || !take.uploaded))
         problems.push(`${take.filename} has not been downloaded and uploaded.`);
-      if (!stored.has(take.filename))
+      if (!streamed && !stored.has(take.filename))
         problems.push(`${take.filename} is missing from audio storage.`);
       const record = records.get(take.filename);
       if (
@@ -54,6 +58,8 @@ export function checkRoundReadiness(args: {
         record.outputId !== take.outputId
       )
         problems.push(`${take.filename} has no matching take provenance.`);
+      else if (streamed && !isPlayableStream(record.streamUrl, resolvedClipId(record)))
+        problems.push(`${take.filename} has no stored stream URL.`);
     }
   }
   if (actualOutputs > args.expectedOutputs)

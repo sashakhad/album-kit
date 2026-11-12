@@ -71,7 +71,8 @@ export function estimateRound(args: {
   const generations = prompts * args.settings.generationsPerPrompt;
   const expectedOutputs = generations * capabilities.outputsPerGeneration;
   const generationCredits = generations * capabilities.creditsPerGeneration;
-  const downloads = expectedOutputs * capabilities.downloadsPerOutput;
+  // Review plays stored Suno MP3s. Download credits are for a later final-file export.
+  const downloads = 0;
   const blockers: string[] = [];
   if (capabilities.costModel !== model) {
     blockers.push(
@@ -83,9 +84,6 @@ export function estimateRound(args: {
       `Need ${generationCredits} generation credits; ${capabilities.generationCreditsAvailable} available.`
     );
   }
-  if (downloads > capabilities.downloadsAvailable) {
-    blockers.push(`Need ${downloads} downloads; ${capabilities.downloadsAvailable} available.`);
-  }
   if (
     args.settings.generationCreditLimit !== null &&
     generationCredits > args.settings.generationCreditLimit
@@ -93,9 +91,6 @@ export function estimateRound(args: {
     blockers.push(
       `Generation estimate exceeds the ${args.settings.generationCreditLimit}-credit limit.`
     );
-  }
-  if (args.settings.downloadLimit !== null && downloads > args.settings.downloadLimit) {
-    blockers.push(`Download estimate exceeds the ${args.settings.downloadLimit}-download limit.`);
   }
   if (args.settings.promptWriter === 'cursor' && args.externalSpendEstimateUsd === undefined) {
     blockers.push('Cursor model cost and execution path must be verified before this round.');

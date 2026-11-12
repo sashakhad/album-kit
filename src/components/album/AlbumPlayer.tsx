@@ -75,6 +75,10 @@ export function AlbumPlayer({
   const revealRefreshRequested = useRef(false);
   const playerSurface: PlayerSurface = surface ?? 'vote';
   const audioRef = useRef<HTMLAudioElement>(null);
+  const assignAudio = useCallback((node: HTMLAudioElement | null) => {
+    audioRef.current = node;
+    if (node !== null) node.setAttribute('referrerpolicy', 'no-referrer');
+  }, []);
   const playableIndexes = useMemo(() => collectPlayableIndexes(version.tracks), [version.tracks]);
   const startIndex = useMemo(() => {
     if (initialTrackTitle !== undefined) {
@@ -719,7 +723,7 @@ export function AlbumPlayer({
       ) : null}
       {currentAudioUrl !== null ? (
         <audio
-          ref={audioRef}
+          ref={assignAudio}
           src={currentAudioUrl}
           preload='metadata'
           playsInline

@@ -5,7 +5,7 @@ description: Use after any change under album/, or when the user wants the album
 
 # Publish · version 2
 
-Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio.
+Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio. Review takes play from stored Suno stream URLs. A private album still gates the take list behind the key. Suno CDN URLs are public, so a private album exposes only unguessable clip URLs to key holders.
 
 ## When to use
 

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { parseCanonicalTake } from '@/lib/album/parse-filename';
+import { takeStreamProblem } from '@/lib/album/stream-url';
 import { requireOwner } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 import { promptAttribution } from '@/lib/rounds/preflight';
@@ -23,6 +24,8 @@ const schema = z.object({
   generationId: z.string().nullable(),
   generationSettings: z.record(z.string(), z.unknown()),
   outputId: z.string().nullable(),
+  clipId: z.string().min(1).nullable().optional(),
+  streamUrl: z.string().min(1).nullable().optional(),
   roundId: z.string().min(1),
 });
 
@@ -85,6 +88,14 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
+  const streamProblem = takeStreamProblem({
+    outputId: input.outputId,
+    clipId: input.clipId ?? null,
+    streamUrl: input.streamUrl ?? null,
+  });
+  if (streamProblem !== null) {
+    return NextResponse.json({ error: streamProblem }, { status: 400 });
+  }
   const writer = promptAttribution({
     id: input.promptId,
     host: input.writerHost,
@@ -94,8 +105,25 @@ export async function POST(request: Request) {
     executionId: input.executionId,
     revision: input.promptRevision,
   });
+  const clipId =
+    input.clipId ??
+    (input.streamUrl !== undefined && input.streamUrl !== null ? input.outputId : null);
   const existing = await prisma.takeProvenance.findUnique({ where: { filename: input.filename } });
-  if (existing !== null) return NextResponse.json(existing);
+  if (existing !== null) {
+    if (input.streamUrl === undefined || input.streamUrl === null)
+      return NextResponse.json(existing);
+    const updated = await prisma.takeProvenance.update({
+      where: { filename: input.filename },
+      data: {
+        clipId,
+        streamUrl: input.streamUrl,
+        ...(existing.outputId === null && input.outputId !== null
+          ? { outputId: input.outputId }
+          : {}),
+      },
+    });
+    return NextResponse.json(updated);
+  }
   const created = await prisma.takeProvenance.create({
     data: {
       filename: input.filename,
@@ -112,6 +140,8 @@ export async function POST(request: Request) {
       generationId: input.generationId,
       generationSettings: input.generationSettings as Prisma.InputJsonValue,
       outputId: input.outputId,
+      clipId,
+      streamUrl: input.streamUrl ?? null,
       roundId: input.roundId,
     },
   });

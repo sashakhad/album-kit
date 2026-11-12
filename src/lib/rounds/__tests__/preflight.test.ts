@@ -31,7 +31,7 @@ describe('round preflight', () => {
       generations: 2,
       expectedOutputs: 4,
       generationCredits: 20,
-      downloads: 4,
+      downloads: 0,
       sunoModel: 'v6',
       blockers: [],
     });
@@ -49,11 +49,11 @@ describe('round preflight', () => {
     expect(estimate.migration).toContain('v5.5 is unavailable');
   });
 
-  it('catches download shortage before a large round', () => {
+  it('does not count review downloads, even when the account is short on them', () => {
     const estimate = estimateRound({
       tracks: 10,
       settings: DEFAULT_SETTINGS,
-      capabilities,
+      capabilities: { ...capabilities, downloadsAvailable: 0 },
       hostingChargeEstimateUsd: 0,
       hostingEligibilityVerified: true,
     });
@@ -62,9 +62,23 @@ describe('round preflight', () => {
       generations: 50,
       expectedOutputs: 100,
       generationCredits: 500,
-      downloads: 100,
+      downloads: 0,
     });
-    expect(estimate.blockers).toContain('Need 100 downloads; 20 available.');
+    expect(estimate.blockers).toContain('Need 500 generation credits; 100 available.');
+    expect(estimate.blockers.some(blocker => blocker.includes('download'))).toBe(false);
+  });
+
+  it('lets a review round through when the download limit is zero', () => {
+    const settings = { ...DEFAULT_SETTINGS, ...presetSettings('small-test'), downloadLimit: 0 };
+    const estimate = estimateRound({
+      tracks: 1,
+      settings,
+      capabilities: { ...capabilities, downloadsAvailable: 0 },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate.downloads).toBe(0);
+    expect(estimate.blockers).toEqual([]);
   });
 
   it('never invents a Grok Bot model and separates requested from observed Cursor models', () => {
