@@ -7,6 +7,7 @@ import { isListenFile } from '@/lib/album/listen';
 import { getListenConfig } from '@/lib/album/listen-store';
 import { contentTypeForFilename } from '@/lib/album/parse-filename';
 import { blobPathnameFor, defaultAlbumRoot, resolveAudioCandidates } from '@/lib/album/paths';
+import { loadStreamCatalog } from '@/lib/album/stream-catalog';
 import { isOwnerRequest } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
 import { canViewAlbum } from '@/lib/settings/access';
@@ -58,6 +59,11 @@ export async function serveAudio(
 
   const found = await firstExistingFile(candidates);
   if (found === null) {
+    const streamUrl =
+      (await loadStreamCatalog()).find(entry => entry.filename === file)?.streamUrl ?? null;
+    if (streamUrl !== null) {
+      return streamFromBlob(request, streamUrl, cacheControl);
+    }
     if (process.env.BLOB_ACCESS === 'private') {
       const pathname = blobPathnameFor(file);
       if (pathname === null) return notFound();

@@ -11,6 +11,7 @@ const ownerState = { owner: false };
 const viewerState = { viewer: false };
 const settingsState = { visibility: 'public', listenerVoting: false };
 const published = { takes: [] as { filename: string; versionSlug: string }[] };
+const streamState = { rows: [] as { filename: string; clipId: string; streamUrl: string }[] };
 const fetchMock = vi.fn();
 const privateGetMock = vi.fn();
 
@@ -42,6 +43,9 @@ vi.mock('@/lib/album/listen-store', () => ({
 vi.mock('@/lib/album/blob-audio', () => ({
   resolveBlobAudioUrl: async (args: { filename: string }) => `${BLOB_URL}${args.filename}`,
 }));
+vi.mock('@/lib/album/stream-catalog', () => ({
+  loadStreamCatalog: async () => streamState.rows,
+}));
 vi.mock('@/lib/owner/auth', () => ({
   albumKey: () => 'test-owner-key',
   isOwnerRequest: () => ownerState.owner,
@@ -49,7 +53,7 @@ vi.mock('@/lib/owner/auth', () => ({
 vi.mock('@/lib/settings/store', () => ({ loadSettings: async () => settingsState }));
 vi.mock('@/lib/owner/viewer', () => ({ isViewerRequest: async () => viewerState.viewer }));
 
-import { GET } from '@/app/api/audio/[set]/[file]/route';
+import { GET, serveAudio } from '@/app/api/audio/[set]/[file]/route';
 import { GET as getPublished } from '@/app/api/listen-audio/[token]/route';
 
 function get(set: string, file: string, headers: Record<string, string> = {}) {
@@ -64,6 +68,7 @@ beforeEach(() => {
   settingsState.visibility = 'public';
   settingsState.listenerVoting = false;
   published.takes = [];
+  streamState.rows = [];
   fetchMock.mockReset();
   privateGetMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
@@ -212,6 +217,61 @@ describe('GET /api/audio/[set]/[file]', () => {
       access: 'private',
       headers: { range: 'bytes=0-4' },
     });
+  });
+
+  it('streams a stored public Suno MP4 when no file is on disk or in Blob', async () => {
+    const streamUrl = 'https://cdn1.suno.ai/clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    streamState.rows = [
+      { filename: PINNED, clipId: 'clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', streamUrl },
+    ];
+    fetchMock.mockResolvedValueOnce(
+      new Response('ftypisom', {
+        status: 200,
+        headers: { 'content-type': 'video/mp4', 'content-length': '8', 'accept-ranges': 'bytes' },
+      })
+    );
+
+    const response = await get('v1', PINNED);
+
+    expect(fetchMock).toHaveBeenCalledWith(streamUrl, {});
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('video/mp4');
+    expect(response.headers.get('content-length')).toBe('8');
+    expect(response.headers.get('location')).toBeNull();
+    expect(await response.text()).toBe('ftypisom');
+  });
+
+  it('streams that Suno MP4 for an unpinned take through the blind-audio fallback', async () => {
+    const streamUrl = 'https://cdn1.suno.ai/clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    streamState.rows = [
+      { filename: UNPINNED, clipId: 'clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee', streamUrl },
+    ];
+    fetchMock.mockResolvedValueOnce(
+      new Response('ftypisom', {
+        status: 200,
+        headers: { 'content-type': 'video/mp4', 'content-length': '8', 'accept-ranges': 'bytes' },
+      })
+    );
+
+    const blocked = await get('v1', UNPINNED);
+    expect(blocked.status).toBe(401);
+    expect(await blocked.json()).toEqual({ error: 'Owner key required' });
+
+    const request = new Request(
+      'http://localhost/api/blind-audio/1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    );
+    const response = await serveAudio(
+      request,
+      { params: Promise.resolve({ set: 'v1', file: UNPINNED }) },
+      { allowUnpinned: true }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(streamUrl, {});
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('video/mp4');
+    expect(response.headers.get('location')).toBeNull();
+    expect(await response.text()).toBe('ftypisom');
   });
 
   it('returns 404 for an unknown set or a file from another set', async () => {
