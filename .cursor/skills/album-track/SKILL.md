@@ -3,7 +3,7 @@ name: album-track
 description: Write or revise the requested number of Suno Style prompts for a track and ship its sheet.
 ---
 
-# Album track · version 2
+# Album track · version 3
 
 Read `album/BRIEF.md`, `album/album.json`, the current Settings via the owner's `/api/owner/settings` endpoint, and neighboring track sheets. If the track is new, add its exact title, unique number and slug to `album/album.json`. Do not infer an album rule from a title or ask for one. Ask only about a missing essential; mood and vocals are optional.
 
@@ -15,4 +15,4 @@ Write one serious producer brief per `## p<n> — <lane>` in `album/tracks/<NN>-
 
 Store prompt provenance for the round: prompt ID, writer host, verified provider and observed model when available, requested model separately, attribution status, revision and execution ID. For Grok Bot, the model is undisclosed. For Cursor, an Auto or requested label is unverified until the runtime record says what ran. Keep owner audit records even if listener details are hidden.
 
-Check the sheet's prompt count, each Style length and the exact musical constraints. Follow `publish` only after the publication choice permits it. The next step is `suno-run`; no audio is generated in this skill. Review takes are streamed, not downloaded.
+Check the sheet's prompt count, each Style length and the exact musical constraints. Follow `publish` only after the publication choice permits it. The next step is `suno-run`; no audio is generated in this skill. When `reviewTakes` is public, the default, review takes stream from a public Suno MP4 and are not downloaded. When the owner chose private, `suno-run` downloads each take and spends download credits per take.

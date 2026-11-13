@@ -89,6 +89,19 @@ describe('shared settings storage', () => {
     expect(followed.resolved.promptVariations).toBe(4);
   });
 
+  it('stores a private review-take choice and keeps the public default', async () => {
+    expect((await loadSettings()).reviewTakes).toBe('public');
+    const response = await PATCH(
+      new Request('http://localhost/api/owner/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ patch: { reviewTakes: 'private' } }),
+      })
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).resolved.reviewTakes).toBe('private');
+    expect((await loadSettings()).reviewTakes).toBe('private');
+  });
+
   it('keeps unauthenticated listeners away from settings writes', async () => {
     state.owner = false;
     const response = await PATCH(

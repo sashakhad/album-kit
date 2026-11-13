@@ -17,6 +17,54 @@ const API_PATH = /\/api\/[\w\-.~/<>[\]{}$]*/g;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const SUNO_CDN = /cdn1\.suno\.ai/gi;
 
+const ONBOARDING_PHRASES = [
+  {
+    file: path.join(ROOT, 'grokbot', 'BOT.md'),
+    phrases: [
+      'question widget card',
+      'Make review takes public on Suno (recommended)',
+      'Keep them private and download takes (uses download credits)',
+      'Downloading a song from Suno uses Suno download credits, which are limited per month.',
+      'public MP4',
+      'stops playing',
+      'reviewTakes',
+    ],
+  },
+  {
+    file: path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
+    phrases: [
+      'question widget card',
+      'Make review takes public on Suno (recommended)',
+      'Keep them private and download takes (uses download credits)',
+      'Downloading a song from Suno uses Suno download credits, which are limited per month.',
+      'public MP4',
+      'stops playing',
+      'reviewTakes',
+    ],
+  },
+  {
+    file: path.join(ROOT, 'README.md'),
+    phrases: [
+      'Make review takes public on Suno (recommended)',
+      'Keep them private and download takes (uses download credits)',
+      'Downloading a song from Suno uses Suno download credits, which are limited per month.',
+      'public MP4',
+      'stops playing',
+    ],
+  },
+  {
+    file: path.join(ROOT, '.cursor', 'skills', 'suno-run', 'SKILL.md'),
+    phrases: [
+      'reviewTakes',
+      'downloadsPerTake',
+      'download credits per take',
+      'When `reviewTakes` is `private`',
+      'visibility: public',
+      '.mp4',
+    ],
+  },
+];
+
 const problems = [];
 
 function report(file, lineNumber, message) {
@@ -144,7 +192,28 @@ function checkForLeaks(file, lines) {
   }
 }
 
+async function checkOnboardingCopy() {
+  for (const entry of ONBOARDING_PHRASES) {
+    let text;
+    try {
+      text = await readFile(entry.file, 'utf8');
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+      report(entry.file, 1, 'missing onboarding file');
+      continue;
+    }
+    for (const phrase of entry.phrases) {
+      if (!text.includes(phrase)) {
+        report(entry.file, 1, `onboarding is missing “${phrase}”`);
+      }
+    }
+  }
+}
+
 async function main() {
+  await checkOnboardingCopy();
   const skillDirs = await listSkillDirs();
   if (skillDirs.length === 0) {
     problems.push(`${path.relative(ROOT, SKILLS_DIR)}: no skills found`);

@@ -347,6 +347,36 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                 />
               </Field>
             </div>
+            <p className={muted}>
+              Downloading a song from Suno uses Suno download credits, which are limited per month.
+              The site can play review takes without downloading, by streaming each take’s public
+              MP4 from Suno. Making review takes public is the better choice. Only final picks get
+              downloaded. You can switch songs back to private on Suno later. A take that’s private
+              on Suno stops playing on the site, so the best time is after picks are final, and only
+              for takes that are no longer needed for listening. Final picks are stored as real
+              files.
+            </p>
+            <Field
+              label='Review takes on Suno'
+              hint={
+                draft.reviewTakes === 'private'
+                  ? 'Each review take is downloaded and uses Suno download credits.'
+                  : 'Recommended. Review takes stay public on Suno and play from their MP4.'
+              }
+            >
+              <select
+                value={draft.reviewTakes}
+                onChange={e =>
+                  change('reviewTakes', e.target.value as AlbumSettingsValue['reviewTakes'])
+                }
+                className={inputClass}
+              >
+                <option value='public'>Make review takes public on Suno (recommended)</option>
+                <option value='private'>
+                  Keep them private and download takes (uses download credits)
+                </option>
+              </select>
+            </Field>
           </Section>
 
           <Disclosure
@@ -416,8 +446,11 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
             <div className='space-y-3 border-t border-white/10 pt-4'>
               <h3 className='font-medium'>Round limits</h3>
               <p className={muted}>
-                Grok Bot still asks you to approve each round’s cost. Review plays streams and does
-                not use download credits.
+                Grok Bot still asks you to approve each round’s cost. Downloading a song from Suno
+                uses Suno download credits, which are limited per month.
+                {draft.reviewTakes === 'private'
+                  ? ' This round downloads every review take.'
+                  : ' Public review takes stream instead, so only a final pick is downloaded.'}
               </p>
               <div className='grid gap-4 sm:grid-cols-3'>
                 <LimitField

@@ -1,5 +1,9 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const settingsState = vi.hoisted(() => ({
+  reviewTakes: 'public' as 'public' | 'private',
+}));
 
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/owner/auth', () => ({ requireOwner: () => null }));
@@ -8,6 +12,7 @@ vi.mock('@/lib/settings/store', () => ({
     ...(await import('@/lib/settings/schema')).DEFAULT_SETTINGS,
     preset: 'small-test',
     promptVariations: 2,
+    reviewTakes: settingsState.reviewTakes,
   }),
 }));
 vi.mock('@/lib/album/album-config', () => ({
@@ -58,6 +63,10 @@ function request(overrides: Record<string, unknown> = {}) {
   });
 }
 
+afterEach(() => {
+  settingsState.reviewTakes = 'public';
+});
+
 describe('round creation', () => {
   it('saves exactly two Small test prompt slots and the full route estimate', async () => {
     const response = await POST(request());
@@ -68,6 +77,7 @@ describe('round creation', () => {
       generations: 2,
       expectedOutputs: 4,
       generationCredits: 20,
+      downloadsPerTake: 0,
       downloads: 0,
     });
     expect(result.round.snapshot.prompts).toHaveLength(2);
@@ -93,5 +103,18 @@ describe('round creation', () => {
       },
     });
     expect((await POST(stale)).status).toBe(409);
+  });
+
+  it('shows download credits per take when review takes stay private', async () => {
+    settingsState.reviewTakes = 'private';
+    const response = await POST(request());
+    expect(response.status).toBe(201);
+    const result = await response.json();
+    expect(result.estimate).toMatchObject({
+      expectedOutputs: 4,
+      downloadsPerTake: 1,
+      downloads: 4,
+    });
+    expect(result.round.snapshot.settings.reviewTakes).toBe('private');
   });
 });

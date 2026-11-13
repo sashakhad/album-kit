@@ -3,9 +3,9 @@ name: judge
 description: Use while the owner votes on /vote, to explain or start rounds, park a take, or promote, extract or rename takes. It also frees up storage when the album runs low on space.
 ---
 
-# Judge · version 2
+# Judge · version 3
 
-The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. Takes under review play from their stored Suno stream URL. Do not download them. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
+The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. When review takes are public, they play from their stored public Suno MP4. Do not download those. When the owner chose to keep review takes private, they play from the uploaded file, and each of those downloads already spent a download credit. A take that is private on Suno stops playing from its stream. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
 ## When to use
 

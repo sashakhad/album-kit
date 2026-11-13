@@ -14,6 +14,8 @@ export const settingsSchema = z.object({
   musicalConstraints: z.string().max(2000).default(''),
   visibility: z.enum(['unset', 'public', 'private']).default('unset'),
   listenerVoting: z.boolean().default(false),
+  // Public review takes stream a Suno MP4. Private ones are downloaded.
+  reviewTakes: z.enum(['public', 'private']).default('public'),
   generationCreditLimit: z.number().int().min(0).nullable().default(null),
   downloadLimit: z.number().int().min(0).nullable().default(null),
   externalSpendLimitUsd: z.number().min(0).nullable().default(null),
@@ -34,6 +36,7 @@ export const settingsPatchSchema = z
     musicalConstraints: settingsSchema.shape.musicalConstraints.removeDefault(),
     visibility: settingsSchema.shape.visibility.removeDefault(),
     listenerVoting: settingsSchema.shape.listenerVoting.removeDefault(),
+    reviewTakes: settingsSchema.shape.reviewTakes.removeDefault(),
     generationCreditLimit: settingsSchema.shape.generationCreditLimit.removeDefault(),
     downloadLimit: settingsSchema.shape.downloadLimit.removeDefault(),
     externalSpendLimitUsd: settingsSchema.shape.externalSpendLimitUsd.removeDefault(),
