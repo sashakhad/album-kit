@@ -10,6 +10,81 @@ afterEach(() => {
 });
 
 describe('More like this', () => {
+  it('submits an opaque blind take reference without sending its canonical filename', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ next: 'Request saved for preflight' }),
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    render(
+      <MoreLikeThis
+        filename={'a'.repeat(32)}
+        trackNumber={1}
+        trackTitle='Track One'
+        blindRound={2}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Request saved for preflight');
+    const sent = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    expect(sent).toMatchObject({ parentTakeToken: 'a'.repeat(32), sourceRound: 2 });
+    expect(sent).not.toHaveProperty('parentTakeFilename');
+  });
+
+  it('restores a blind request after reload and retries the same token and ID', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('connection lost'))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ next: 'Saved blind' }) });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    const props = {
+      filename: 'a'.repeat(32),
+      trackNumber: 1,
+      trackTitle: 'Track One',
+      blindRound: 2,
+    };
+    const firstMount = render(<MoreLikeThis {...props} />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    const first = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    firstMount.unmount();
+    render(<MoreLikeThis {...props} />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Retry same request' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved blind');
+    expect(JSON.parse(fetcher.mock.calls[1]![1]!.body as string)).toEqual(first);
+  });
+
+  it('checks an interrupted blind request by ID and source round', async () => {
+    let saved: Record<string, unknown> | null = null;
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        saved = JSON.parse(init.body as string);
+        throw new Error('connection lost');
+      }
+      return { ok: true, json: async () => ({ ...saved, status: 'requested' }) };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    render(
+      <MoreLikeThis
+        filename={'a'.repeat(32)}
+        trackNumber={1}
+        trackTitle='Track One'
+        blindRound={2}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    await user.click(screen.getByRole('button', { name: 'Check status' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Request saved blind');
+    expect(fetcher.mock.calls[1]![0]).toBe(`/api/owner/variations?id=${saved!.id}&sourceRound=2`);
+  });
   it('can cancel and return without saving a request', async () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);

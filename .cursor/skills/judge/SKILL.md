@@ -32,6 +32,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
    - Visible mode shows the selected take's Style prompt in the collapsed Prompt section below the playback controls. Blind modes hide it until the selected reveal point.
    - Listen follows the highest positive owner score per track and includes ties. In Compare takes, the owner can choose a specific take or use **Follow scores** to return to automatic selection.
+   - **More like this** can save a request for the selected take during a blind pass without revealing its identity. The bot waits for the pass to reveal before preparing that take's prompt and cost estimate; the request alone never spends credits.
 
 2. **Read the scores.**
 
