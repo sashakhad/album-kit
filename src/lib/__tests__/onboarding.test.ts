@@ -97,9 +97,27 @@ describe('onboarding checkpoint', () => {
       cursor: { observedModel: 'Claude Sonnet 4.5', checkedAt: expect.any(String) },
       ownerAccess: { confirmedAt: expect.any(String), siteUrl: 'https://album.example' },
     });
-    expect(nextStep(probeReadiness(root, run))).toContain('preflight');
+    const status = probeReadiness(root, run);
+    expect(status.suno.downloadVerified).toBe(true);
+    expect(nextStep(status)).toContain('preflight');
+    expect(nextStep(status)).not.toContain('Verify download capability');
     await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://other.example"}');
     expect(nextStep(probeReadiness(root, run))).toContain('owner link');
+  });
+
+  it('accepts public-streaming capabilities without a download check', async () => {
+    const run = runner(readyCommands);
+    main(['verify-suno', 'mcp', 'create', 'status', 'models', 'credits'], root, run);
+    main(['confirm-owner-access'], root, run);
+    const status = probeReadiness(root, run);
+    expect(status.suno).toMatchObject({
+      capabilitiesVerified: true,
+      downloadVerified: false,
+    });
+    expect(nextStep(status)).toContain('preflight');
+    expect(nextStep(status)).toContain('Verify download capability before private review');
+    const saved = JSON.parse(await readFile(path.join(root, '.album-onboarding.json'), 'utf8'));
+    expect(saved.suno.capabilities).toEqual(['create', 'status', 'models', 'credits']);
   });
 
   it('expires Suno capability evidence before paid work', async () => {
@@ -127,6 +145,12 @@ describe('onboarding checkpoint', () => {
   it('refuses incomplete capability claims and owner confirmation without a site', async () => {
     const run = runner(readyCommands);
     expect(() => main(['verify-suno', 'mcp', 'create'], root, run)).toThrow('Usage');
+    expect(() =>
+      main(['verify-suno', 'mcp', 'create', 'status', 'models', 'credits', 'fake'], root, run)
+    ).toThrow('Usage');
+    expect(() =>
+      main(['verify-suno', 'mcp', 'create', 'status', 'models', 'credits', 'credits'], root, run)
+    ).toThrow('Usage');
     await rm(path.join(root, '.album-site.json'));
     expect(() => main(['confirm-owner-access'], root, run)).toThrow('provisioned site URL');
   });
