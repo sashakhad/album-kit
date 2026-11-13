@@ -13,7 +13,7 @@ describe('owner chat lines', () => {
     });
 
     expect(text).toBe(
-      `Round 1: 36/90 done, 72 of 180 takes ready.\nSite: ${siteUrl}\nOwner: ${ownerLink}\n`
+      `Round 1: 36/90 done, 72 of 180 takes ready.\nSite: ${siteUrl}\nOwner: ${ownerLink}\nWorks once. Valid for 7 days. This browser stays signed in after you continue.\n`
     );
     expect(text).not.toContain('album-key');
     expect(text).not.toContain('ALBUM_KEY');

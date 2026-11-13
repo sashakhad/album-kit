@@ -15,6 +15,7 @@ export function formatChatLines({ siteUrl, progressLine, ownerLink }) {
   lines.push(`Site: ${siteUrl}`);
   if (typeof ownerLink === 'string' && ownerLink.length > 0) {
     lines.push(`Owner: ${ownerLink}`);
+    lines.push('Works once. Valid for 7 days. This browser stays signed in after you continue.');
   }
   return `${lines.join('\n')}\n`;
 }
