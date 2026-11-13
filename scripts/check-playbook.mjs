@@ -32,6 +32,7 @@ const ONBOARDING_PHRASES = [
       'pnpm album:progress',
       'Milestone: Site created.',
       'Every setup and round message includes the site URL',
+      'Submit every generation in the authorized round at once',
     ],
   },
   {
@@ -71,6 +72,7 @@ const ONBOARDING_PHRASES = [
       'pnpm album:progress',
       'Do not go silent',
       'Every setup and round message includes the site URL',
+      'Submit every generation in the authorized round at once',
     ],
   },
 ];
