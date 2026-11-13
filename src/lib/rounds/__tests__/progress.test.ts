@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { idleProgress, progressBannerLine, summarizeProgress } from '@/lib/rounds/progress';
+import {
+  emptyTakeMessage,
+  idleProgress,
+  pendingTakeLabel,
+  progressBannerLine,
+  summarizeProgress,
+} from '@/lib/rounds/progress';
 
 const clip = 'clip-1';
 const streamUrl = `https://cdn1.suno.ai/${clip}.mp4`;
@@ -109,5 +115,18 @@ describe('album progress', () => {
   it('names preparing and blocked rounds', () => {
     expect(summarize({ status: 'preparing' }).line).toBe('Round 1: preparing the estimate.');
     expect(summarize({ status: 'blocked' }).phase).toBe('blocked');
+  });
+
+  it('explains an empty Vote page', () => {
+    expect(emptyTakeMessage(idleProgress())).toBe('No takes yet. Generation has not started.');
+    expect(emptyTakeMessage(summarize())).toBe('Takes are being generated (0 of 180).');
+    const unpublished = summarize({
+      status: 'collecting-audio',
+      jobs: [{ promptId: 'p1', status: 'complete', output: null }],
+      jobsExpected: 1,
+      takesExpected: 2,
+    });
+    expect(emptyTakeMessage(unpublished)).toBe('Takes are waiting to be published on Suno.');
+    expect(pendingTakeLabel(unpublished)).toBe('Waiting on Suno');
   });
 });

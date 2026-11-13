@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
 import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
+import { TakeAvailability } from '@/components/album/TakeAvailability';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { getListenConfig } from '@/lib/album/listen-store';
@@ -20,7 +21,8 @@ import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
 import { loadAlbumProgress } from '@/lib/rounds/load-progress';
-import { progressBannerLine } from '@/lib/rounds/progress';
+import { emptyTakeMessage, pendingTakeLabel, progressBannerLine } from '@/lib/rounds/progress';
+import type { AlbumProgress } from '@/lib/rounds/progress';
 
 export const dynamic = 'force-dynamic';
 
@@ -69,6 +71,7 @@ export default async function VotePage({ params }: VotePageProps) {
       visibility: settings.visibility,
       listeningDetails: settings.listeningDetails,
       bannerLine,
+      progress,
     });
   }
   const [config, { version, originalVersion, votes, blind, awaitingReveal }] = await Promise.all([
@@ -136,6 +139,7 @@ export default async function VotePage({ params }: VotePageProps) {
       showListenerScores={settings.listenerVoting}
       listenChoices={listenChoices}
       bannerLine={bannerLine}
+      progress={progress}
     />
   );
 }
@@ -148,6 +152,7 @@ async function listenerVotePage(args: {
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
   bannerLine: string | null;
+  progress: AlbumProgress;
 }) {
   const [config, { version, votes, awaitingReveal }] = await Promise.all([
     loadAlbumConfig(),
@@ -176,6 +181,7 @@ async function listenerVotePage(args: {
       initialTake={initialTake}
       signInHref={args.signInHref}
       bannerLine={args.bannerLine}
+      progress={args.progress}
     />
   );
 }
@@ -191,6 +197,7 @@ function VoteMain({
   showListenerScores = false,
   listenChoices,
   bannerLine = null,
+  progress,
 }: {
   version: AlbumVersion;
   votes: VoteSnapshot;
@@ -202,7 +209,11 @@ function VoteMain({
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
   bannerLine?: string | null;
+  progress: AlbumProgress;
 }) {
+  const playable = version.tracks.some(item => item.audioUrl !== null);
+  const notice = playable ? undefined : emptyTakeMessage(progress);
+  const pending = pendingTakeLabel(progress);
   return (
     <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8'>
       <RoundProgressBanner line={bannerLine} />
@@ -224,20 +235,29 @@ function VoteMain({
           {voter === 'owner' ? 'Open Listen' : 'Sign in as owner'}
         </Link>
       </div>
-      <AlbumPlayer
-        key={`${voter}-${votes.currentRound}`}
-        version={version}
-        votes={votes}
-        surface='vote'
-        voter={voter}
-        awaitingReveal={awaitingReveal}
-        showListenerScores={showListenerScores}
-        {...(listenChoices === undefined ? {} : { listenChoices })}
-        {...(track === null
-          ? {}
-          : { initialTrackNumber: track.number, initialTrackTitle: track.title })}
-        {...(initialTake === null ? {} : { initialTakeLabel: initialTake.label })}
-      />
+      {!playable && version.tracks.length === 0 ? (
+        <TakeAvailability
+          message={notice ?? pending}
+          tracks={progress.tracks}
+          pendingLabel={pending}
+        />
+      ) : (
+        <AlbumPlayer
+          key={`${voter}-${votes.currentRound}`}
+          version={version}
+          votes={votes}
+          surface='vote'
+          voter={voter}
+          awaitingReveal={awaitingReveal}
+          showListenerScores={showListenerScores}
+          {...(listenChoices === undefined ? {} : { listenChoices })}
+          {...(notice === undefined ? {} : { emptyNotice: notice, pendingLabel: pending })}
+          {...(track === null
+            ? {}
+            : { initialTrackNumber: track.number, initialTrackTitle: track.title })}
+          {...(initialTake === null ? {} : { initialTakeLabel: initialTake.label })}
+        />
+      )}
     </main>
   );
 }

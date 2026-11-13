@@ -104,6 +104,56 @@ export function progressBannerLine(progress: AlbumProgress): string | null {
   return progress.line;
 }
 
+/** Shown when Vote or Listen has nothing to play. */
+export function emptyTakeMessage(progress: AlbumProgress): string {
+  if (progress.phase === 'idle') {
+    return 'No takes yet. Generation has not started.';
+  }
+  if (waitingToPublish(progress)) {
+    return 'Takes are waiting to be published on Suno.';
+  }
+  if (takesStored(progress)) {
+    return 'Takes are stored, but none are playable on this page yet.';
+  }
+  if (progress.takesExpected > 0) {
+    return `Takes are being generated (${formatNumberExact(progress.takesReady)} of ${formatNumberExact(progress.takesExpected)}).`;
+  }
+  return 'Takes are being generated.';
+}
+
+/** Short label for a track row that has no audio yet. */
+export function pendingTakeLabel(progress: AlbumProgress): string {
+  if (progress.phase === 'idle') {
+    return 'Not started';
+  }
+  if (waitingToPublish(progress)) {
+    return 'Waiting on Suno';
+  }
+  if (takesStored(progress)) {
+    return 'Stored';
+  }
+  return 'Generating';
+}
+
+function waitingToPublish(progress: AlbumProgress): boolean {
+  if (progress.phase === 'blocked') {
+    return true;
+  }
+  return jobsDone(progress) && progress.takesReady < progress.takesExpected;
+}
+
+function takesStored(progress: AlbumProgress): boolean {
+  return (
+    jobsDone(progress) &&
+    progress.takesExpected > 0 &&
+    progress.takesReady >= progress.takesExpected
+  );
+}
+
+function jobsDone(progress: AlbumProgress): boolean {
+  return progress.jobsExpected > 0 && progress.jobsFinished >= progress.jobsExpected;
+}
+
 function progressPhase(args: {
   roundId: string | null;
   status: string | null;
