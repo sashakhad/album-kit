@@ -6,27 +6,38 @@ type Props = {
   filename: string;
   trackNumber: number;
   trackTitle: string;
+  blindRound?: number;
 };
 
 type Attempt = {
   id: string;
   trackNumber: number;
-  parentTakeFilename: string;
+  parentTakeFilename?: string;
+  parentTakeToken?: string;
+  sourceRound?: number;
   requestedTakes: number;
   instructions: string;
 };
+
+function sameParent(attempt: Attempt, filename: string, blindRound?: number) {
+  return blindRound === undefined
+    ? attempt.parentTakeFilename === filename && attempt.parentTakeToken === undefined
+    : attempt.parentTakeToken === filename &&
+        attempt.sourceRound === blindRound &&
+        attempt.parentTakeFilename === undefined;
+}
 
 function attemptKey(trackNumber: number, filename: string) {
   return `album-variation-request:${trackNumber}:${filename}`;
 }
 
-function savedAttempt(trackNumber: number, filename: string): Attempt | null {
+function savedAttempt(trackNumber: number, filename: string, blindRound?: number): Attempt | null {
   try {
     const raw = sessionStorage.getItem(attemptKey(trackNumber, filename));
     if (raw === null) return null;
     const value: Attempt = JSON.parse(raw);
     return value.trackNumber === trackNumber &&
-      value.parentTakeFilename === filename &&
+      sameParent(value, filename, blindRound) &&
       typeof value.id === 'string' &&
       typeof value.requestedTakes === 'number' &&
       typeof value.instructions === 'string'
@@ -38,25 +49,30 @@ function savedAttempt(trackNumber: number, filename: string): Attempt | null {
 }
 
 function storeAttempt(attempt: Attempt) {
+  const filename = attempt.parentTakeFilename ?? attempt.parentTakeToken;
+  if (filename === undefined) return;
   try {
-    sessionStorage.setItem(
-      attemptKey(attempt.trackNumber, attempt.parentTakeFilename),
-      JSON.stringify(attempt)
-    );
+    sessionStorage.setItem(attemptKey(attempt.trackNumber, filename), JSON.stringify(attempt));
   } catch {
     /* Session storage can be unavailable. */
   }
 }
 
 function clearStoredAttempt(attempt: Attempt) {
+  const filename = attempt.parentTakeFilename ?? attempt.parentTakeToken;
+  if (filename === undefined) return;
   try {
-    sessionStorage.removeItem(attemptKey(attempt.trackNumber, attempt.parentTakeFilename));
+    sessionStorage.removeItem(attemptKey(attempt.trackNumber, filename));
   } catch {
     /* Session storage can be unavailable. */
   }
 }
 
-export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
+export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: Props) {
+  const savedMessage =
+    blindRound === undefined
+      ? 'Request saved. The bot will prepare a cost estimate before generation.'
+      : 'Request saved blind. Reveal this pass before the bot prepares its prompt and cost estimate.';
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(2);
   const [instructions, setInstructions] = useState('');
@@ -69,12 +85,12 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pendingRef.current) return;
-    const previous = savedAttempt(trackNumber, filename) ?? attempt.current;
+    const previous = savedAttempt(trackNumber, filename, blindRound) ?? attempt.current;
     const normalized = instructions.trim();
     if (
       previous !== null &&
       (previous.trackNumber !== trackNumber ||
-        previous.parentTakeFilename !== filename ||
+        !sameParent(previous, filename, blindRound) ||
         previous.requestedTakes !== count ||
         previous.instructions !== normalized)
     ) {
@@ -85,7 +101,9 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
     const current: Attempt = previous ?? {
       id: crypto.randomUUID(),
       trackNumber,
-      parentTakeFilename: filename,
+      ...(blindRound === undefined
+        ? { parentTakeFilename: filename }
+        : { parentTakeToken: filename, sourceRound: blindRound }),
       requestedTakes: count,
       instructions: normalized,
     };
@@ -105,9 +123,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
       clearStoredAttempt(current);
       attempt.current = null;
       setUnconfirmed(false);
-      setMessage(
-        body.next ?? 'Request saved. The bot will prepare a cost estimate before generation.'
-      );
+      setMessage(body.next ?? savedMessage);
       setOpen(false);
     } catch {
       setUnconfirmed(true);
@@ -121,12 +137,16 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
   }
 
   async function checkStatus() {
-    const current = savedAttempt(trackNumber, filename) ?? attempt.current;
+    const current = savedAttempt(trackNumber, filename, blindRound) ?? attempt.current;
     if (current === null || pendingRef.current) return;
     pendingRef.current = true;
     setPending(true);
     try {
-      const response = await fetch(`/api/owner/variations?id=${encodeURIComponent(current.id)}`);
+      const sourceRound =
+        current.sourceRound === undefined ? '' : `&sourceRound=${current.sourceRound}`;
+      const response = await fetch(
+        `/api/owner/variations?id=${encodeURIComponent(current.id)}${sourceRound}`
+      );
       if (response.status === 404) {
         setMessage(
           'No request is saved yet. Retry the same request, or cancel its ID before editing.'
@@ -139,6 +159,8 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
         found.id !== current.id ||
         found.trackNumber !== current.trackNumber ||
         found.parentTakeFilename !== current.parentTakeFilename ||
+        found.parentTakeToken !== current.parentTakeToken ||
+        found.sourceRound !== current.sourceRound ||
         found.requestedTakes !== current.requestedTakes ||
         found.instructions !== current.instructions
       )
@@ -154,7 +176,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
       attempt.current = null;
       setUnconfirmed(false);
       setOpen(false);
-      setMessage('Request saved. The bot will prepare a cost estimate before generation.');
+      setMessage(savedMessage);
     } catch {
       setMessage('Status is still unavailable. Keep this request and check again before editing.');
     } finally {
@@ -164,7 +186,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
   }
 
   async function cancelAttempt() {
-    const current = savedAttempt(trackNumber, filename) ?? attempt.current;
+    const current = savedAttempt(trackNumber, filename, blindRound) ?? attempt.current;
     if (current === null || pendingRef.current) return;
     pendingRef.current = true;
     setPending(true);
@@ -195,7 +217,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle }: Props) {
         onClick={() => {
           if (pendingRef.current) return;
           if (!open) {
-            const previous = savedAttempt(trackNumber, filename) ?? attempt.current;
+            const previous = savedAttempt(trackNumber, filename, blindRound) ?? attempt.current;
             if (previous !== null) {
               attempt.current = previous;
               setCount(previous.requestedTakes);

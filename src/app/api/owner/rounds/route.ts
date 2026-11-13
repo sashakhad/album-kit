@@ -2,12 +2,14 @@ import { Prisma } from '@/generated/prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireOwner } from '@/lib/owner/auth';
+import { OWNER_VISITOR_ID, requireOwner } from '@/lib/owner/auth';
 import { estimateRound, promptAttribution, sunoCapabilitiesSchema } from '@/lib/rounds/preflight';
 import { loadSettings } from '@/lib/settings/store';
 import { prisma } from '@/lib/prisma';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { styleProblems } from '@/lib/rounds/prompt-quality';
+import { getVoteSnapshot } from '@/lib/votes/board';
+import { isBlindForSnapshot } from '@/lib/votes/exposure';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -82,6 +84,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unknown variation request' }, { status: 404 });
   if (variation?.status === 'canceled')
     return NextResponse.json({ error: 'Variation request was canceled' }, { status: 409 });
+  if (
+    variation &&
+    (await isBlindForSnapshot(
+      OWNER_VISITOR_ID,
+      settings.listeningDetails,
+      await getVoteSnapshot(OWNER_VISITOR_ID)
+    ))
+  )
+    return NextResponse.json(
+      { error: 'Reveal this pass before planning a variation request' },
+      { status: 409 }
+    );
   if (variation?.roundId) {
     const existing = await prisma.generationRound.findUnique({ where: { id: variation.roundId } });
     return NextResponse.json({ round: existing, alreadyPlanned: true });

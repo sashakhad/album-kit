@@ -461,18 +461,45 @@ describe('AlbumPlayer', () => {
     expect(screen.getByRole('button', { name: 'More like this' })).toBeInTheDocument();
   });
 
-  it('keeps variation requests off blind and listener ballots', () => {
+  it('offers a blind owner an opaque variation request but keeps it off listener ballots', () => {
+    const track = sampleVersion.tracks[0]!;
+    const hiddenVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          ...track,
+          prompt: null,
+          takes: [
+            {
+              label: 'Q',
+              filename: 'a'.repeat(32),
+              audioUrl: '/api/blind-audio/1/opaque',
+              versionSlug: 'v1',
+              voteLabel: 'Q',
+            },
+          ],
+        },
+      ],
+    };
     const { rerender } = render(
       <AlbumPlayer
-        version={sampleVersion}
+        version={hiddenVersion}
         surface='vote'
         voter='owner'
-        canRequestVariations={false}
+        canRequestVariations
+        variationBlindRound={1}
       />
     );
-    expect(screen.queryByRole('button', { name: 'More like this' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More like this' })).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('v1-01-track-one-p1-takea.mp3');
     rerender(
-      <AlbumPlayer version={sampleVersion} surface='vote' voter='listener' canRequestVariations />
+      <AlbumPlayer
+        version={hiddenVersion}
+        surface='vote'
+        voter='listener'
+        canRequestVariations
+        variationBlindRound={1}
+      />
     );
     expect(screen.queryByRole('button', { name: 'More like this' })).not.toBeInTheDocument();
   });

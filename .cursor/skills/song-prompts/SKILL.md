@@ -13,6 +13,8 @@ Read `album/album.json`, `album/BRIEF.md`, this track's sheet (if any), neighbor
 
 For **More like this**, read the durable `GET /api/owner/variations` request, selected track sheet, parent take's saved prompt/provenance and the owner's edit instructions. Stay on that track. The parent is a full mix, not stems. Describe the sound to preserve and the requested change; do not copy a different track's identity. Keep the parent filename, request ID and exact instructions for the eventual round snapshot and each new take's lineage.
 
+During a blind pass, a request may identify its parent only by `parentTakeToken` and `sourceRound`; the API omits the canonical filename. Do not infer the filename from an alias or fetch a hidden assignment through another route. Wait until Compare takes reveals the pass, then read the request again and use its canonical parent for prompt revision and round planning. Saving the blind request uses no Suno credits.
+
 Choose the creation mode from the owner's intent: a text variation in **Blank Create** uses the parent as reference context but does not preserve its audio; **Cover/Remix** must use a supported Suno operation on the actual parent audio when preserving its hook or performance is requested. Check that operation's current capability and cost separately. The [S0Y-MAR1ACHI synthesis](../../../examples/mus1c-for-v3gans/S0Y-MAR1ACHI-SYNTHESIS.md) records why a new text prompt alone was insufficient for its Cover job.
 
 ## Choose models without interrupting the ordinary flow

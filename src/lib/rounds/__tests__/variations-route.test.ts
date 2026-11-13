@@ -4,10 +4,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   requests: new Map<string, Record<string, unknown>>(),
   rounds: [] as Array<Record<string, unknown>>,
+  blind: false,
+  owner: true,
 }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/owner/auth', () => ({ requireOwner: () => null }));
+vi.mock('@/lib/owner/auth', () => ({
+  OWNER_VISITOR_ID: 'owner',
+  requireOwner: () => (state.owner ? null : new Response('Unauthorized', { status: 401 })),
+}));
+vi.mock('@/lib/votes/blind', () => ({
+  opaqueAudioId: (_round: number, filename: string) =>
+    filename === 'v1-01-track-one-p1-takea.mp3' ? 'a'.repeat(32) : 'b'.repeat(32),
+  filenameForOpaqueId: async (_round: number, token: string) =>
+    token === 'a'.repeat(32) ? 'v1-01-track-one-p1-takea.mp3' : null,
+}));
+vi.mock('@/lib/votes/board', () => ({
+  getVoteSnapshot: async () => ({ currentRound: 1, mine: {} }),
+}));
+vi.mock('@/lib/votes/exposure', () => ({
+  isBlindForSnapshot: async () => state.blind,
+}));
 vi.mock('@/lib/album/album-config', () => ({
   loadAlbumConfig: async () => ({ tracks: [{ number: 1, title: 'Track One', slug: 'track-one' }] }),
 }));
@@ -27,6 +44,7 @@ vi.mock('@/lib/album/load-album', () => ({
 vi.mock('@/lib/settings/store', () => ({
   loadSettings: async () => ({
     ...(await import('@/lib/settings/schema')).DEFAULT_SETTINGS,
+    listeningDetails: state.blind ? 'keep-hidden' : 'visible',
     promptVariations: 5,
     generationsPerPrompt: 1,
   }),
@@ -102,12 +120,158 @@ function post(url: string, body: unknown) {
   });
 }
 
+function roundBody() {
+  return {
+    variationRequestId: id,
+    tracks: 1,
+    prompts: [
+      {
+        id: 'edited-prompt-1',
+        trackNumber: 1,
+        lane: 2,
+        style: 'Warm bass, crisp drums, bright keys.',
+        writerHost: 'grok-bot',
+        revision: 2,
+      },
+    ],
+    capabilities: {
+      availableModels: ['v6'],
+      qualityDefault: 'v6',
+      costModel: 'v6',
+      creditsPerGeneration: 10,
+      outputsPerGeneration: 2,
+      downloadsPerOutput: 1,
+      generationCreditsAvailable: 50,
+      downloadsAvailable: 10,
+      checkedAt: new Date().toISOString(),
+    },
+    hostingChargeEstimateUsd: 0,
+    hostingEligibilityVerified: true,
+  };
+}
+
 beforeEach(() => {
   state.requests.clear();
   state.rounds.length = 0;
+  state.blind = false;
+  state.owner = true;
 });
 
 describe('single-track variation handoff', () => {
+  it('accepts a blind take token without exposing the canonical parent in request responses', async () => {
+    state.blind = true;
+    const body = {
+      id,
+      trackNumber: 1,
+      parentTakeToken: 'a'.repeat(32),
+      sourceRound: 1,
+      requestedTakes: 3,
+      instructions: 'More bass',
+    };
+    const first = await requestVariation(post('/api/owner/variations', body));
+    expect(first.status).toBe(201);
+    expect(JSON.stringify(await first.json())).not.toContain(parentTakeFilename);
+    expect(state.requests.get(id)?.parentTakeFilename).toBe(parentTakeFilename);
+    const retry = await requestVariation(post('/api/owner/variations', body));
+    expect(retry.status).toBe(200);
+    expect(JSON.stringify(await retry.json())).not.toContain(parentTakeFilename);
+    const changedParent = await requestVariation(
+      post('/api/owner/variations', { ...body, parentTakeToken: 'b'.repeat(32) })
+    );
+    expect(changedParent.status).toBe(409);
+    expect(JSON.stringify(await changedParent.json())).not.toContain(parentTakeFilename);
+    const item = await getVariation(
+      new Request(`http://localhost/api/owner/variations?id=${id}&sourceRound=1`)
+    );
+    expect(item.status).toBe(200);
+    expect(await item.json()).toMatchObject({ parentTakeToken: body.parentTakeToken });
+    const unscopedItem = await getVariation(
+      new Request(`http://localhost/api/owner/variations?id=${id}`)
+    );
+    expect(JSON.stringify(await unscopedItem.json())).not.toContain(parentTakeFilename);
+    const listed = await getVariation(new Request('http://localhost/api/owner/variations'));
+    expect(JSON.stringify(await listed.json())).not.toContain(parentTakeFilename);
+    const canceled = await cancelVariation(
+      new Request('http://localhost/api/owner/variations', {
+        method: 'DELETE',
+        body: JSON.stringify(body),
+      })
+    );
+    expect(canceled.status).toBe(200);
+    expect(JSON.stringify(await canceled.json())).not.toContain(parentTakeFilename);
+    expect((await requestVariation(post('/api/owner/variations', body))).status).toBe(409);
+    state.blind = false;
+    const revealed = await getVariation(new Request('http://localhost/api/owner/variations'));
+    expect(JSON.stringify(await revealed.json())).toContain(parentTakeFilename);
+  });
+
+  it('keeps blind request and status endpoints owner-only', async () => {
+    state.owner = false;
+    const body = {
+      id,
+      trackNumber: 1,
+      parentTakeToken: 'a'.repeat(32),
+      sourceRound: 1,
+      requestedTakes: 2,
+    };
+    expect((await requestVariation(post('/api/owner/variations', body))).status).toBe(401);
+    expect((await getVariation(new Request('http://localhost/api/owner/variations'))).status).toBe(
+      401
+    );
+    expect(state.requests.size).toBe(0);
+  });
+
+  it('keeps a blind request pending, then plans its canonical parent only after reveal', async () => {
+    state.blind = true;
+    const blindRequest = {
+      id,
+      trackNumber: 1,
+      parentTakeToken: 'a'.repeat(32),
+      sourceRound: 1,
+      requestedTakes: 3,
+      instructions: 'More bass',
+    };
+    expect((await requestVariation(post('/api/owner/variations', blindRequest))).status).toBe(201);
+    const body = roundBody();
+    const blocked = await planRound(post('/api/owner/rounds', body));
+    expect(blocked.status).toBe(409);
+    expect(JSON.stringify(await blocked.json())).not.toContain(parentTakeFilename);
+    expect(state.rounds).toHaveLength(0);
+    state.blind = false;
+    const revealed = await getVariation(
+      new Request(`http://localhost/api/owner/variations?id=${id}`)
+    );
+    expect((await revealed.json()).parentTakeFilename).toBe(parentTakeFilename);
+    const planned = await planRound(post('/api/owner/rounds', body));
+    expect(planned.status).toBe(201);
+    const result = await planned.json();
+    expect(result.round.snapshot.variation.parentTakeFilename).toBe(parentTakeFilename);
+    expect(result.round.authorization).toBeUndefined();
+    expect(state.requests.get(id)).toMatchObject({ status: 'planned', roundId: 'round-1' });
+  });
+
+  it('rejects unknown blind tokens and malformed source rounds before saving', async () => {
+    const body = {
+      id,
+      trackNumber: 1,
+      parentTakeToken: 'c'.repeat(32),
+      sourceRound: 1,
+      requestedTakes: 2,
+    };
+    expect((await requestVariation(post('/api/owner/variations', body))).status).toBe(400);
+    expect(
+      (await requestVariation(post('/api/owner/variations', { ...body, sourceRound: 0 }))).status
+    ).toBe(400);
+    expect(
+      (
+        await getVariation(
+          new Request(`http://localhost/api/owner/variations?id=${id}&sourceRound=invalid`)
+        )
+      ).status
+    ).toBe(400);
+    expect(state.requests.size).toBe(0);
+  });
+
   it('saves one request idempotently without starting paid work', async () => {
     const body = {
       id,
@@ -183,33 +347,13 @@ describe('single-track variation handoff', () => {
         instructions: 'More bass',
       })
     );
-    const body = {
-      variationRequestId: id,
-      tracks: 1,
-      prompts: [
-        {
-          id: 'edited-prompt-1',
-          trackNumber: 1,
-          lane: 2,
-          style: 'Warm bass, crisp drums, bright keys.',
-          writerHost: 'grok-bot',
-          revision: 2,
-        },
-      ],
-      capabilities: {
-        availableModels: ['v6'],
-        qualityDefault: 'v6',
-        costModel: 'v6',
-        creditsPerGeneration: 10,
-        outputsPerGeneration: 2,
-        downloadsPerOutput: 1,
-        generationCreditsAvailable: 50,
-        downloadsAvailable: 10,
-        checkedAt: new Date().toISOString(),
-      },
-      hostingChargeEstimateUsd: 0,
-      hostingEligibilityVerified: true,
-    };
+    const body = roundBody();
+    state.blind = true;
+    const blocked = await planRound(post('/api/owner/rounds', body));
+    expect(blocked.status).toBe(409);
+    expect((await blocked.json()).error).toContain('Reveal this pass');
+    expect(state.rounds).toHaveLength(0);
+    state.blind = false;
     const crossTrack = await planRound(
       post('/api/owner/rounds', { ...body, prompts: [{ ...body.prompts[0], trackNumber: 2 }] })
     );
@@ -233,6 +377,11 @@ describe('single-track variation handoff', () => {
     expect(state.requests.get(id)).toMatchObject({ status: 'planned', roundId: 'round-1' });
     expect((await planRound(post('/api/owner/rounds', body))).status).toBe(200);
     expect(state.rounds).toHaveLength(1);
+    state.blind = true;
+    const hiddenRetry = await planRound(post('/api/owner/rounds', body));
+    expect(hiddenRetry.status).toBe(409);
+    expect(JSON.stringify(await hiddenRetry.json())).not.toContain(parentTakeFilename);
+    state.blind = false;
     expect(
       (
         await cancelVariation(

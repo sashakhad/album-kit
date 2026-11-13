@@ -76,6 +76,7 @@ export function AlbumPlayer({
   listenChoices,
   passSummary,
   canRequestVariations = false,
+  variationBlindRound,
   emptyNotice,
   pendingLabel = 'Coming soon',
 }: {
@@ -91,6 +92,7 @@ export function AlbumPlayer({
   listenChoices?: Record<number, ListenChoice>;
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
   canRequestVariations?: boolean;
+  variationBlindRound?: number;
   emptyNotice?: string;
   pendingLabel?: string;
 }) {
@@ -769,6 +771,7 @@ export function AlbumPlayer({
             filename={currentTake.filename}
             trackNumber={currentTrack.number}
             trackTitle={currentTrack.title}
+            {...(variationBlindRound === undefined ? {} : { blindRound: variationBlindRound })}
           />
         ) : null}
 
