@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   choiceForTake,
   countForTake,
+  scoredTakesOnTrack,
   countForTrackVersion,
   isDownloaded,
   leadingTakes,
@@ -32,6 +33,15 @@ describe('vote tally helpers', () => {
     expect(isDownloaded(snapshot, 1, 'v2', 'B')).toBe(true);
     expect(isDownloaded(snapshot, 1, 'v2', 'A')).toBe(false);
     expect(isDownloaded(snapshot, 2, 'v1', 'C')).toBe(false);
+  });
+
+  it('counts scored takes on one track', () => {
+    expect(
+      scoredTakesOnTrack(snapshot, 1, [
+        { versionSlug: 'v2', voteLabel: 'A' },
+        { versionSlug: 'v2', voteLabel: 'B' },
+      ])
+    ).toEqual({ scored: 1, total: 2 });
   });
 
   it('returns the visitor net score for a take', () => {
