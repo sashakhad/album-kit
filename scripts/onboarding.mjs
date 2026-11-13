@@ -6,7 +6,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const STATE_FILE = '.album-onboarding.json';
-const SUNO_CAPABILITIES = ['create', 'status', 'download', 'models', 'credits'];
+const SUNO_REQUIRED_CAPABILITIES = ['create', 'status', 'models', 'credits'];
+const SUNO_OPTIONAL_CAPABILITIES = ['download'];
 const FRESH_MS = 30 * 60 * 1000;
 
 function remoteIdentity(url) {
@@ -56,6 +57,10 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
   const kit = run('git', ['remote', 'get-url', 'kit']);
   const suno = state.suno;
   const sunoFresh = freshCheck(suno?.checkedAt, now);
+  const sunoCapabilitiesVerified = Boolean(
+    sunoFresh &&
+    SUNO_REQUIRED_CAPABILITIES.every(capability => suno?.capabilities?.includes(capability))
+  );
 
   return {
     path: state.path === 'studio' ? 'studio' : 'quick',
@@ -80,8 +85,9 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
     },
     suno: {
       method: suno?.method === 'mcp' || suno?.method === 'browser' ? suno.method : null,
-      capabilitiesVerified: Boolean(
-        sunoFresh && SUNO_CAPABILITIES.every(capability => suno?.capabilities?.includes(capability))
+      capabilitiesVerified: sunoCapabilitiesVerified,
+      downloadVerified: Boolean(
+        sunoCapabilitiesVerified && suno?.capabilities?.includes('download')
       ),
       checkedAt: typeof suno?.checkedAt === 'string' ? suno.checkedAt : null,
     },
@@ -117,7 +123,7 @@ export function nextStep(status) {
     return 'Collect the album name, genre, and track titles, then write album/album.json and album/BRIEF.md.';
   }
   if (!status.suno.capabilitiesVerified) {
-    return 'Check the signed-in Suno connector for create, status, download, models, and credits. Hand sign-in or a code to the owner if needed; then record the observed capabilities.';
+    return 'Check the signed-in Suno connector for create, status, models, and credits. Check download for private review or final export. Hand sign-in or a code to the owner if needed; then record the observed capabilities.';
   }
   if (!status.github.signedIn || !status.github.albumRemote) {
     return 'Sign in to GitHub if needed and make a user-owned album repository with distinct origin and kit remotes.';
@@ -134,7 +140,7 @@ export function nextStep(status) {
   if (status.path === 'studio' && !status.cursor.modelExecutionVerified) {
     return 'Check Cursor installation and connected Project execution; record only an observed model, or use Quick start.';
   }
-  return 'Run the Suno preflight and request the explicit round allowance before any paid generation.';
+  return `Run the Suno preflight and request the explicit round allowance before any paid generation.${status.suno.downloadVerified ? '' : ' Verify download capability before private review or final export.'}`;
 }
 
 function saveState(root, state) {
@@ -162,7 +168,7 @@ function printStatus(status) {
     `Cursor: ${status.cursor.installed ? 'installed' : 'not detected'}; connected model execution ${status.cursor.modelExecutionVerified ? 'observed' : 'unverified'}`
   );
   console.log(
-    `Suno: ${status.suno.capabilitiesVerified ? `capabilities checked via ${status.suno.method}` : 'account/connector capabilities unverified or stale'}`
+    `Suno: ${status.suno.capabilitiesVerified ? `capabilities checked via ${status.suno.method}; download ${status.suno.downloadVerified ? 'verified' : 'unverified'}` : 'account/connector capabilities unverified or stale'}`
   );
   console.log(
     `Vercel: CLI ${status.vercel.cliSignedIn ? 'signed in' : 'sign-in needed'}; site ${status.vercel.siteProvisioned ? 'saved locally (check live URL)' : 'not verified'}`
@@ -179,13 +185,15 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), run = c
     saveState(root, state);
   } else if (action === 'verify-suno') {
     const [method, ...capabilities] = args;
+    const allowed = [...SUNO_REQUIRED_CAPABILITIES, ...SUNO_OPTIONAL_CAPABILITIES];
     if (
       !['mcp', 'browser'].includes(method) ||
-      capabilities.length !== SUNO_CAPABILITIES.length ||
-      !SUNO_CAPABILITIES.every(capability => capabilities.includes(capability))
+      !SUNO_REQUIRED_CAPABILITIES.every(capability => capabilities.includes(capability)) ||
+      capabilities.some(capability => !allowed.includes(capability)) ||
+      new Set(capabilities).size !== capabilities.length
     ) {
       throw new Error(
-        `Usage: pnpm onboarding verify-suno mcp|browser ${SUNO_CAPABILITIES.join(' ')}`
+        `Usage: pnpm onboarding verify-suno mcp|browser ${SUNO_REQUIRED_CAPABILITIES.join(' ')} [download]`
       );
     }
     state.suno = { method, capabilities, checkedAt: new Date().toISOString() };
@@ -202,7 +210,7 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), run = c
     saveState(root, state);
   } else if (action !== undefined && (action !== 'status' || args.length > 0)) {
     throw new Error(
-      'Usage: pnpm onboarding [status | path quick|studio | verify-suno mcp|browser create status download models credits | verify-cursor <observed-model> | confirm-owner-access]'
+      'Usage: pnpm onboarding [status | path quick|studio | verify-suno mcp|browser create status models credits [download] | verify-cursor <observed-model> | confirm-owner-access]'
     );
   }
   const status = probeReadiness(root, run);
