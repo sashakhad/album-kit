@@ -36,6 +36,8 @@ const ONBOARDING_PHRASES = [
       'Submit every generation in the authorized round at once',
       'that track is already on the site',
       'Do not say takes are still generating',
+      'pnpm takes:verify',
+      'streams returned 200',
     ],
   },
   {
@@ -80,6 +82,8 @@ const ONBOARDING_PHRASES = [
       'Submit every generation in the authorized round at once',
       'that track is already on the site',
       'Do not say takes are still generating',
+      'pnpm takes:verify',
+      'streams returned 200',
     ],
   },
 ];
