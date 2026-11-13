@@ -39,6 +39,7 @@ Milestones:
 
 - Site created. `pnpm setup:site` prints `Milestone: Site created.` and the site URL. Send that sentence as soon as it appears. Do not paste the JSON line after it; that line contains the album key.
 - Publishing. If `pnpm publish:album` hits a Vercel network error such as `fetch failed`, it retries and prints `Retrying`. Tell the owner it is retrying. Do not stop after the first failure.
+- GitHub home. Setup creates a private repo when `gh` is signed in. If it exits 5, report the `BLOCKER:` sentence and the site URL. Do not say the album has a GitHub home. After `gh auth login`, run `pnpm album:github`.
 - Settings saved. Name the values you checked on the settings response.
 - Prompts written. Include the track count and the prompt count.
 - Estimate ready. Include the estimate before asking for the round allowance.

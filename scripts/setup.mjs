@@ -3,7 +3,8 @@
 // Links this album to a Vercel project, provisions Blob, Neon and ALBUM_KEY,
 // deploys, and prints {"siteUrl", "albumKey", "project"} as the last line.
 // Exit codes: 0 done, 1 failed, 2 not signed in to Vercel, 3 the Neon step
-// needs the browser, 4 the Vercel account's email can't be read.
+// needs the browser, 4 the Vercel account's email can't be read, 5 the site
+// exists but no private GitHub repo could be created.
 import { spawnSync } from 'node:child_process';
 import { randomInt } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -18,6 +19,7 @@ export const EXIT = {
   notSignedIn: 2,
   neonNeedsBrowser: 3,
   noAccountEmail: 4,
+  noGitHub: 5,
 };
 
 const KEY_WORDS =
@@ -110,6 +112,106 @@ export function deployProduction(runner, args = ['deploy', '--prod', '--yes']) {
     runner.run('sleep', [String(attempt * 2)]);
   }
   throw new ExitError(EXIT.failed, 'Vercel deploy failed.');
+}
+
+const GITHUB_SIGNED_OUT =
+  'GitHub CLI is not signed in, so no private repo was created. This album only has the kit remote. Run gh auth login, then run pnpm album:github.';
+const GITHUB_MISSING =
+  'GitHub CLI (gh) is not installed, so no private repo was created. This album only has the kit remote. Install gh, run gh auth login, then run pnpm album:github.';
+
+/** Create or confirm a user-owned private GitHub repo as origin. */
+export function ensureGitHubRepo(runner, { project }) {
+  const kit = runner.run('git', ['remote', 'get-url', 'kit']);
+  const origin = runner.run('git', ['remote', 'get-url', 'origin']);
+  const kitRepo = kit.status === 0 ? repoPath(kit.stdout) : null;
+  if (runner.dryRun) {
+    runner.run('gh', ['auth', 'status'], { when: 'if origin is missing' });
+    runner.run(
+      'gh',
+      ['repo', 'create', project, '--private', '--source', '.', '--remote', 'origin', '--push'],
+      { when: 'if gh is signed in and origin is missing' }
+    );
+    return { ok: true, blocker: null, url: null };
+  }
+  if (origin.status === 0) {
+    const originRepo = repoPath(origin.stdout);
+    if (originRepo !== null && kitRepo !== null && originRepo === kitRepo) {
+      return {
+        ok: false,
+        blocker:
+          'origin points at the album kit. Refusing to push this album there. Remove that origin, then run pnpm album:github.',
+        url: null,
+      };
+    }
+    return confirmPrivateRepo(runner, origin.stdout.trim());
+  }
+  const auth = runner.run('gh', ['auth', 'status']);
+  if (auth.status !== 0) {
+    return { ok: false, blocker: githubCliBlocker(auth), url: null };
+  }
+  const created = runner.run('gh', [
+    'repo',
+    'create',
+    project,
+    '--private',
+    '--source',
+    '.',
+    '--remote',
+    'origin',
+    '--push',
+  ]);
+  if (created.status !== 0) {
+    const detail = firstLine(`${created.stderr}\n${created.stdout}`);
+    return {
+      ok: false,
+      blocker: `Could not create a private GitHub repo named ${project}. ${detail}`.trim(),
+      url: null,
+    };
+  }
+  return confirmPrivateRepo(runner, null);
+}
+
+function confirmPrivateRepo(runner, originUrl) {
+  const view = runner.run('gh', ['repo', 'view', '--json', 'url,isPrivate,nameWithOwner']);
+  if (view.status !== 0) {
+    const detail = firstLine(`${view.stderr}\n${view.stdout}`);
+    const where = originUrl === null ? 'the new repo' : originUrl;
+    return {
+      ok: false,
+      blocker: `GitHub could not confirm ${where} is a private repo you own. ${detail}`.trim(),
+      url: null,
+    };
+  }
+  const info = parseJson(view.stdout);
+  const name = typeof info?.nameWithOwner === 'string' ? info.nameWithOwner : 'the repo';
+  if (info?.isPrivate !== true) {
+    return {
+      ok: false,
+      blocker: `GitHub repo ${name} is not private. Album repos must be private.`,
+      url: null,
+    };
+  }
+  const url = typeof info?.url === 'string' ? info.url : originUrl;
+  if (typeof url === 'string' && url.length > 0) {
+    console.log(`GitHub: ${url} (private)`);
+  }
+  return { ok: true, blocker: null, url };
+}
+
+function githubCliBlocker(result) {
+  const text = `${result.stderr}\n${result.stdout}`;
+  if (result.status === 127 || /ENOENT|not found/i.test(text)) {
+    return GITHUB_MISSING;
+  }
+  return GITHUB_SIGNED_OUT;
+}
+
+function firstLine(text) {
+  const line = text
+    .split('\n')
+    .map(item => item.trim())
+    .find(item => item.length > 0);
+  return line ?? '';
 }
 
 // Vercel's free plan blocks a deploy whose HEAD commit author isn't the account owner,
@@ -450,6 +552,10 @@ function setup(options) {
     console.log(`Milestone: Site created. ${siteUrl}`);
   }
   console.log(JSON.stringify({ siteUrl, albumKey, project: name }));
+  const github = ensureGitHubRepo(runner, { project: name });
+  if (!github.ok) {
+    throw new ExitError(EXIT.noGitHub, `BLOCKER: ${github.blocker}`);
+  }
 }
 
 function maskArg(args, index, arg, options) {
