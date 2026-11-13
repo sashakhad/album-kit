@@ -3,7 +3,7 @@ name: suno-run
 description: Preflight, authorize and run a track sheet's prompts through Suno; collect and upload every take without duplicate spending.
 ---
 
-# Suno run · version 7
+# Suno run · version 8
 
 Use Suno's official MCP connector first. A signed-in suno.com browser is the fallback only when the connector lacks a required capability. The user handles sign-in or captcha. Do not suggest an unverified free browser download. A take is a full mix; only a split produces stems.
 
@@ -41,6 +41,8 @@ Read `listenerVoting` and `visibility` from `pnpm album:settings` before sharing
 - Private: create a listener invitation with POST `/api/owner/invites` or Settings → Sharing. Its secret is in the URL fragment. It grants listener access only.
 - Unset: keep the album unshared until the owner chooses visibility. Owner links still work.
 
-As soon as a track's takes are finished, publish or upload them, refresh their streams, store them, and tell the owner. Do not hold that track until the rest of the album finishes. Run `pnpm album:progress` and send every line it prints, including `Site:`. The count looks like `Round 1: 36/90 done, 72 of 180 takes ready.` Do not go silent until the whole album is done. Every setup and round message includes the site URL. When that track's streams are stored, say so and include the site URL. When the round is ready, open Vote and confirm it lists takes. If the page says takes are being generated, or takes are waiting to be published on Suno, report that sentence and do not call the round ready. Then run `pnpm owner:link /vote` and paste its `Site:` and `Owner:` lines. When visibility is private or still unset, the owner link is required in that message. The owner link's secret stays in the URL fragment. Never put the album key in the message or in a query string.
+As soon as a track's takes are stored, publish or upload them, refresh their streams, and run `pnpm album:progress`. That command checks the live site. If it prints a `Track` line, that track is already on the site. Send the owner that line immediately, including `Site:`. Do not wait for other tracks. When listener voting is on, the link is Listen. Otherwise it is Compare takes. If the owner may be signed out, run `pnpm owner:link` with that path and paste the `Owner:` line too. The secret stays in the URL fragment. Never put the album key in the message or a query string.
+
+Do not say takes are still generating, or that nothing is ready, until `pnpm album:progress` or the Suno job status says so. A `Track` line means that track is ready even when other tracks are not. If the command says progress was unread, open the site and do not invent a status. The count looks like `Round 1: 36/90 done, 72 of 180 takes ready.` Do not go silent until the whole album is done. Every setup and round message includes the site URL. When the round is ready, open Vote and confirm it lists takes. If the page says takes are being generated, or takes are waiting to be published on Suno, report that sentence and do not call the round ready. Then run `pnpm owner:link /vote` and paste its `Site:` and `Owner:` lines. When visibility is private or still unset, the owner link is required in that message.
 
 If listening mode is blind, do not show identifying prompts or model details in chat, filenames, downloads or public routes. If the owner has already seen assignments, say the current round is exposed. Follow `publish` for sheet and log changes when permitted.

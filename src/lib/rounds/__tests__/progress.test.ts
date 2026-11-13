@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   emptyTakeMessage,
   idleProgress,
+  liveTrackLinks,
   pendingTakeLabel,
   progressBannerLine,
   summarizeProgress,
@@ -128,5 +129,25 @@ describe('album progress', () => {
     });
     expect(emptyTakeMessage(unpublished)).toBe('Takes are waiting to be published on Suno.');
     expect(pendingTakeLabel(unpublished)).toBe('Waiting on Suno');
+  });
+
+  it('links only the tracks that are already playable', () => {
+    expect(
+      liveTrackLinks({
+        tracks: [
+          { trackNumber: 1, title: 'First' },
+          { trackNumber: 2, title: 'Second' },
+        ],
+        playableNumbers: [1],
+        listenerVoting: false,
+      })
+    ).toEqual([{ trackNumber: 1, title: 'First', path: '/vote/first' }]);
+    expect(
+      liveTrackLinks({
+        tracks: [{ trackNumber: 1, title: 'First' }],
+        playableNumbers: [1],
+        listenerVoting: true,
+      })[0]?.path
+    ).toBe('/listen/first');
   });
 });

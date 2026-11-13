@@ -1,4 +1,5 @@
 import { parseTrackNumber } from '@/lib/album/parse-filename';
+import { slugifyTrackTitle } from '@/lib/album/slug';
 import { takeIsCollected } from '@/lib/album/stream-url';
 import { formatNumberExact } from '@/lib/formatters';
 import { jobOutputSchema } from '@/lib/rounds/job-output';
@@ -23,6 +24,12 @@ export type AlbumProgress = {
   takesReady: number;
   tracks: ProgressTrack[];
   line: string;
+};
+
+export type LiveTrackLink = {
+  trackNumber: number;
+  title: string;
+  path: string;
 };
 
 export type ProgressPrompt = {
@@ -94,6 +101,39 @@ export function summarizeProgress(args: {
   };
   progress.line = progressLine(progress);
   return progress;
+}
+
+/** Page for a track that is already playable. Listen when previews are on, otherwise Compare takes. */
+export function trackPagePath(title: string, listenerVoting: boolean): string {
+  const slug = slugifyTrackTitle(title);
+  const section = listenerVoting ? 'listen' : 'vote';
+  if (slug.length === 0) {
+    return `/${section}`;
+  }
+  return `/${section}/${slug}`;
+}
+
+/** Tracks whose takes are already on the site. Other tracks in the round stay off this list. */
+export function liveTrackLinks(args: {
+  tracks: readonly { trackNumber: number; title: string }[];
+  playableNumbers: readonly number[];
+  listenerVoting: boolean;
+}): LiveTrackLink[] {
+  const playable = new Set(args.playableNumbers);
+  const links: LiveTrackLink[] = [];
+  const seen = new Set<number>();
+  for (const track of args.tracks) {
+    if (seen.has(track.trackNumber) || !playable.has(track.trackNumber)) {
+      continue;
+    }
+    seen.add(track.trackNumber);
+    links.push({
+      trackNumber: track.trackNumber,
+      title: track.title,
+      path: trackPagePath(track.title, args.listenerVoting),
+    });
+  }
+  return links;
 }
 
 /** Vote and Listen show this while work is still going. A finished round stays quiet. */
