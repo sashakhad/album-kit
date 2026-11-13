@@ -8,15 +8,23 @@ import { buildVersion, type CanonicalTrack } from '@/lib/album/build-version';
 import { isAudioFilename } from '@/lib/album/parse-filename';
 import { localAudioDir } from '@/lib/album/paths';
 import { loadTakePrompts } from '@/lib/album/sheet-prompts';
+import { loadStreamCatalog } from '@/lib/album/stream-catalog';
+import { filenamesForPlayback, type StreamCatalogEntry } from '@/lib/album/stream-url';
 import type { AlbumVersion } from '@/lib/album/types';
 
 const SET_PREFIX = /^(v\d+)-/;
 
 export async function listSets(): Promise<AlbumVersion[]> {
   const config = await loadAlbumConfig();
-  const filenames = canUseBlob() ? await listBlobTakeFilenames() : await listLocalTakeFilenames();
+  const [listed, catalog] = await Promise.all([
+    canUseBlob() ? listBlobTakeFilenames() : listLocalTakeFilenames(),
+    loadStreamCatalog(),
+  ]);
+  const filenames = filenamesForPlayback(listed, catalog);
+  const streams = new Map<string, StreamCatalogEntry>();
+  for (const entry of catalog) streams.set(entry.filename, entry);
   const takePrompts = await loadTakePrompts(config, filenames);
-  return buildSets(config, filenames, takePrompts);
+  return buildSets(config, filenames, takePrompts, streams);
 }
 
 export async function getSet(id: string): Promise<AlbumVersion | null> {
@@ -38,7 +46,8 @@ export function albumTracklist(config: AlbumConfig): CanonicalTrack[] {
 function buildSets(
   config: AlbumConfig,
   filenames: readonly string[],
-  takePrompts: Map<string, string>
+  takePrompts: Map<string, string>,
+  streams: ReadonlyMap<string, StreamCatalogEntry>
 ): AlbumVersion[] {
   const filesBySet = new Map<string, string[]>();
   for (const set of config.sets) {
@@ -69,6 +78,7 @@ function buildSets(
         prompts: new Map(),
         takePrompts,
         tracklist,
+        streams,
       })
     );
   }

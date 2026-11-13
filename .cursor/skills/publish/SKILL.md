@@ -3,9 +3,9 @@ name: publish
 description: Use after any change under album/, or when the user wants the album backed up to GitHub or Cursor Origin. It commits the album, redeploys the site and gives the site URL.
 ---
 
-# Publish · version 2
+# Publish · version 5
 
-Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio.
+Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio. Public review takes play from stored Suno MP4 stream URLs. Review takes the owner kept private play from their uploaded files. A private album still gates the take list behind the key. Suno CDN URLs are public, so a private album that streams published clips exposes only unguessable clip URLs to key holders. A clip that is private on Suno stops playing from its stream.
 
 ## When to use
 
@@ -58,7 +58,7 @@ Check the owner's publication choice before sharing album content. A prepared de
    '
    ```
 
-3. Publish, with a short message that says what changed:
+3. Tell the owner you are publishing, then publish, with a short message that says what changed:
 
    ```bash
    pnpm publish:album "<message>"
@@ -66,7 +66,7 @@ Check the owner's publication choice before sharing album content. A prepared de
 
    It commits `album/` and `.album-site.json` as `album: <message>`, pushes if the album has a git home, deploys and prints the site URL. With `"deploy": "git"` in `.album-site.json`, Vercel builds from the push, so the change shows a minute or two later. With `"deploy": "cli"`, it first checks that you're signed in to Vercel, and if the newest commit isn't by that account, it switches the folder's git user to the account and adds an empty commit, `album: deploy as <username>`.
 
-   If it exits with code 4, it couldn't read the signed-in Vercel account. Run `npx vercel login`, ask the user to take over the browser and sign in, then publish again.
+   If the Vercel CLI prints `fetch failed` or another network error, it retries up to 3 times and says `Retrying`. Tell the owner it is retrying. Do not stop after the first failure. If it exits with code 4, it couldn't read the signed-in Vercel account. Run `npx vercel login`, ask the user to take over the browser and sign in, then publish again.
 
 4. Check that the site answers:
 
@@ -122,7 +122,7 @@ On albums that started from the kit (paths (a) and (c) in `start-here`), run `gi
 
 ## Tell the user
 
-- What changed, and the site URL.
+- What changed, and the site URL, as soon as `pnpm publish:album` prints it. Do not go silent while the deploy runs: if it is still going after the first minute, say that publishing is still in progress.
 - For a new home: the repo link, and that it's private.
 
 ## Stop and ask when

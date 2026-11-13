@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
+import { TakeAvailability } from '@/components/album/TakeAvailability';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { getListenConfig } from '@/lib/album/listen-store';
@@ -18,6 +20,9 @@ import { loadSettings } from '@/lib/settings/store';
 import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
+import { loadAlbumProgress } from '@/lib/rounds/load-progress';
+import { emptyTakeMessage, pendingTakeLabel, progressBannerLine } from '@/lib/rounds/progress';
+import type { AlbumProgress } from '@/lib/rounds/progress';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +40,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function VotePage({ params }: VotePageProps) {
   const { parts = [] } = await params;
-  const [owner, settings, viewer] = await Promise.all([isOwner(), loadSettings(), isViewer()]);
+  const [owner, settings, viewer, progress] = await Promise.all([
+    isOwner(),
+    loadSettings(),
+    isViewer(),
+    loadAlbumProgress(),
+  ]);
+  const bannerLine = progressBannerLine(progress);
   if (
     !canCastVote({
       visibility: settings.visibility,
@@ -60,6 +71,8 @@ export default async function VotePage({ params }: VotePageProps) {
       visibility: settings.visibility,
       listeningDetails: settings.listeningDetails,
       maskPromptModels: settings.maskPromptModels,
+      bannerLine,
+      progress,
     });
   }
   const [config, { version, originalVersion, votes, blind, awaitingReveal, passSummary }] =
@@ -125,6 +138,8 @@ export default async function VotePage({ params }: VotePageProps) {
       showListenerScores={settings.listenerVoting}
       listenChoices={listenChoices}
       passSummary={passSummary}
+      bannerLine={bannerLine}
+      progress={progress}
     />
   );
 }
@@ -137,6 +152,8 @@ async function listenerVotePage(args: {
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
   maskPromptModels: boolean;
+  bannerLine: string | null;
+  progress: AlbumProgress;
 }) {
   const [config, { version, votes, awaitingReveal }] = await Promise.all([
     loadAlbumConfig(),
@@ -164,6 +181,8 @@ async function listenerVotePage(args: {
       track={track}
       initialTake={initialTake}
       signInHref={args.signInHref}
+      bannerLine={args.bannerLine}
+      progress={args.progress}
     />
   );
 }
@@ -179,6 +198,8 @@ function VoteMain({
   showListenerScores = false,
   listenChoices,
   passSummary,
+  bannerLine = null,
+  progress,
 }: {
   version: AlbumVersion;
   votes: VoteSnapshot;
@@ -190,9 +211,15 @@ function VoteMain({
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
+  bannerLine?: string | null;
+  progress: AlbumProgress;
 }) {
+  const playable = version.tracks.some(item => item.audioUrl !== null);
+  const notice = playable ? undefined : emptyTakeMessage(progress);
+  const pending = pendingTakeLabel(progress);
   return (
     <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8'>
+      <RoundProgressBanner line={bannerLine} />
       <div className='mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-white/10 pb-2'>
         <p className='text-muted-foreground text-sm'>
           <span className='text-foreground font-medium'>
@@ -211,21 +238,30 @@ function VoteMain({
           {voter === 'owner' ? 'Open Listen' : 'Sign in as owner'}
         </Link>
       </div>
-      <AlbumPlayer
-        key={`${voter}-${votes.currentRound}`}
-        version={version}
-        votes={votes}
-        surface='vote'
-        voter={voter}
-        awaitingReveal={awaitingReveal}
-        showListenerScores={showListenerScores}
-        {...(listenChoices === undefined ? {} : { listenChoices })}
-        {...(passSummary === undefined ? {} : { passSummary })}
-        {...(track === null
-          ? {}
-          : { initialTrackNumber: track.number, initialTrackTitle: track.title })}
-        {...(initialTake === null ? {} : { initialTakeLabel: initialTake.label })}
-      />
+      {!playable && version.tracks.length === 0 ? (
+        <TakeAvailability
+          message={notice ?? pending}
+          tracks={progress.tracks}
+          pendingLabel={pending}
+        />
+      ) : (
+        <AlbumPlayer
+          key={`${voter}-${votes.currentRound}`}
+          version={version}
+          votes={votes}
+          surface='vote'
+          voter={voter}
+          awaitingReveal={awaitingReveal}
+          showListenerScores={showListenerScores}
+          {...(listenChoices === undefined ? {} : { listenChoices })}
+          {...(passSummary === undefined ? {} : { passSummary })}
+          {...(notice === undefined ? {} : { emptyNotice: notice, pendingLabel: pending })}
+          {...(track === null
+            ? {}
+            : { initialTrackNumber: track.number, initialTrackTitle: track.title })}
+          {...(initialTake === null ? {} : { initialTakeLabel: initialTake.label })}
+        />
+      )}
     </main>
   );
 }

@@ -51,8 +51,9 @@ export function OwnerKeyControls() {
   return (
     <div className='space-y-4'>
       <p className='text-muted-foreground text-sm leading-relaxed'>
-        Moving to another browser or phone? Create a link for yourself. It works once and expires in
-        10 minutes. Use the listener link in Sharing for everyone else.
+        Moving to another browser or phone? Create a link for yourself. It works once and stays
+        valid for 7 days. After you open it, this browser stays signed in. Use the listener link in
+        Sharing for everyone else.
       </p>
       <div className='flex flex-wrap gap-2'>
         <Button

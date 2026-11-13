@@ -6,6 +6,7 @@ import {
   importPreset,
   resolveSettings,
   settingsPatchSchema,
+  settingsSchema,
 } from '../schema';
 
 describe('settings and portable presets', () => {
@@ -67,6 +68,19 @@ describe('settings and portable presets', () => {
   it('keeps omitted fields out of a partial patch', () => {
     expect(settingsPatchSchema.parse({ listenerVoting: true })).toEqual({ listenerVoting: true });
     expect(settingsPatchSchema.parse({ visibility: 'public' })).toEqual({ visibility: 'public' });
+  });
+
+  it('defaults review takes to public and leaves that choice out of a portable preset', () => {
+    expect(DEFAULT_SETTINGS.reviewTakes).toBe('public');
+    const legacy: Record<string, unknown> = { ...DEFAULT_SETTINGS };
+    delete legacy.reviewTakes;
+    expect(settingsSchema.parse(legacy).reviewTakes).toBe('public');
+    expect(settingsPatchSchema.parse({ reviewTakes: 'private' })).toEqual({
+      reviewTakes: 'private',
+    });
+    const preset = exportPreset({ ...DEFAULT_SETTINGS, reviewTakes: 'private' });
+    expect(preset.settings).not.toHaveProperty('reviewTakes');
+    expect(importPreset(preset)).not.toHaveProperty('reviewTakes');
   });
 
   it('rejects credentials and unsupported versions', () => {

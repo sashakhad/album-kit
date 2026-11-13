@@ -9,7 +9,7 @@ The playbook is in `.cursor/skills/`. Read a skill's whole `SKILL.md` before you
 - `start-here`: first run. Copies the kit, sets up the album site, gets the user signed in to Suno and writes the album brief.
 - `album-track`: frames a new track and ships its sheet; runs a prompt arena when requested.
 - `song-prompts`: writes or revises track-specific Suno prompts, keeping source context, model choices and provenance in the sheet.
-- `suno-run`: runs a sheet's prompts in Suno, names the takes and uploads them.
+- `suno-run`: runs a sheet's prompts in Suno, names the takes and stores their stream URLs.
 - `judge`: rounds on `/vote`, and parking, promoting, extracting or renaming takes.
 - `finish`: pins the chosen takes to `/listen` and shares the link.
 - `publish`: commits and deploys album changes, and gives the album a GitHub or Origin home.

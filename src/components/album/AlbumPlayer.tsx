@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type SyntheticEvent,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -30,13 +38,19 @@ import {
 import { indexForTrackNumber, listenHref, voteHref } from '@/lib/album/play-path';
 import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
+import { isVideoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { DownloadButton } from '@/components/album/DownloadButton';
 import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
 import { MoreLikeThis } from '@/components/album/MoreLikeThis';
 import { VoteButton } from '@/components/album/VoteButton';
-import { choiceForTake, countForTake, takeCountsForTrack } from '@/lib/votes/tally';
+import {
+  choiceForTake,
+  countForTake,
+  scoredTakesOnTrack,
+  takeCountsForTrack,
+} from '@/lib/votes/tally';
 import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
 import {
   formatDuration,
@@ -61,6 +75,8 @@ export function AlbumPlayer({
   showListenerScores = true,
   listenChoices,
   passSummary,
+  emptyNotice,
+  pendingLabel = 'Coming soon',
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -73,11 +89,17 @@ export function AlbumPlayer({
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
+  emptyNotice?: string;
+  pendingLabel?: string;
 }) {
   const router = useRouter();
   const revealRefreshRequested = useRef(false);
   const playerSurface: PlayerSurface = surface ?? 'vote';
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const assignMedia = useCallback((node: HTMLMediaElement | null) => {
+    if (node !== null) node.setAttribute('referrerpolicy', 'no-referrer');
+  }, []);
   const playableIndexes = useMemo(() => collectPlayableIndexes(version.tracks), [version.tracks]);
   const startIndex = useMemo(() => {
     if (initialTrackTitle !== undefined) {
@@ -235,6 +257,40 @@ export function AlbumPlayer({
     0
   );
 
+  const voteResumeReady = useRef(playerSurface !== 'vote');
+
+  useEffect(() => {
+    if (playerSurface !== 'vote' || voteResumeReady.current) {
+      return;
+    }
+    if (initialTrackNumber === undefined && initialTrackTitle === undefined) {
+      try {
+        const saved = window.localStorage.getItem('album-kit-vote-track');
+        const number = saved === null ? Number.NaN : Number(saved);
+        const index = version.tracks.findIndex(track => track.number === number);
+        if (index >= 0) {
+          // The server has no localStorage, so the saved track is applied after mount.
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- resume the owner's last track
+          setCurrentIndex(index);
+        }
+      } catch {
+        // Storage can be blocked. The album URL still selects a track.
+      }
+    }
+    voteResumeReady.current = true;
+  }, [initialTrackNumber, initialTrackTitle, playerSurface, version.tracks]);
+
+  useEffect(() => {
+    if (!voteResumeReady.current || playerSurface !== 'vote' || currentTrack === null) {
+      return;
+    }
+    try {
+      window.localStorage.setItem('album-kit-vote-track', String(currentTrack.number));
+    } catch {
+      // The URL still records the track for this visit.
+    }
+  }, [currentTrack, playerSurface]);
+
   useEffect(() => {
     if (currentTrack === null || currentTake === null) {
       return;
@@ -262,26 +318,35 @@ export function AlbumPlayer({
   }, [currentTake, currentTrack, playerSurface]);
 
   const playSource = useCallback((url: string) => {
-    const audio = audioRef.current;
-    if (audio === null) {
+    const video = isVideoStream(url);
+    const active = video ? videoRef.current : audioRef.current;
+    const idle = video ? audioRef.current : videoRef.current;
+    if (idle !== null) {
+      idle.pause();
+      if (idle.getAttribute('src') !== null) {
+        idle.removeAttribute('src');
+        idle.load();
+      }
+    }
+    if (active === null) {
       return;
     }
 
     const nextSrc = new URL(url, window.location.href).href;
-    if (audio.src !== nextSrc) {
-      audio.src = url;
+    if (active.src !== nextSrc) {
+      active.src = url;
     }
 
     setPlaybackError(null);
     setIsLoading(true);
-    if (audio.error) audio.load();
-    void audio
+    if (active.error) active.load();
+    void active
       .play()
       .then(() => {
-        if (audio.src === nextSrc) setIsLoading(false);
+        if (active.src === nextSrc) setIsLoading(false);
       })
       .catch((error: unknown) => {
-        if (isAbortError(error) || audio.src !== nextSrc) return;
+        if (isAbortError(error) || active.src !== nextSrc) return;
         setIsPlaying(false);
         setIsLoading(false);
         setPlaybackError('Could not play this track. Try again.');
@@ -295,6 +360,8 @@ export function AlbumPlayer({
         return;
       }
       if (takeLabel === undefined && track.audioUrl === null) {
+        setCurrentIndex(index);
+        setIsPlaying(false);
         return;
       }
 
@@ -310,6 +377,8 @@ export function AlbumPlayer({
 
       const url = audioUrlForTrack(track, nextSelected, preferredTakeLabelRef.current);
       if (url === null) {
+        setCurrentIndex(index);
+        setIsPlaying(false);
         return;
       }
 
@@ -416,6 +485,7 @@ export function AlbumPlayer({
       setIsPlaying(false);
       setIsLoading(false);
       audioRef.current?.pause();
+      videoRef.current?.pause();
       return;
     }
     setIsPlaying(true);
@@ -423,21 +493,23 @@ export function AlbumPlayer({
   }, [currentAudioUrl, hasAudio, isPlaying, playIndex, playSource, playableIndexes]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (audio === null) {
-      return;
-    }
-    audio.volume = volume;
-  }, [volume]);
+    if (audioRef.current !== null) audioRef.current.volume = volume;
+    if (videoRef.current !== null) videoRef.current.volume = volume;
+  }, [currentAudioUrl, volume]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (audio === null || currentAudioUrl === null) {
+    const media =
+      currentAudioUrl === null
+        ? null
+        : isVideoStream(currentAudioUrl)
+          ? videoRef.current
+          : audioRef.current;
+    if (media === null || currentAudioUrl === null) {
       return;
     }
 
     if (!isPlaying) {
-      audio.pause();
+      media.pause();
       return;
     }
 
@@ -447,12 +519,12 @@ export function AlbumPlayer({
       playSource(url);
     }
 
-    if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    if (media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
       playWhenReady();
     }
-    audio.addEventListener('canplay', playWhenReady);
+    media.addEventListener('canplay', playWhenReady);
     return () => {
-      audio.removeEventListener('canplay', playWhenReady);
+      media.removeEventListener('canplay', playWhenReady);
     };
   }, [currentAudioUrl, isPlaying, playSource]);
 
@@ -513,11 +585,15 @@ export function AlbumPlayer({
   }, [currentTrack, isPlaying, playNext, playPrevious, version.author, version.title]);
 
   function handleSeek(seconds: number) {
-    const audio = audioRef.current;
-    if (audio === null) {
+    const media =
+      currentAudioUrl === null
+        ? null
+        : isVideoStream(currentAudioUrl)
+          ? videoRef.current
+          : audioRef.current;
+    if (!seekMedia(media, seconds)) {
       return;
     }
-    audio.currentTime = seconds;
     setCurrentTime(seconds);
   }
 
@@ -528,7 +604,7 @@ export function AlbumPlayer({
       <div className='min-w-0 space-y-5'>
         <div className='space-y-2'>
           <p className='text-muted-foreground text-xs tracking-widest uppercase'>
-            {hasAudio ? 'Now playing' : 'Coming soon'}
+            {hasAudio ? 'Now playing' : pendingLabel}
           </p>
           <PlayerHeading className='font-display text-3xl leading-tight tracking-tight break-words sm:text-4xl'>
             {currentTrack?.title ?? version.title}
@@ -751,24 +827,61 @@ export function AlbumPlayer({
             {currentTrack === null ? null : <ParkedCount track={currentTrack} />}
           </div>
         ) : null}
-        {!hasAudio ? <EmptyAudioHint surface={playerSurface} voter={voter} /> : null}
+        {!hasAudio ? (
+          <EmptyAudioHint surface={playerSurface} voter={voter} notice={emptyNotice} />
+        ) : null}
       </div>
 
       <div className='min-w-0 space-y-6'>
-        <div className='flex items-baseline justify-between px-1'>
+        <div className='flex flex-wrap items-center justify-between gap-2 px-1'>
           <h2 className='text-sm font-medium'>
-            {playerSurface === 'listen' ? 'Tracks' : 'Choose a take'}
+            {playerSurface === 'listen'
+              ? 'Tracks'
+              : `Track ${formatNumberExact(currentIndex + 1)} of ${formatNumberExact(version.tracks.length)}`}
           </h2>
-          <span className='text-muted-foreground text-xs'>
-            {playableIndexes.length} ready to play
-          </span>
+          {playerSurface === 'vote' ? (
+            <div className='flex gap-2'>
+              <button
+                type='button'
+                aria-label='Previous album track'
+                className='inline-flex min-h-11 items-center rounded-lg px-3 text-sm disabled:opacity-40'
+                disabled={currentIndex <= 0}
+                onClick={() => playIndex(currentIndex - 1)}
+              >
+                Previous
+              </button>
+              <button
+                type='button'
+                aria-label='Next album track'
+                className='inline-flex min-h-11 items-center rounded-lg px-3 text-sm disabled:opacity-40'
+                disabled={currentIndex >= version.tracks.length - 1}
+                onClick={() => playIndex(currentIndex + 1)}
+              >
+                Next
+              </button>
+            </div>
+          ) : (
+            <span className='text-muted-foreground text-xs'>
+              {playableIndexes.length} ready to play
+            </span>
+          )}
         </div>
-        <ol className='bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10'>
+        <ol
+          className={cn(
+            'bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10',
+            playerSurface === 'vote' && 'max-h-[32rem] overflow-y-auto'
+          )}
+        >
           {version.tracks.map((track, index) => {
             const choice = listenChoices?.[track.number];
             if (!isOnAlbumShortlist(track) && !choice?.manual && !choice?.hasBonus) return null;
             const selectedTake = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
             const currentOnShortlist = index === currentIndex && !isParkedTake(track, selectedTake);
+            const scoreProgress = scoredTakesOnTrack(displayedVotes, track.number, track.takes);
+            const scoreLabel =
+              playerSurface === 'vote' && scoreProgress.total > 0
+                ? `${formatNumberExact(scoreProgress.scored)} of ${formatNumberExact(scoreProgress.total)} scored`
+                : undefined;
             return (
               <li key={`${track.kind}-${track.number}-${track.title}`}>
                 <TrackRow
@@ -780,8 +893,13 @@ export function AlbumPlayer({
                   votes={displayedVotes}
                   versionSlug={version.slug}
                   showVotes={playerSurface !== 'listen'}
-                  showTakes={playerSurface !== 'listen'}
+                  showTakes={
+                    playerSurface !== 'listen' &&
+                    (playerSurface !== 'vote' || index === currentIndex)
+                  }
                   listenChoice={choice}
+                  pendingLabel={pendingLabel}
+                  {...(scoreLabel === undefined ? {} : { scoreLabel })}
                   voter={voter}
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
@@ -847,17 +965,13 @@ export function AlbumPlayer({
         </div>
       ) : null}
       {currentAudioUrl !== null ? (
-        <audio
-          ref={audioRef}
-          src={currentAudioUrl}
-          preload='metadata'
-          playsInline
-          onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
-          onDurationChange={event =>
-            setDuration(
-              Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0
-            )
-          }
+        <PlaybackMedia
+          url={currentAudioUrl}
+          audioRef={audioRef}
+          videoRef={videoRef}
+          onReady={assignMedia}
+          onTime={setCurrentTime}
+          onDuration={setDuration}
           onPlaying={() => {
             setIsLoading(false);
             setPlaybackError(null);
@@ -874,6 +988,92 @@ export function AlbumPlayer({
         />
       ) : null}
     </section>
+  );
+}
+
+function PlaybackMedia({
+  url,
+  audioRef,
+  videoRef,
+  onReady,
+  onTime,
+  onDuration,
+  onPlaying,
+  onWaiting,
+  onError,
+  onEnded,
+}: {
+  url: string;
+  audioRef: { current: HTMLAudioElement | null };
+  videoRef: { current: HTMLVideoElement | null };
+  onReady: (node: HTMLMediaElement | null) => void;
+  onTime: (seconds: number) => void;
+  onDuration: (seconds: number) => void;
+  onPlaying: () => void;
+  onWaiting: () => void;
+  onError: () => void;
+  onEnded: () => void;
+}) {
+  const video = isVideoStream(url);
+
+  function fromActive(
+    event: SyntheticEvent<HTMLMediaElement>,
+    handle: (media: HTMLMediaElement) => void
+  ) {
+    const fromVideo = event.currentTarget.tagName === 'VIDEO';
+    if (fromVideo !== video) {
+      return;
+    }
+    handle(event.currentTarget);
+  }
+
+  const events = {
+    onTimeUpdate: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, media => onTime(media.currentTime));
+    },
+    onDurationChange: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, media => onDuration(Number.isFinite(media.duration) ? media.duration : 0));
+    },
+    onPlaying: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onPlaying());
+    },
+    onWaiting: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onWaiting());
+    },
+    onError: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onError());
+    },
+    onEnded: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onEnded());
+    },
+  };
+
+  return (
+    <>
+      <audio
+        ref={node => {
+          audioRef.current = node;
+          onReady(node);
+        }}
+        src={video ? undefined : url}
+        preload='metadata'
+        playsInline
+        {...events}
+      />
+      <video
+        ref={node => {
+          videoRef.current = node;
+          onReady(node);
+        }}
+        src={video ? url : undefined}
+        preload='metadata'
+        playsInline
+        disablePictureInPicture
+        aria-hidden
+        className='pointer-events-none fixed top-0 left-0 -z-10 h-px w-px overflow-hidden opacity-0'
+        {...events}
+      />
+    </>
   );
 }
 
@@ -1120,6 +1320,8 @@ function TrackRow({
   showVotes,
   showTakes,
   listenChoice,
+  pendingLabel,
+  scoreLabel,
   voter,
   onSelect,
   onSelectTake,
@@ -1135,6 +1337,8 @@ function TrackRow({
   showVotes: boolean;
   showTakes: boolean;
   listenChoice: ListenChoice | undefined;
+  pendingLabel: string;
+  scoreLabel?: string;
   voter: 'owner' | 'listener';
   onSelect: () => void;
   onSelectTake: (label: string) => void;
@@ -1168,6 +1372,9 @@ function TrackRow({
             <span className={cn('block text-sm break-words', !ready && 'text-muted-foreground')}>
               {track.title}
             </span>
+            {scoreLabel === undefined ? null : (
+              <span className='text-muted-foreground block text-xs'>{scoreLabel}</span>
+            )}
             {track.status === 'preview' ? (
               <span className='text-muted-foreground text-xs'>Preview</span>
             ) : null}
@@ -1180,7 +1387,7 @@ function TrackRow({
           <span className='text-muted-foreground text-xs'>
             {listenChoice?.manual || listenChoice?.hasBonus
               ? 'No takes in this round'
-              : 'Coming soon'}
+              : pendingLabel}
           </span>
         ) : track.compareHref === undefined ? null : (
           <Link
@@ -1377,13 +1584,31 @@ function SeekBar({
 function EmptyAudioHint({
   surface,
   voter,
+  notice,
 }: {
   surface: PlayerSurface;
   voter: 'owner' | 'listener';
+  notice?: string | undefined;
 }) {
   return (
     <div className='text-muted-foreground rounded-2xl border border-dashed border-white/15 p-5 text-sm leading-relaxed'>
-      {surface === 'vote' && voter === 'listener' ? (
+      {notice !== undefined && notice.length > 0 ? (
+        <>
+          <p>{notice}</p>
+          {surface === 'vote' && voter === 'owner' ? (
+            <p>
+              Or{' '}
+              <Link
+                href='/intake'
+                className='text-foreground inline-flex min-h-11 items-center underline underline-offset-4'
+              >
+                upload takes
+              </Link>{' '}
+              you already have.
+            </p>
+          ) : null}
+        </>
+      ) : surface === 'vote' && voter === 'listener' ? (
         <p>No takes in this round yet.</p>
       ) : surface === 'vote' ? (
         <p>
@@ -1429,6 +1654,14 @@ function IconButton({
 
 function padTrackNumber(number: number): string {
   return String(number).padStart(2, '0');
+}
+
+function seekMedia(media: HTMLMediaElement | null, seconds: number): boolean {
+  if (media === null) {
+    return false;
+  }
+  media.currentTime = seconds;
+  return true;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {

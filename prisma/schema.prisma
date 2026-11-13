@@ -136,6 +136,8 @@ model TakeProvenance {
   generationId       String?
   generationSettings Json
   outputId           String?
+  clipId             String?
+  streamUrl          String?
   roundId            String
   parentTakeFilename String?
   variationRequestId String?

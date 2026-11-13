@@ -3,7 +3,14 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const streamState = vi.hoisted(() => ({
+  rows: [] as Array<{ filename: string; clipId: string; streamUrl: string }>,
+}));
+
 vi.mock('server-only', () => ({}));
+vi.mock('@/lib/album/stream-catalog', () => ({
+  loadStreamCatalog: async () => streamState.rows,
+}));
 
 const fixturesRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -13,6 +20,7 @@ function useFixture(name: string): void {
 
 describe('listSets', () => {
   beforeEach(() => {
+    streamState.rows = [];
     vi.stubEnv('BLOB_READ_WRITE_TOKEN', '');
     vi.stubEnv('BLOB_STORE_ID', '');
   });
@@ -100,11 +108,46 @@ describe('listSets', () => {
     expect(albumTracks[0]?.takes).toEqual([]);
     expect(albumTracks[1]?.takes.map(take => take.label)).toEqual(['G']);
     vi.doUnmock('@/lib/album/blob-audio');
+    vi.resetModules();
+  });
+
+  it('plays a stored stream and includes a take that has no uploaded file', async () => {
+    useFixture('three-takes');
+    vi.resetModules();
+    const clipId = 'clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const onlyStream = 'v1-02-track-two-p2-takeb.mp3';
+    streamState.rows = [
+      {
+        filename: 'v1-01-track-one-p1-takea.mp3',
+        clipId,
+        streamUrl: `https://cdn1.suno.ai/${clipId}.mp3`,
+      },
+      {
+        filename: onlyStream,
+        clipId: 'clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee',
+        streamUrl: 'https://cdn1.suno.ai/clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.mp3',
+      },
+    ];
+    const { listSets } = await import('../load-album');
+
+    const sets = await listSets();
+    const tracks = sets[0]?.tracks.filter(track => track.kind === 'album') ?? [];
+    expect(tracks[0]?.takes.find(take => take.label === 'A')?.audioUrl).toBe(
+      `https://cdn1.suno.ai/${clipId}.mp3`
+    );
+    expect(tracks[0]?.takes.find(take => take.label === 'B')?.audioUrl).toBe(
+      '/api/audio/v1/v1-01-track-one-p1-takeb.mp3'
+    );
+    expect(tracks[1]?.takes.map(take => [take.label, take.audioUrl])).toEqual([
+      ['A', '/api/audio/v1/v1-02-track-two-p1-takea.mp3'],
+      ['B', 'https://cdn1.suno.ai/clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.mp3'],
+    ]);
   });
 });
 
 describe('getSet', () => {
   beforeEach(() => {
+    streamState.rows = [];
     vi.stubEnv('BLOB_READ_WRITE_TOKEN', '');
     vi.stubEnv('BLOB_STORE_ID', '');
     vi.resetModules();

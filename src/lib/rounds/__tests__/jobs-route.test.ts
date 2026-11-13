@@ -144,4 +144,78 @@ describe('provider job ledger', () => {
         .status
     ).toBe(409);
   });
+
+  it('completes a review take from its stream URL without a download', async () => {
+    const clipId = 'clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    await POST(request({ operationId: 'p1-stream', promptId: 'p1' }), context);
+    const missing = await PATCH(
+      request(
+        {
+          operationId: 'p1-stream',
+          status: 'complete',
+          output: {
+            takes: [
+              {
+                filename: 'v1-01-track-one-p1-takea.mp3',
+                outputId: clipId,
+                downloaded: false,
+                uploaded: false,
+              },
+            ],
+          },
+        },
+        'PATCH'
+      ),
+      context
+    );
+    expect(missing.status).toBe(409);
+
+    const streamed = await PATCH(
+      request(
+        {
+          operationId: 'p1-stream',
+          status: 'complete',
+          output: {
+            takes: [
+              {
+                filename: 'v1-01-track-one-p1-takea.mp3',
+                outputId: clipId,
+                clipId,
+                streamUrl: `https://cdn1.suno.ai/${clipId}.mp3`,
+                downloaded: false,
+                uploaded: false,
+              },
+            ],
+          },
+        },
+        'PATCH'
+      ),
+      context
+    );
+    expect(streamed.status).toBe(200);
+
+    const mp4 = await PATCH(
+      request(
+        {
+          operationId: 'p1-stream',
+          status: 'complete',
+          output: {
+            takes: [
+              {
+                filename: 'v1-01-track-one-p1-takea.mp3',
+                outputId: clipId,
+                clipId,
+                streamUrl: `https://cdn1.suno.ai/${clipId}.mp4`,
+                downloaded: false,
+                uploaded: false,
+              },
+            ],
+          },
+        },
+        'PATCH'
+      ),
+      context
+    );
+    expect(mp4.status).toBe(200);
+  });
 });

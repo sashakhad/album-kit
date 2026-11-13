@@ -3,9 +3,9 @@ name: judge
 description: Use while the owner votes on /vote, to explain or start rounds, park a take, or promote, extract or rename takes. It also frees up storage when the album runs low on space.
 ---
 
-# Judge · version 2
+# Judge · version 6
 
-The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
+The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. When review takes are public, they play from their stored public Suno MP4. Do not download those. When the owner chose to keep review takes private, they play from the uploaded file, and each of those downloads already spent a download credit. A take that is private on Suno stops playing from its stream. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
 ## When to use
 
@@ -23,7 +23,7 @@ The owner judges. You explain the rounds, keep the files straight and move takes
 Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.json").siteUrl')`.
 
 1. **Know how rounds work,** and explain it this way when the owner asks:
-   - Use `/vote` to compare takes. Give the owner a private **Compare takes as owner** link from `pnpm owner:link /vote`. It works once and expires in ten minutes. Never paste the permanent album key into chat or a URL. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
+   - Compare takes is one track at a time. Each row shows how many of that track's takes are scored. Previous and Next move through the album, and the page resumes the last track on the next visit. Use `/vote` to compare takes. Give the owner a private **Compare takes as owner** link from `pnpm owner:link /vote`. Paste both the `Site:` line and the `Owner:` line. It works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Every message includes the site URL. Never paste the permanent album key into chat, a query string, or a URL except for the owner link's fragment. If Vote or Listen has nothing to play, the page says why: takes are being generated, with the count, or takes are waiting to be published on Suno. Do not tell the owner the round is ready while that page is empty. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
    - Listener voting is off until the owner turns it on. When it is on, people who can already hear the album score takes on their own ballots. Those scores arrive on the owner `/api/votes` response as `listenerTallies`. They are not in `tallies` or `mine`. They do not drop takes, carry into the next round, or choose a pin. Listeners cannot start a round, park, move, download through the owner API, or open Studio or Settings. On a public album start listeners at `/listen`. On a private album, send an invitation whose secret is in the URL fragment after `#`.
    - Round 1 shows every take.
    - A vote adds +1 or -1 to the take's score for the current round, starting from whatever score carried over.
@@ -159,7 +159,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
   curl -sSL -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/audio/<set>/<old file>"
   ```
 
-  You want `200`, then `404`.
+  You want `200`, then `404`. That check is for an uploaded file. A streamed take has no `/api/audio/` object; confirm it plays on Compare takes instead.
 
 - Changes to `album/album.json` and the sheets went through the `publish` skill, and its checks passed.
 - After a cleanup, the storage count dropped by the number of files you deleted.

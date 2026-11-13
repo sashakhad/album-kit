@@ -3,10 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   deployAsAccountOwner,
+  deployProduction,
   disconnectKitRepo,
+  ensureGitHubRepo,
   EXIT,
   ExitError,
   generateAlbumKey,
+  isTransientDeployError,
   readEnvFile,
   slugify,
   usableAlbumKey,
@@ -119,6 +122,99 @@ describe('deployAsAccountOwner', () => {
       'git config user.email <account email>',
       'git commit --allow-empty -m album: deploy as <username>',
     ]);
+  });
+});
+
+describe('deployProduction', () => {
+  it('retries when the Vercel CLI reports fetch failed', () => {
+    let deploys = 0;
+    const { runner } = fakeRunner({});
+    const vercel = runner.vercel;
+    runner.vercel = (args: string[]) => {
+      const result = vercel(args);
+      if (args[0] !== 'deploy') {
+        return result;
+      }
+      deploys += 1;
+      if (deploys < 3) {
+        return { ...result, status: 1, stderr: 'Error: fetch failed' };
+      }
+      return result;
+    };
+
+    expect(deployProduction(runner).status).toBe(0);
+    expect(deploys).toBe(3);
+    expect(isTransientDeployError('Error: fetch failed')).toBe(true);
+  });
+
+  it('stops on the first error that is not a network failure', () => {
+    let deploys = 0;
+    const { runner } = fakeRunner({});
+    runner.vercel = (args: string[]) => {
+      deploys += 1;
+      return {
+        status: args[0] === 'deploy' ? 1 : 0,
+        stdout: '',
+        stderr: 'Error: not authorized',
+        shown: 'deploy',
+      };
+    };
+
+    expect(() => deployProduction(runner)).toThrow(/not authorized/);
+    expect(deploys).toBe(1);
+  });
+});
+
+describe('ensureGitHubRepo', () => {
+  const kit = 'https://github.com/sashakhad/album-kit.git';
+
+  it('names a signed-out GitHub CLI and does not create a repo', () => {
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kit}\n` },
+      'git remote get-url origin': { status: 2, stderr: 'No such remote' },
+      'gh auth status': { status: 1, stderr: 'You are not logged into any GitHub hosts.' },
+    });
+
+    const result = ensureGitHubRepo(runner, { project: 'my-album' });
+
+    expect(result.ok).toBe(false);
+    expect(result.blocker).toMatch(/not signed in/);
+    expect(result.blocker).toMatch(/kit remote/);
+    expect(calls.some(call => call.startsWith('gh repo create'))).toBe(false);
+  });
+
+  it('refuses to use the kit repository as origin', () => {
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kit}\n` },
+      'git remote get-url origin': { stdout: `${kit}\n` },
+    });
+
+    const result = ensureGitHubRepo(runner, { project: 'my-album' });
+
+    expect(result.ok).toBe(false);
+    expect(result.blocker).toMatch(/album kit/);
+    expect(calls.some(call => call.startsWith('gh '))).toBe(false);
+  });
+
+  it('creates a private repo when gh is signed in and origin is missing', () => {
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kit}\n` },
+      'git remote get-url origin': { status: 2 },
+      'gh auth status': { stdout: 'Logged in to github.com\n' },
+      'gh repo create': { stdout: 'https://github.com/me/my-album\n' },
+      'gh repo view': {
+        stdout: JSON.stringify({
+          url: 'https://github.com/me/my-album',
+          isPrivate: true,
+          nameWithOwner: 'me/my-album',
+        }),
+      },
+    });
+
+    const result = ensureGitHubRepo(runner, { project: 'my-album' });
+
+    expect(result).toEqual({ ok: true, blocker: null, url: 'https://github.com/me/my-album' });
+    expect(calls.some(call => call.includes('--private'))).toBe(true);
   });
 });
 

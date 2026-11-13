@@ -1,5 +1,6 @@
 import 'server-only';
 import { OWNER_VISITOR_ID } from '@/lib/owner/auth';
+import { listenerAudioUrl } from '@/lib/album/stream-url';
 import { viewerInviteId } from '@/lib/owner/viewer';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
 import { getVoteSnapshot } from '@/lib/votes/board';
@@ -18,7 +19,10 @@ import type { AlbumTake, AlbumVersion } from '@/lib/album/types';
 export function withListenerPlayback(version: AlbumVersion, round: number): AlbumVersion {
   const add = (take: AlbumTake) => ({
     ...take,
-    audioUrl: `/api/blind-audio/${round}/${opaqueAudioId(round, take.filename)}`,
+    audioUrl: listenerAudioUrl(
+      take.audioUrl,
+      `/api/blind-audio/${round}/${opaqueAudioId(round, take.filename)}`
+    ),
   });
   return {
     ...version,

@@ -88,4 +88,30 @@ describe('album settings', () => {
     expect(screen.getByLabelText('Suno model')).toHaveValue('auto');
     expect(screen.queryByLabelText('Requested Suno model ID')).not.toBeInTheDocument();
   });
+
+  it('saves the recommended public review takes until the owner chooses private', async () => {
+    const updated = { ...DEFAULT_SETTINGS, reviewTakes: 'private' as const };
+    const fetch = vi.fn().mockResolvedValue(Response.json({ resolved: updated }));
+    vi.stubGlobal('fetch', fetch);
+    render(
+      <SettingsForm
+        albumTitle='Album'
+        initial={DEFAULT_SETTINGS}
+        privateStorage
+        lastSunoCheck={null}
+      />
+    );
+    expect(screen.getByLabelText('Review takes on Suno')).toHaveValue('public');
+    expect(
+      screen.getByText(/Downloading a song from Suno uses Suno download credits/)
+    ).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Review takes on Suno'), {
+      target: { value: 'private' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Up to date'));
+    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({
+      patch: { reviewTakes: 'private' },
+    });
+  });
 });
