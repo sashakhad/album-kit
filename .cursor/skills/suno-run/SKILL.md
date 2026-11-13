@@ -3,7 +3,7 @@ name: suno-run
 description: Preflight, authorize and run a track sheet's prompts through Suno; collect and upload every take without duplicate spending.
 ---
 
-# Suno run · version 8
+# Suno run · version 9
 
 Use Suno's official MCP connector first. A signed-in suno.com browser is the fallback only when the connector lacks a required capability. The user handles sign-in or captcha. Do not suggest an unverified free browser download. A take is a full mix; only a split produces stems.
 
@@ -32,6 +32,8 @@ Count actual takes, not just expected takes. Record each take's prompt ID, actua
 When review takes are public, do not download them. The site plays the stored public MP4 in its own player on Vote, Listen, Studio and `/final`, with the picture hidden, including scrubbing. Older Blob files and stored MP3 streams still play when that is what the take has. If a stored link is missing or is not that clip's public MP4, save the clips as `[{ "id" }]` (a playable `audio_url` is optional) and run `pnpm takes:refresh <clips.json>`. Refresh reads the studio clip record and stores `video_url` when `is_public` is true. If the clip is not public, it reports `publish the clip on Suno`. If capabilities differ from the estimate, pause only the affected step and show the precise difference; never silently expand the batch. When review takes are private, skip that refresh. The uploaded file is what plays. Do not publish the clip to obtain a stream after the owner chose private.
 
 On the public path, only a final pick gets a real file. Export the WAV from Suno Studio when the account is Premier; Studio exports do not count toward the 60-song monthly download cap. Otherwise call audio-download once for that song, which counts as one download. Never use audio-download for a take that is still under review. When `reviewTakes` is `private`, each review take is already a downloaded file, so do not download it again. Final picks are stored as real files either way.
+
+Before you say takes are playable, run `pnpm takes:verify`. Send the owner its line. That line reports how many stored streams returned 200. Say they are playable only when every stream returned 200. If any are waiting to be published on Suno, report that count and do not call those takes playable. Do not paste stream URLs or the album key.
 
 Before sending a voting link, POST `/api/owner/rounds/<id>/ready`. It verifies every planned job is complete and every recorded take has matching provenance and stored audio; report any named blocker it returns. Check actual output counts against the estimate, audio playback and the site's visibility. Run `pnpm owner:link /vote` in the album checkout and give the owner **Compare takes as owner** in their private chat. They tap **Continue as owner**. An owner link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Create a fresh one for another browser, or if this one expires unused. Never paste the permanent album key into chat or a URL.
 
