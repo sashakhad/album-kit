@@ -52,6 +52,12 @@ export async function POST(request: Request) {
       executionId: string | null;
     }>;
     resolvedSunoModel?: string;
+    variation?: {
+      requestId: string;
+      parentTakeFilename: string;
+      trackNumber: number;
+      instructions: string;
+    };
   };
   const planned = snapshot.prompts?.find(
     prompt =>
@@ -61,6 +67,7 @@ export async function POST(request: Request) {
   );
   if (
     planned === undefined ||
+    (snapshot.variation !== undefined && snapshot.variation.trackNumber !== take.trackNumber) ||
     planned.style !== input.style ||
     planned.writerHost !== input.writerHost ||
     planned.writerProvider !== input.writerProvider ||
@@ -113,6 +120,9 @@ export async function POST(request: Request) {
       generationSettings: input.generationSettings as Prisma.InputJsonValue,
       outputId: input.outputId,
       roundId: input.roundId,
+      parentTakeFilename: snapshot.variation?.parentTakeFilename ?? null,
+      variationRequestId: snapshot.variation?.requestId ?? null,
+      promptInstructions: snapshot.variation?.instructions ?? null,
     },
   });
   return NextResponse.json(created, { status: 201 });

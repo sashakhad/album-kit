@@ -43,11 +43,12 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [presetNotice, setPresetNotice] = useState('');
+  const [customSunoModel, setCustomSunoModel] = useState(false);
   const patch = settingsChanges(saved, draft);
   const dirty = Object.keys(patch).length > 0;
   const sharingDirty = patch.visibility !== undefined || patch.listenerVoting !== undefined;
   const models = [...new Set([...(lastSunoCheck?.models ?? []), draft.sunoModel])].filter(
-    model => model !== 'auto'
+    model => model !== 'auto' && model.trim().length > 0
   );
 
   useEffect(() => {
@@ -93,6 +94,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
       setSaved(next);
       setDraft(next);
       setPresetNotice('');
+      setCustomSunoModel(false);
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Couldn’t save changes. Try again.');
@@ -167,6 +169,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                     setDraft(saved);
                     setError('');
                     setPresetNotice('');
+                    setCustomSunoModel(false);
                   }}
                 >
                   Discard
@@ -248,7 +251,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
             title='Listening'
             description='Decide when prompts, writers, and Suno models are visible.'
           >
-            <div className='max-w-md'>
+            <div className='max-w-md space-y-4'>
               <Field label='Take details' hint='Affects Listen and Compare as soon as you save.'>
                 <select
                   value={draft.listeningDetails}
@@ -265,12 +268,25 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                   <option value='keep-hidden'>Keep details hidden</option>
                 </select>
               </Field>
+              <label className='flex min-h-11 items-center gap-3 text-sm'>
+                <input
+                  type='checkbox'
+                  checked={draft.maskPromptModels}
+                  onChange={event => change('maskPromptModels', event.target.checked)}
+                  className='accent-primary size-5'
+                />
+                Mask prompt writer models on listening and Compare takes
+              </label>
+              <p className='text-muted-foreground text-xs'>
+                Models show by default when take details are visible. Blind modes still hide details
+                until their reveal point.
+              </p>
             </div>
           </Section>
 
           <Section
-            title='Next rounds'
-            description='Changes here apply when Grok Bot starts a new round.'
+            title='Generation'
+            description='Saved defaults for future rounds. Review each round’s cost before any music is generated.'
           >
             <div className='grid gap-4 sm:grid-cols-2'>
               <Field
@@ -307,23 +323,48 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                 hint={
                   lastSunoCheck?.resolvedModel
                     ? `Last used: ${lastSunoCheck.resolvedModel}. Grok Bot checks availability before each round.`
-                    : 'Grok Bot checks your Suno account before each round.'
+                    : 'Available models come from your Suno account check before each round.'
                 }
               >
                 <select
-                  value={draft.sunoModel}
-                  onChange={e => change('sunoModel', e.target.value)}
+                  value={customSunoModel ? '__custom__' : draft.sunoModel}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      setCustomSunoModel(true);
+                      change('sunoModel', '');
+                    } else {
+                      setCustomSunoModel(false);
+                      change('sunoModel', e.target.value);
+                    }
+                  }}
                   className={inputClass}
                 >
-                  <option value='auto'>Auto (recommended)</option>
+                  <option value='auto'>Account quality default</option>
                   {models.map(model => (
                     <option key={model} value={model}>
                       {model}
-                      {lastSunoCheck?.models.includes(model) ? '' : ' (saved)'}
+                      {lastSunoCheck?.models.includes(model)
+                        ? ''
+                        : ' (saved; availability unverified)'}
                     </option>
                   ))}
+                  <option value='__custom__'>Request another model ID…</option>
                 </select>
               </Field>
+              {customSunoModel ? (
+                <Field
+                  label='Requested Suno model ID'
+                  hint='This is a request. Grok Bot must confirm it appears on your connected account and recheck its cost before a round.'
+                >
+                  <input
+                    value={draft.sunoModel}
+                    maxLength={120}
+                    required
+                    onChange={e => change('sunoModel', e.target.value)}
+                    className={inputClass}
+                  />
+                </Field>
+              ) : null}
               <Field label='Prompts per track'>
                 <input
                   type='number'
@@ -351,7 +392,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
 
           <Disclosure
             title='Advanced music settings'
-            description='Prompt writer, sound, limits, and presets'
+            description='Prompt writer model, sound, limits, and presets'
           >
             <div className='grid gap-4 sm:grid-cols-2'>
               <Field
@@ -373,6 +414,21 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                   <option value='cursor'>Cursor · connected project required</option>
                 </select>
               </Field>
+              {draft.promptWriter === 'cursor' ? (
+                <Field
+                  label='Requested Cursor model'
+                  hint='Auto is preselected. You can request a model here; its actual provider and model are verified from the Cursor runtime record for each prompt.'
+                >
+                  <input
+                    value={draft.promptWriterModel}
+                    maxLength={120}
+                    required
+                    onChange={e => change('promptWriterModel', e.target.value)}
+                    className={inputClass}
+                    placeholder='auto'
+                  />
+                </Field>
+              ) : null}
               <Field label='Vocals'>
                 <select
                   value={draft.vocals}

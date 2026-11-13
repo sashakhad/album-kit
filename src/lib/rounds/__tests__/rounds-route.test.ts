@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 
+const settingsState = vi.hoisted(() => ({ sunoModel: 'auto' }));
+
 vi.mock('server-only', () => ({}));
 vi.mock('@/lib/owner/auth', () => ({ requireOwner: () => null }));
 vi.mock('@/lib/settings/store', () => ({
@@ -8,6 +10,7 @@ vi.mock('@/lib/settings/store', () => ({
     ...(await import('@/lib/settings/schema')).DEFAULT_SETTINGS,
     preset: 'small-test',
     promptVariations: 2,
+    sunoModel: settingsState.sunoModel,
   }),
 }));
 vi.mock('@/lib/album/album-config', () => ({
@@ -93,5 +96,50 @@ describe('round creation', () => {
       },
     });
     expect((await POST(stale)).status).toBe(409);
+  });
+
+  it('snapshots a one-round Suno override without changing album defaults', async () => {
+    const response = await POST(
+      request({
+        sunoModelOverride: 'v6-mini',
+        capabilities: {
+          availableModels: ['v6', 'v6-mini'],
+          qualityDefault: 'v6',
+          costModel: 'v6-mini',
+          creditsPerGeneration: 5,
+          outputsPerGeneration: 2,
+          downloadsPerOutput: 1,
+          generationCreditsAvailable: 100,
+          downloadsAvailable: 20,
+          checkedAt: new Date().toISOString(),
+        },
+      })
+    );
+    const result = await response.json();
+    expect(result.round.snapshot.settings.sunoModel).toBe('v6-mini');
+    expect(result.round.snapshot.resolvedSunoModel).toBe('v6-mini');
+    expect(result.estimate.generationCredits).toBe(10);
+    expect((await POST(request({ sunoModelOverride: 'retired-model' }))).status).toBe(409);
+  });
+
+  it('blocks a retired saved model instead of silently authorizing an available replacement', async () => {
+    settingsState.sunoModel = 'v5.5';
+    try {
+      const blocked = await POST(request());
+      const result = await blocked.json();
+      expect(result.round.status).toBe('blocked');
+      expect(result.estimate.migration).toContain('v5.5 is unavailable');
+      expect(result.estimate.blockers).toContain(
+        'Saved Suno model v5.5 is unavailable. Choose an available model in Album Settings or request a one-round override.'
+      );
+
+      const overridden = await POST(request({ sunoModelOverride: 'v6' }));
+      const overrideResult = await overridden.json();
+      expect(overrideResult.round.status).toBe('preparing');
+      expect(overrideResult.round.snapshot.settings.sunoModel).toBe('v6');
+      expect(overrideResult.estimate.blockers).toEqual([]);
+    } finally {
+      settingsState.sunoModel = 'auto';
+    }
   });
 });

@@ -34,6 +34,7 @@ import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { DownloadButton } from '@/components/album/DownloadButton';
 import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
+import { MoreLikeThis } from '@/components/album/MoreLikeThis';
 import { VoteButton } from '@/components/album/VoteButton';
 import { choiceForTake, countForTake, takeCountsForTrack } from '@/lib/votes/tally';
 import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
@@ -59,6 +60,7 @@ export function AlbumPlayer({
   voter = 'owner',
   showListenerScores = true,
   listenChoices,
+  passSummary,
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -70,6 +72,7 @@ export function AlbumPlayer({
   voter?: 'owner' | 'listener';
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
+  passSummary?: { total: number; remaining: number; parked: number; dropped: number };
 }) {
   const router = useRouter();
   const revealRefreshRequested = useRef(false);
@@ -188,6 +191,49 @@ export function AlbumPlayer({
   const hasVariations = version.tracks.some(track => track.takes.length > 1);
   const currentPrompt =
     currentTake?.prompt ?? currentTake?.details?.style ?? currentTrack?.prompt ?? null;
+  const activeCount =
+    currentTrack === null || currentTake === null
+      ? 0
+      : countForTake(
+          voteSnapshot,
+          currentTrack.number,
+          currentTake.versionSlug,
+          currentTake.voteLabel
+        );
+  const activePicked =
+    currentTrack !== null &&
+    currentTake !== null &&
+    (listenChoices?.[currentTrack.number]?.manual
+      ? listenChoices[currentTrack.number]?.token === currentTake.filename
+      : rankListenTakes(
+          currentTrack.takes,
+          takeCountsForTrack(voteSnapshot, currentTrack)
+        ).winners.some(take => take.filename === currentTake.filename));
+  const passRemaining =
+    passSummary?.remaining ??
+    version.tracks.reduce((count, track) => count + track.takes.length, 0);
+  const unscored = version.tracks.reduce(
+    (count, track) =>
+      count +
+      track.takes.filter(
+        take =>
+          !(voteSnapshot.mine[track.number] ?? []).some(
+            choice =>
+              choice.versionSlug === take.versionSlug &&
+              choice.takeLabel === take.voteLabel &&
+              choice.round === voteSnapshot.currentRound
+          )
+      ).length,
+    0
+  );
+  const nextCut = version.tracks.reduce(
+    (count, track) =>
+      count +
+      track.takes.filter(
+        take => countForTake(voteSnapshot, track.number, take.versionSlug, take.voteLabel) < 0
+      ).length,
+    0
+  );
 
   useEffect(() => {
     if (currentTrack === null || currentTake === null) {
@@ -203,10 +249,6 @@ export function AlbumPlayer({
         : currentTrack.listenSlug === undefined
           ? listenHref({ title: currentTrack.title })
           : `/listen/${currentTrack.listenSlug}`;
-    document.title =
-      playerSurface === 'vote'
-        ? `${currentTrack.title} · ${currentTake.label} · ${version.title}`
-        : `${currentTrack.title} · ${version.title}`;
     if (window.location.pathname === nextPath) {
       return;
     }
@@ -217,7 +259,7 @@ export function AlbumPlayer({
       return;
     }
     window.history.replaceState(window.history.state, '', nextPath);
-  }, [currentTake, currentTrack, playerSurface, version.title]);
+  }, [currentTake, currentTrack, playerSurface]);
 
   const playSource = useCallback((url: string) => {
     const audio = audioRef.current;
@@ -501,6 +543,25 @@ export function AlbumPlayer({
               {isParkedTake(currentTrack, currentTake) ? ' · Possible rename' : ''}
             </p>
           ) : null}
+          {playerSurface === 'vote' && currentTake !== null ? (
+            <div className='flex flex-wrap items-center gap-2 text-xs'>
+              {currentTake.details?.writer ? (
+                <span className='rounded-full border border-white/15 px-2.5 py-1'>
+                  {currentTake.details.writer}
+                </span>
+              ) : null}
+              {voter === 'owner' && activePicked ? (
+                <span className='rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-emerald-200'>
+                  Chosen for Listen
+                </span>
+              ) : null}
+              {activeCount < 0 ? (
+                <span className='rounded-full border border-rose-400/30 bg-rose-400/10 px-2.5 py-1 text-rose-200'>
+                  Cut when next pass starts
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div ref={controlsRef} data-player-controls className='space-y-3'>
@@ -588,6 +649,50 @@ export function AlbumPlayer({
           </div>
         </div>
 
+        {playerSurface === 'vote' &&
+        currentTrack !== null &&
+        currentTake !== null &&
+        currentTrack.kind === 'album' ? (
+          <div
+            className='flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/15 bg-white/5 p-3'
+            data-active-vote
+          >
+            <div>
+              <p className='text-sm font-medium'>Score take {currentTake.label}</p>
+              <p className='text-muted-foreground text-xs'>
+                Vote here while you listen. Score {formatSignedScore(activeCount)}.
+              </p>
+            </div>
+            <VoteButton
+              key={`active-${currentTrack.number}-${currentTake.versionSlug}-${currentTake.voteLabel}`}
+              trackNumber={currentTrack.number}
+              versionSlug={currentTake.versionSlug}
+              takeLabel={currentTake.voteLabel}
+              displayLabel={currentTake.label}
+              trackTitle={currentTrack.title}
+              initialCount={activeCount}
+              initialValue={choiceForTake(
+                voteSnapshot,
+                currentTrack.number,
+                currentTake.versionSlug,
+                currentTake.voteLabel
+              )}
+              onSnapshot={setVoteSnapshot}
+            />
+          </div>
+        ) : null}
+        {playerSurface === 'vote' &&
+        voter === 'owner' &&
+        currentTrack !== null &&
+        currentTake?.details !== undefined ? (
+          <MoreLikeThis
+            key={currentTake.filename}
+            filename={currentTake.filename}
+            trackNumber={currentTrack.number}
+            trackTitle={currentTrack.title}
+          />
+        ) : null}
+
         {currentPrompt !== null ? (
           <details className='group rounded-xl border border-white/12 bg-white/3' data-prompt>
             <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium [&::-webkit-details-marker]:hidden'>
@@ -597,9 +702,17 @@ export function AlbumPlayer({
             <div className='space-y-3 px-4 pb-4'>
               <p className='text-sm leading-relaxed whitespace-pre-line'>{currentPrompt}</p>
               {currentTake?.details === undefined ? null : (
-                <p className='text-muted-foreground text-xs leading-relaxed'>
-                  {currentTake.details.writer} · Suno {currentTake.details.sunoModel}
-                </p>
+                <div className='text-muted-foreground space-y-1 text-xs leading-relaxed'>
+                  <p>
+                    {currentTake.details.writer} · Suno {currentTake.details.sunoModel}
+                  </p>
+                  {currentTake.details.parentTakeFilename ? (
+                    <p>Variation of {currentTake.details.parentTakeFilename}</p>
+                  ) : null}
+                  {currentTake.details.promptInstructions ? (
+                    <p>Requested change: {currentTake.details.promptInstructions}</p>
+                  ) : null}
+                </div>
               )}
             </div>
           </details>
@@ -614,13 +727,29 @@ export function AlbumPlayer({
           </p>
         ) : null}
         {playerSurface === 'vote' && voter === 'owner' ? (
-          <details className='border-t border-white/10 pt-2'>
-            <summary className='text-muted-foreground flex min-h-11 cursor-pointer items-center text-sm'>
-              Round {voteSnapshot.currentRound} · Manage round
-            </summary>
-            <PassControls currentRound={voteSnapshot.currentRound} />
+          <div className='space-y-3 border-t border-white/10 pt-4'>
+            <div className='flex flex-wrap items-baseline justify-between gap-2'>
+              <h2 className='text-sm font-semibold'>Pass {voteSnapshot.currentRound}</h2>
+              <Link
+                href='/stats'
+                className='text-muted-foreground hover:text-foreground text-xs underline underline-offset-4'
+              >
+                Model stats
+              </Link>
+            </div>
+            <p className='text-muted-foreground text-sm'>
+              {passRemaining} takes in this pass · {unscored} without a score ·{' '}
+              {passSummary?.dropped ?? 0} dropped before this pass
+              {passSummary?.parked ? ` · ${passSummary.parked} parked` : ''}.
+            </p>
+            <PassControls
+              currentRound={voteSnapshot.currentRound}
+              remaining={passRemaining}
+              nextCut={nextCut}
+              unscored={unscored}
+            />
             {currentTrack === null ? null : <ParkedCount track={currentTrack} />}
-          </details>
+          </div>
         ) : null}
         {!hasAudio ? <EmptyAudioHint surface={playerSurface} voter={voter} /> : null}
       </div>
@@ -924,17 +1053,12 @@ function ParkedTakeRow({
           versionSlug={take.versionSlug}
           takeLabel={take.voteLabel}
         />
-        <VoteButton
-          key={`vote-parked-${track.number}-${take.versionSlug}-${take.voteLabel}`}
-          trackNumber={track.number}
-          versionSlug={take.versionSlug}
-          takeLabel={take.voteLabel}
-          displayLabel={take.label}
-          trackTitle={track.title}
-          initialCount={countForTake(votes, track.number, take.versionSlug, take.voteLabel)}
-          initialValue={choiceForTake(votes, track.number, take.versionSlug, take.voteLabel)}
-          onSnapshot={onVoteSnapshot}
-        />
+        <span
+          className='font-mono text-xs tabular-nums'
+          aria-label={`Score ${formatSignedScore(countForTake(votes, track.number, take.versionSlug, take.voteLabel))}`}
+        >
+          {formatSignedScore(countForTake(votes, track.number, take.versionSlug, take.voteLabel))}
+        </span>
       </div>
     </div>
   );
@@ -1099,17 +1223,6 @@ function TrackRow({
                 trackNumber={track.number}
                 versionSlug={voteVersionSlug}
                 takeLabel={takeLabel}
-              />
-              <VoteButton
-                key={`${track.number}-${voteVersionSlug}-${takeLabel}`}
-                trackNumber={track.number}
-                versionSlug={voteVersionSlug}
-                takeLabel={takeLabel}
-                displayLabel={selectedTake.label}
-                trackTitle={track.title}
-                initialCount={countForTake(votes, track.number, voteVersionSlug, takeLabel)}
-                initialValue={choiceForTake(votes, track.number, voteVersionSlug, takeLabel)}
-                onSnapshot={onVoteSnapshot}
               />
             </div>
           ) : null}

@@ -7,7 +7,8 @@ This repo makes one album with Suno and gives it a site where the owner judges e
 The playbook is in `.cursor/skills/`. Read a skill's whole `SKILL.md` before you start its steps.
 
 - `start-here`: first run. Copies the kit, sets up the album site, gets the user signed in to Suno and writes the album brief.
-- `album-track`: frames a new track, runs the prompt arena and ships the track sheet.
+- `album-track`: frames a new track and ships its sheet; runs a prompt arena when requested.
+- `song-prompts`: writes or revises track-specific Suno prompts, keeping source context, model choices and provenance in the sheet.
 - `suno-run`: runs a sheet's prompts in Suno, names the takes and uploads them.
 - `judge`: rounds on `/vote`, and parking, promoting, extracting or renaming takes.
 - `finish`: pins the chosen takes to `/listen` and shares the link.

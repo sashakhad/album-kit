@@ -49,4 +49,43 @@ describe('album settings', () => {
     expect(screen.getByLabelText('Take details')).toHaveValue('keep-hidden');
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
   });
+
+  it('keeps saved model choices while exposing an editable Cursor request', async () => {
+    render(
+      <SettingsForm
+        albumTitle='Album'
+        initial={{ ...DEFAULT_SETTINGS, sunoModel: 'v6-mini', promptWriter: 'cursor' }}
+        privateStorage
+        lastSunoCheck={{ models: ['v6', 'v6-mini'], resolvedModel: 'v6-mini' }}
+      />
+    );
+    expect(screen.getByLabelText('Suno model')).toHaveValue('v6-mini');
+    fireEvent.click(screen.getByText('Advanced music settings'));
+    expect(await screen.findByLabelText('Requested Cursor model')).toHaveValue('auto');
+    fireEvent.change(screen.getByLabelText('Requested Cursor model'), {
+      target: { value: 'owner requested model' },
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes');
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByLabelText('Requested Cursor model')).toHaveValue('auto');
+  });
+
+  it('allows a Suno model request before the first account capability check', () => {
+    render(
+      <SettingsForm
+        albumTitle='Album'
+        initial={DEFAULT_SETTINGS}
+        privateStorage
+        lastSunoCheck={null}
+      />
+    );
+    fireEvent.change(screen.getByLabelText('Suno model'), { target: { value: '__custom__' } });
+    fireEvent.change(screen.getByLabelText('Requested Suno model ID'), {
+      target: { value: 'owner-model-id' },
+    });
+    expect(screen.getByLabelText('Requested Suno model ID')).toHaveValue('owner-model-id');
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByLabelText('Suno model')).toHaveValue('auto');
+    expect(screen.queryByLabelText('Requested Suno model ID')).not.toBeInTheDocument();
+  });
 });

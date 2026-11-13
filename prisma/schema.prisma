@@ -137,7 +137,25 @@ model TakeProvenance {
   generationSettings Json
   outputId           String?
   roundId            String
+  parentTakeFilename String?
+  variationRequestId String?
+  promptInstructions String?
   createdAt          DateTime @default(now())
+}
+
+// An owner request is a durable handoff, not authorization to spend Suno credits.
+model VariationRequest {
+  id                 String   @id
+  trackNumber        Int
+  parentTakeFilename String
+  requestedTakes     Int
+  instructions       String
+  status             String   @default("requested")
+  roundId            String?  @unique
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([trackNumber, createdAt])
 }
 
 model AccessInvite {

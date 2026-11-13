@@ -271,7 +271,7 @@ describe('AlbumPlayer', () => {
 
     expect(screen.getByRole('heading', { name: 'Track Twenty-Four' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Take A' }).length).toBeGreaterThan(0);
-    expect(screen.getByText(/take A/i)).toBeInTheDocument();
+    expect(screen.getByText('24 · Take A')).toBeInTheDocument();
     expect(screen.queryByText('Waiting')).not.toBeInTheDocument();
   });
 
@@ -323,8 +323,48 @@ describe('AlbumPlayer', () => {
       <AlbumPlayer version={passVersion} votes={{ ...EMPTY_VOTE_SNAPSHOT, currentRound: 2 }} />
     );
 
-    fireEvent.click(screen.getByText('Round 2 · Manage round'));
-    expect(screen.getByRole('button', { name: 'Start round 3' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pass 2' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Review next pass' }));
+    expect(screen.getByRole('button', { name: 'Confirm pass 3' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('button', { name: 'Confirm pass 3' })).not.toBeInTheDocument();
+  });
+
+  it('keeps voting beside the selected player and labels its model and cut status', async () => {
+    const user = userEvent.setup();
+    const track = sampleVersion.tracks[0]!;
+    const take = track.takes[0]!;
+    render(
+      <AlbumPlayer
+        version={{
+          ...sampleVersion,
+          tracks: [
+            {
+              ...track,
+              takes: [
+                {
+                  ...take,
+                  details: { style: 'Warm and wide.', writer: 'OpenAI · model-x', sunoModel: 'v6' },
+                },
+                track.takes[1]!,
+              ],
+            },
+          ],
+        }}
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: -1 } } },
+          mine: { 1: [{ versionSlug: 'v1', takeLabel: 'A', value: -1, round: 1 }] },
+        }}
+      />
+    );
+    expect(screen.getByText('OpenAI · model-x')).toBeInTheDocument();
+    expect(screen.getByText('Cut when next pass starts')).toBeInTheDocument();
+    expect(document.querySelector('[data-active-vote]')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Add one to take A/ })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Take B' }));
+    expect(screen.getAllByRole('button', { name: /Add one to take B/ })).toHaveLength(1);
+    expect(screen.queryByText('OpenAI · model-x')).not.toBeInTheDocument();
   });
 
   it('names parked takes on the round without putting them on the shortlist', () => {

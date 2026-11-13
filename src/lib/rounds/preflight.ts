@@ -24,9 +24,7 @@ export function resolveSunoModel(
   const quality =
     capabilities.qualityDefault !== null && available.has(capabilities.qualityDefault)
       ? capabilities.qualityDefault
-      : available.has('v6')
-        ? 'v6'
-        : capabilities.availableModels[0];
+      : capabilities.availableModels[0];
   if (quality === undefined) {
     throw new Error('Suno returned no available models');
   }
@@ -38,7 +36,10 @@ export function resolveSunoModel(
   }
   return {
     model: quality,
-    migration: `${policy} is unavailable; ${quality} is the current eligible quality model.`,
+    migration:
+      capabilities.qualityDefault === quality
+        ? `${policy} is unavailable; ${quality} is the account's reported quality default.`
+        : `${policy} is unavailable; ${quality} is listed by the account, but its quality priority is unverified.`,
   };
 }
 
@@ -73,6 +74,19 @@ export function estimateRound(args: {
   const generationCredits = generations * capabilities.creditsPerGeneration;
   const downloads = expectedOutputs * capabilities.downloadsPerOutput;
   const blockers: string[] = [];
+  if (migration !== null) {
+    blockers.push(
+      `Saved Suno model ${args.settings.sunoModel} is unavailable. Choose an available model in Album Settings or request a one-round override.`
+    );
+  }
+  if (
+    (args.settings.sunoModel === 'auto' || migration !== null) &&
+    (capabilities.qualityDefault === null ||
+      !capabilities.availableModels.includes(capabilities.qualityDefault)) &&
+    capabilities.availableModels.length > 1
+  ) {
+    blockers.push('Suno did not identify an eligible quality default; choose a verified model.');
+  }
   if (capabilities.costModel !== model) {
     blockers.push(
       `Generation cost for ${model} must be verified; the supplied rate is for ${capabilities.costModel}.`
