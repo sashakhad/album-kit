@@ -35,53 +35,82 @@ export async function getVisitorCurrentRound(visitorId: string): Promise<number>
   return row?.currentRound ?? 1;
 }
 
-export async function advanceVisitorRound(visitorId: string): Promise<number> {
+export class PassAlreadyChangedError extends Error {
+  constructor() {
+    super('Pass already changed');
+  }
+}
+
+export async function advanceVisitorRound(
+  visitorId: string,
+  expectedRound?: number
+): Promise<number> {
   const db = getPrisma();
-  const current = await getVisitorCurrentRound(visitorId);
+  const current = expectedRound ?? (await getVisitorCurrentRound(visitorId));
   const nextRound = current + 1;
-  const votes = visitorId.length === 0 ? [] : await loadPassVotes(visitorId);
-  const carried = votesToCarryForward(votes, nextRound);
-
-  await db.visitorRound.upsert({
-    where: { visitorId },
-    create: { visitorId, currentRound: nextRound },
-    update: { currentRound: nextRound },
-  });
-
-  if (carried.length > 0) {
-    const rows: {
-      visitorId: string;
-      versionSlug: string;
-      trackNumber: number;
-      takeLabel: string;
-      value: number;
-      round: number;
-    }[] = [];
-    for (const vote of carried) {
-      rows.push({
-        visitorId,
-        versionSlug: vote.versionSlug,
-        trackNumber: vote.trackNumber,
-        takeLabel: vote.takeLabel,
-        value: vote.value,
-        round: nextRound,
+  try {
+    return await db.$transaction(async tx => {
+      const changed = await tx.visitorRound.updateMany({
+        where: { visitorId, currentRound: current },
+        data: { currentRound: { increment: 1 } },
       });
+      if (changed.count === 0) {
+        if (current !== 1) throw new PassAlreadyChangedError();
+        const existing = await tx.visitorRound.findUnique({ where: { visitorId } });
+        if (existing !== null) throw new PassAlreadyChangedError();
+        await tx.visitorRound.create({ data: { visitorId, currentRound: nextRound } });
+      }
+
+      const votes =
+        visitorId.length === 0
+          ? []
+          : await tx.vote.findMany({
+              where: { visitorId },
+              select: {
+                versionSlug: true,
+                trackNumber: true,
+                takeLabel: true,
+                round: true,
+                value: true,
+              },
+            });
+      const carried = votesToCarryForward(votes, nextRound);
+      if (carried.length > 0) {
+        await tx.vote.createMany({
+          data: carried.map(vote => ({
+            visitorId,
+            versionSlug: vote.versionSlug,
+            trackNumber: vote.trackNumber,
+            takeLabel: vote.takeLabel,
+            value: vote.value,
+            round: nextRound,
+          })),
+          skipDuplicates: true,
+        });
+      }
+      await tx.judgingState.upsert({
+        where: { id: 'default' },
+        create: { id: 'default', latestRound: nextRound },
+        update: {},
+      });
+      await tx.judgingState.updateMany({
+        where: { id: 'default', latestRound: { lt: nextRound } },
+        data: { latestRound: nextRound },
+      });
+      return nextRound;
+    });
+  } catch (error) {
+    if (
+      error instanceof PassAlreadyChangedError ||
+      (typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        (error.code === 'P2002' || error.code === 'P2034'))
+    ) {
+      throw new PassAlreadyChangedError();
     }
-    await db.vote.createMany({
-      data: rows,
-      skipDuplicates: true,
-    });
+    throw error;
   }
-
-  const latest = await getLatestRound();
-  if (nextRound > latest) {
-    await db.judgingState.update({
-      where: { id: 'default' },
-      data: { latestRound: nextRound },
-    });
-  }
-
-  return nextRound;
 }
 
 export async function loadPassVotes(visitorId: string): Promise<PassVote[]> {

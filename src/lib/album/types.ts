@@ -17,6 +17,8 @@ export type AlbumTake = {
     style: string;
     writer: string;
     sunoModel: string;
+    parentTakeFilename?: string;
+    promptInstructions?: string;
   };
 };
 

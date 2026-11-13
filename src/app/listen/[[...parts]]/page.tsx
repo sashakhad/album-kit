@@ -38,7 +38,9 @@ export default async function ListenPage({ params }: ListenPageProps) {
   const [config, pinned, view] = await Promise.all([
     getListenConfig(),
     getListenVersion().then(version =>
-      settings.listeningDetails === 'visible' ? withVisibleDetails(version) : version
+      settings.listeningDetails === 'visible'
+        ? withVisibleDetails(version, settings.maskPromptModels)
+        : version
     ),
     canPreview
       ? owner

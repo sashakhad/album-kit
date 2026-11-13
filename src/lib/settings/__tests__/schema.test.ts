@@ -10,6 +10,28 @@ import {
 } from '../schema';
 
 describe('settings and portable presets', () => {
+  it('shows prompt models by default and can persist a mask', () => {
+    expect(DEFAULT_SETTINGS.maskPromptModels).toBe(false);
+    expect(settingsPatchSchema.parse({ maskPromptModels: true })).toEqual({
+      maskPromptModels: true,
+    });
+    expect(
+      exportPreset({ ...DEFAULT_SETTINGS, maskPromptModels: true }).settings.maskPromptModels
+    ).toBe(true);
+  });
+  it('keeps prompt writer requests and Suno choices in each album preset', () => {
+    const preset = exportPreset({
+      ...DEFAULT_SETTINGS,
+      promptWriter: 'cursor',
+      promptWriterModel: 'auto',
+      sunoModel: 'v6-mini',
+    });
+    expect(importPreset(preset)).toMatchObject({
+      promptWriter: 'cursor',
+      promptWriterModel: 'auto',
+      sunoModel: 'v6-mini',
+    });
+  });
   it('resolves album overrides over user defaults', () => {
     const stored = {
       version: 1,

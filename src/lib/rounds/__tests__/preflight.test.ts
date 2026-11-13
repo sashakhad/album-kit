@@ -38,7 +38,7 @@ describe('round preflight', () => {
     });
   });
 
-  it('migrates a missing pinned model without asking for a version', () => {
+  it('blocks a missing pinned model until the owner chooses a verified replacement', () => {
     const estimate = estimateRound({
       tracks: 1,
       settings: { ...DEFAULT_SETTINGS, sunoModel: 'v5.5' },
@@ -48,6 +48,40 @@ describe('round preflight', () => {
     });
     expect(estimate.sunoModel).toBe('v6');
     expect(estimate.migration).toContain('v5.5 is unavailable');
+    expect(estimate.blockers).toContain(
+      'Saved Suno model v5.5 is unavailable. Choose an available model in Album Settings or request a one-round override.'
+    );
+  });
+
+  it('uses the sole account-reported model without assuming a paid tier', () => {
+    const estimate = estimateRound({
+      tracks: 1,
+      settings: DEFAULT_SETTINGS,
+      capabilities: {
+        ...capabilities,
+        availableModels: ['v6-mini'],
+        qualityDefault: 'v6-mini',
+        costModel: 'v6-mini',
+      },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate.sunoModel).toBe('v6-mini');
+    expect(estimate.blockers).toEqual([]);
+  });
+
+  it('does not assume a version is the quality default when Suno omits one', () => {
+    const estimate = estimateRound({
+      tracks: 1,
+      settings: DEFAULT_SETTINGS,
+      capabilities: { ...capabilities, availableModels: ['v6-mini', 'v6'], qualityDefault: null },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate.sunoModel).toBe('v6-mini');
+    expect(estimate.blockers).toContain(
+      'Suno did not identify an eligible quality default; choose a verified model.'
+    );
   });
 
   it('does not count review downloads, even when the account is short on them', () => {

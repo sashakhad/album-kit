@@ -40,7 +40,7 @@ export function withListenerPlayback(version: AlbumVersion, round: number): Albu
 
 /** Called only after the page has checked listener access. */
 export async function listenerJudgingView(
-  settings: Pick<AlbumSettingsValue, 'visibility' | 'listeningDetails'>
+  settings: Pick<AlbumSettingsValue, 'visibility' | 'listeningDetails' | 'maskPromptModels'>
 ) {
   const [originalVersion, round, inviteId, publicId] = await Promise.all([
     getConsolidatedPassVersion(OWNER_VISITOR_ID),
@@ -67,7 +67,10 @@ export async function listenerJudgingView(
   if (!blind && visitorId.length > 0) await markExposed(visitorId, round);
   const version = blind
     ? await blindVersion(originalVersion, round)
-    : withListenerPlayback(await withVisibleDetails(originalVersion), round);
+    : withListenerPlayback(
+        await withVisibleDetails(originalVersion, settings.maskPromptModels),
+        round
+      );
   return {
     originalVersion,
     version,

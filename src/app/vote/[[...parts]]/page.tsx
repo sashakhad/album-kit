@@ -70,14 +70,13 @@ export default async function VotePage({ params }: VotePageProps) {
       signInHref: `/key?next=${encodeURIComponent(votePath(parts))}`,
       visibility: settings.visibility,
       listeningDetails: settings.listeningDetails,
+      maskPromptModels: settings.maskPromptModels,
       bannerLine,
       progress,
     });
   }
-  const [config, { version, originalVersion, votes, blind, awaitingReveal }] = await Promise.all([
-    getListenConfig(),
-    ownerJudgingView(),
-  ]);
+  const [config, { version, originalVersion, votes, blind, awaitingReveal, passSummary }] =
+    await Promise.all([getListenConfig(), ownerJudgingView()]);
   const listenChoices: Record<number, ListenChoice> = Object.fromEntries(
     config.tracks.map(item => {
       const original = trackByNumber(originalVersion, item.number);
@@ -138,6 +137,7 @@ export default async function VotePage({ params }: VotePageProps) {
       initialTake={initialTake}
       showListenerScores={settings.listenerVoting}
       listenChoices={listenChoices}
+      passSummary={passSummary}
       bannerLine={bannerLine}
       progress={progress}
     />
@@ -151,6 +151,7 @@ async function listenerVotePage(args: {
   signInHref: string;
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
+  maskPromptModels: boolean;
   bannerLine: string | null;
   progress: AlbumProgress;
 }) {
@@ -196,6 +197,7 @@ function VoteMain({
   signInHref,
   showListenerScores = false,
   listenChoices,
+  passSummary,
   bannerLine = null,
   progress,
 }: {
@@ -208,6 +210,7 @@ function VoteMain({
   signInHref?: string;
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
+  passSummary?: { total: number; remaining: number; parked: number; dropped: number };
   bannerLine?: string | null;
   progress: AlbumProgress;
 }) {
@@ -251,6 +254,7 @@ function VoteMain({
           awaitingReveal={awaitingReveal}
           showListenerScores={showListenerScores}
           {...(listenChoices === undefined ? {} : { listenChoices })}
+          {...(passSummary === undefined ? {} : { passSummary })}
           {...(notice === undefined ? {} : { emptyNotice: notice, pendingLabel: pending })}
           {...(track === null
             ? {}

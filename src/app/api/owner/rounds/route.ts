@@ -1,4 +1,4 @@
-import type { Prisma } from '@/generated/prisma/client';
+import { Prisma } from '@/generated/prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -12,8 +12,12 @@ import { styleProblems } from '@/lib/rounds/prompt-quality';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+class VariationUnavailableError extends Error {}
+
 const bodySchema = z.object({
   tracks: z.number().int().positive(),
+  variationRequestId: z.uuid().optional(),
+  sunoModelOverride: z.string().min(1).max(120).optional(),
   prompts: z
     .array(
       z.object({
@@ -60,7 +64,48 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
+  if (
+    parsed.data.sunoModelOverride !== undefined &&
+    parsed.data.sunoModelOverride !== 'auto' &&
+    !parsed.data.capabilities.availableModels.includes(parsed.data.sunoModelOverride)
+  ) {
+    return NextResponse.json(
+      { error: 'The round override is not available on this Suno account' },
+      { status: 409 }
+    );
+  }
   const [settings, album] = await Promise.all([loadSettings(), loadAlbumConfig()]);
+  const variation = parsed.data.variationRequestId
+    ? await prisma.variationRequest.findUnique({ where: { id: parsed.data.variationRequestId } })
+    : null;
+  if (parsed.data.variationRequestId && variation === null)
+    return NextResponse.json({ error: 'Unknown variation request' }, { status: 404 });
+  if (variation?.status === 'canceled')
+    return NextResponse.json({ error: 'Variation request was canceled' }, { status: 409 });
+  if (variation?.roundId) {
+    const existing = await prisma.generationRound.findUnique({ where: { id: variation.roundId } });
+    return NextResponse.json({ round: existing, alreadyPlanned: true });
+  }
+  if (
+    variation &&
+    (parsed.data.tracks !== 1 ||
+      parsed.data.prompts.length !== 1 ||
+      parsed.data.prompts[0]?.trackNumber !== variation.trackNumber)
+  )
+    return NextResponse.json(
+      { error: 'A variation request must plan one prompt for its selected track only' },
+      { status: 400 }
+    );
+  const roundSettings = variation
+    ? {
+        ...settings,
+        sunoModel: parsed.data.sunoModelOverride ?? settings.sunoModel,
+        promptVariations: 1,
+        generationsPerPrompt: Math.ceil(
+          variation.requestedTakes / parsed.data.capabilities.outputsPerGeneration
+        ),
+      }
+    : { ...settings, sunoModel: parsed.data.sunoModelOverride ?? settings.sunoModel };
   if (
     settings.promptWriter !== 'cursor' &&
     parsed.data.prompts.some(prompt => prompt.writerHost === 'cursor')
@@ -70,7 +115,7 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
-  const estimate = estimateRound({ ...parsed.data, settings });
+  const estimate = estimateRound({ ...parsed.data, settings: roundSettings });
   const ids = new Set(parsed.data.prompts.map(prompt => prompt.id));
   const trackNumbers = new Set(parsed.data.prompts.map(prompt => prompt.trackNumber));
   const slots = new Set(parsed.data.prompts.map(prompt => `${prompt.trackNumber}:${prompt.lane}`));
@@ -79,7 +124,7 @@ export async function POST(request: Request) {
     ids.size !== estimate.prompts ||
     trackNumbers.size !== parsed.data.tracks ||
     slots.size !== estimate.prompts ||
-    parsed.data.prompts.some(prompt => prompt.lane > settings.promptVariations)
+    parsed.data.prompts.some(prompt => prompt.lane > (variation ? 20 : settings.promptVariations))
   ) {
     return NextResponse.json(
       { error: 'Prompt slots must match the exact track and variation count' },
@@ -102,23 +147,65 @@ export async function POST(request: Request) {
       id: prompt.id,
       host: prompt.writerHost,
       provider: prompt.writerProvider ?? null,
-      requestedModel: prompt.requestedModel ?? null,
+      requestedModel:
+        prompt.requestedModel ??
+        (prompt.writerHost === 'cursor' ? roundSettings.promptWriterModel : null),
       observedModel: prompt.observedModel ?? null,
       executionId: prompt.executionId ?? null,
       revision: prompt.revision,
     }),
   }));
-  const round = await prisma.generationRound.create({
-    data: {
-      snapshot: {
-        settings,
-        capabilities: parsed.data.capabilities,
-        resolvedSunoModel: estimate.sunoModel,
-        prompts,
-      } as Prisma.InputJsonValue,
-      estimate: estimate as Prisma.InputJsonValue,
-      status: estimate.blockers.length > 0 ? 'blocked' : 'preparing',
-    },
-  });
+  const data = {
+    snapshot: {
+      settings: roundSettings,
+      capabilities: parsed.data.capabilities,
+      resolvedSunoModel: estimate.sunoModel,
+      prompts,
+      ...(variation === null
+        ? {}
+        : {
+            variation: {
+              requestId: variation.id,
+              parentTakeFilename: variation.parentTakeFilename,
+              trackNumber: variation.trackNumber,
+              requestedTakes: variation.requestedTakes,
+              instructions: variation.instructions,
+            },
+          }),
+    } as Prisma.InputJsonValue,
+    estimate: estimate as Prisma.InputJsonValue,
+    status: estimate.blockers.length > 0 ? 'blocked' : 'preparing',
+  };
+  let round;
+  try {
+    round = variation
+      ? await prisma.$transaction(
+          async tx => {
+            const current = await tx.variationRequest.findUnique({ where: { id: variation.id } });
+            if (current?.roundId)
+              return tx.generationRound.findUnique({ where: { id: current.roundId } });
+            if (current?.status !== 'requested') throw new VariationUnavailableError();
+            const created = await tx.generationRound.create({ data });
+            const linked = await tx.variationRequest.updateMany({
+              where: { id: variation.id, status: 'requested', roundId: null },
+              data: { roundId: created.id, status: 'planned' },
+            });
+            if (linked.count === 0) throw new VariationUnavailableError();
+            return created;
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+        )
+      : await prisma.generationRound.create({ data });
+  } catch (error) {
+    if (
+      error instanceof VariationUnavailableError ||
+      (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2034')
+    )
+      return NextResponse.json(
+        { error: 'Variation request changed before planning' },
+        { status: 409 }
+      );
+    throw error;
+  }
   return NextResponse.json({ round, estimate }, { status: 201 });
 }

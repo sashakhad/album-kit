@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type MouseEvent } from 'react';
+import { useRef, useState, type MouseEvent } from 'react';
 import { Minus, Plus } from 'lucide-react';
 
 import { countForTake, choiceForTake } from '@/lib/votes/tally';
@@ -30,15 +30,19 @@ export function VoteButton({
   const [count, setCount] = useState(initialCount);
   const [myScore, setMyScore] = useState(initialValue);
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
   const [error, setError] = useState(false);
+  const shownCount = onSnapshot === undefined ? count : initialCount;
+  const shownMyScore = onSnapshot === undefined ? myScore : initialValue;
 
   async function cast(event: MouseEvent<HTMLButtonElement>, value: VoteDelta) {
     event.preventDefault();
     event.stopPropagation();
-    if (pending) {
+    if (pendingRef.current) {
       return;
     }
 
+    pendingRef.current = true;
     setPending(true);
     setError(false);
     try {
@@ -61,6 +65,7 @@ export function VoteButton({
     } catch {
       setError(true);
     } finally {
+      pendingRef.current = false;
       setPending(false);
     }
   }
@@ -76,7 +81,7 @@ export function VoteButton({
           aria-label={`Subtract one from take ${displayLabel} of ${trackTitle}`}
           className={cn(
             'flex size-11 shrink-0 items-center justify-center rounded-md',
-            myScore < 0
+            shownMyScore < 0
               ? 'text-destructive bg-destructive/12'
               : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
           )}
@@ -85,11 +90,11 @@ export function VoteButton({
         </button>
         <span
           aria-live='polite'
-          aria-label={`Score ${formatSignedScore(count)}`}
-          title={formatSignedScore(count)}
+          aria-label={`Score ${formatSignedScore(shownCount)}`}
+          title={formatSignedScore(shownCount)}
           className='w-[6ch] shrink-0 text-center font-mono text-sm tabular-nums'
         >
-          {formatCompactScore(count)}
+          {formatCompactScore(shownCount)}
         </span>
         <button
           type='button'
@@ -98,7 +103,7 @@ export function VoteButton({
           aria-label={`Add one to take ${displayLabel} of ${trackTitle}`}
           className={cn(
             'flex size-11 shrink-0 items-center justify-center rounded-md',
-            myScore > 0
+            shownMyScore > 0
               ? 'text-primary bg-primary/12'
               : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
           )}
