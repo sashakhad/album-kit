@@ -28,6 +28,9 @@ const ONBOARDING_PHRASES = [
       'public MP4',
       'stops playing',
       'reviewTakes',
+      'Do not go silent',
+      'pnpm album:progress',
+      'Milestone: Site created.',
     ],
   },
   {
@@ -40,6 +43,8 @@ const ONBOARDING_PHRASES = [
       'public MP4',
       'stops playing',
       'reviewTakes',
+      'Milestone: Site created.',
+      'Do not go silent',
     ],
   },
   {
@@ -61,6 +66,8 @@ const ONBOARDING_PHRASES = [
       'When `reviewTakes` is `private`',
       'visibility: public',
       '.mp4',
+      'pnpm album:progress',
+      'Do not go silent',
     ],
   },
 ];

@@ -3,7 +3,7 @@ name: publish
 description: Use after any change under album/, or when the user wants the album backed up to GitHub or Cursor Origin. It commits the album, redeploys the site and gives the site URL.
 ---
 
-# Publish · version 3
+# Publish · version 4
 
 Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio. Public review takes play from stored Suno MP4 stream URLs. Review takes the owner kept private play from their uploaded files. A private album still gates the take list behind the key. Suno CDN URLs are public, so a private album that streams published clips exposes only unguessable clip URLs to key holders. A clip that is private on Suno stops playing from its stream.
 
@@ -58,7 +58,7 @@ Check the owner's publication choice before sharing album content. A prepared de
    '
    ```
 
-3. Publish, with a short message that says what changed:
+3. Tell the owner you are publishing, then publish, with a short message that says what changed:
 
    ```bash
    pnpm publish:album "<message>"
@@ -122,7 +122,7 @@ On albums that started from the kit (paths (a) and (c) in `start-here`), run `gi
 
 ## Tell the user
 
-- What changed, and the site URL.
+- What changed, and the site URL, as soon as `pnpm publish:album` prints it. Do not go silent while the deploy runs: if it is still going after the first minute, say that publishing is still in progress.
 - For a new home: the repo link, and that it's private.
 
 ## Stop and ask when
