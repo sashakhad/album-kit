@@ -1,6 +1,23 @@
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 const [, , command, ...args] = process.argv;
+
+/**
+ * Chat-ready lines. The album key is never one of them.
+ * @param {{ siteUrl: string, progressLine?: string, ownerLink?: string }} lines
+ */
+export function formatChatLines({ siteUrl, progressLine, ownerLink }) {
+  const lines = [];
+  if (typeof progressLine === 'string' && progressLine.length > 0) {
+    lines.push(progressLine);
+  }
+  lines.push(`Site: ${siteUrl}`);
+  if (typeof ownerLink === 'string' && ownerLink.length > 0) {
+    lines.push(`Owner: ${ownerLink}`);
+  }
+  return `${lines.join('\n')}\n`;
+}
 
 async function main() {
   let site;
@@ -59,11 +76,12 @@ async function main() {
         : `The album site returned ${response.status}.`
     );
   }
+  const siteUrl = site.href.replace(/\/$/, '');
   if (command === 'progress') {
     if (typeof result?.line !== 'string' || result.line.length === 0) {
       throw new Error('The album site did not return a progress line.');
     }
-    process.stdout.write(`${result.line}\n`);
+    process.stdout.write(formatChatLines({ siteUrl, progressLine: result.line }));
     return;
   }
   if (command === 'link') {
@@ -71,11 +89,12 @@ async function main() {
     if (
       link.origin !== site.origin ||
       link.pathname !== '/key' ||
-      !/^#owner=[A-Za-z0-9_-]{43}$/.test(link.hash)
+      !/^#owner=[A-Za-z0-9_-]{43}$/.test(link.hash) ||
+      link.href.includes(key)
     ) {
       throw new Error('The album site did not return a valid owner link.');
     }
-    process.stdout.write(`${link.href}\n`);
+    process.stdout.write(formatChatLines({ siteUrl, ownerLink: link.href }));
   } else {
     if (result?.resolved === undefined)
       throw new Error('The album site did not return its settings.');
@@ -83,9 +102,11 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  process.stderr.write(
-    `${error instanceof Error ? error.message : 'The album site is unavailable.'}\n`
-  );
-  process.exitCode = 1;
-});
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  main().catch(error => {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : 'The album site is unavailable.'}\n`
+    );
+    process.exitCode = 1;
+  });
+}

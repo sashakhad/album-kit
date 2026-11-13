@@ -25,6 +25,12 @@ Ask whether the album site should be public or private, and whether listeners ma
 
 Save the answer as `reviewTakes` (`public` or `private`) on the album settings record, for example `{ "patch": { "reviewTakes": "public" } }`. The default is `public` when the owner has not answered. The owner’s scores set the Listen lineup and the owner can override it. Private publication requires verified private storage. Do not call a vote blind after showing identifying prompts in chat. Report only actual state changes and precise blockers.
 
+## Always send the site link
+
+Every setup and round message includes the site URL. `pnpm album:progress` and `pnpm owner:link` each print a `Site:` line. Paste that line in the message. Do not send a milestone, an estimate, or a round update without it.
+
+When visibility is private or still unset, that same message includes the owner link. Run `pnpm owner:link /settings` or `pnpm owner:link /vote` and paste both the `Site:` line and the `Owner:` line. The owner link's secret stays in the URL fragment. Never put the album key in the message or in a query string. A public album can share `/listen` without an owner link. The owner's own messages still include the site URL.
+
 ## Keep the owner posted
 
 Do not go silent while setup, generation, or a kit update runs. Send a short progress message at each milestone, then keep working. One or two sentences is enough. A batch is one track: do not wait until the whole album finishes to send the first count.
@@ -36,15 +42,15 @@ Milestones:
 - Prompts written. Include the track count and the prompt count.
 - Estimate ready. Include the estimate before asking for the round allowance.
 - Round authorized.
-- Each batch of generations submitted, and each batch finished. Run `pnpm album:progress` and include its line, such as `Round 1: 36/90 done, 72 of 180 takes ready.`
-- Streams stored.
-- Round ready. Include the Compare takes link.
+- Each batch of generations submitted, and each batch finished. Run `pnpm album:progress` and send every line it prints, including `Site:`.
+- Streams stored. Include the site URL.
+- Round ready. Include the site URL and the `Owner:` line from `pnpm owner:link /vote`.
 
 The same line is on the site. Vote and Listen show it while a round is still running, and `<site>/status` lists each track. Send the chat message anyway; the page is there if the owner wants to watch.
 
 ## Open the right page for the owner
 
-Use the current album’s checkout and `.album-site.json`. Run `pnpm owner:link /settings` for settings. Use `pnpm owner:link /vote` when the owner wants to compare or choose what plays on Listen. Present the resulting link with that action’s name in the owner’s private chat. They tap **Continue as owner** and land on that page. The link works once and expires in ten minutes. If it expires, make a fresh one. Never use an owner link as a listener share link, put it in project notes, or paste the permanent album key into chat. If already signed in, Settings is visible in the header; **Owner access** there can create another sign-in link or reveal the key.
+Use the current album’s checkout and `.album-site.json`. Run `pnpm owner:link /settings` for settings. Use `pnpm owner:link /vote` when the owner wants to compare or choose what plays on Listen. The command prints `Site:` and `Owner:`. Paste both lines with that action’s name in the owner’s private chat. They tap **Continue as owner** and land on that page. The link works once and expires in ten minutes. If it expires, make a fresh one. Never use an owner link as a listener share link, put it in project notes, or paste the permanent album key into chat or a query string. If already signed in, Settings is visible in the header; **Owner access** there can create another sign-in link or reveal the key. The site URL still belongs in the message.
 
 When someone asks “what are my settings?”, run `pnpm album:settings` from that album’s checkout. When they ask for a specific change, pass only the requested fields as a JSON object on stdin to `pnpm album:settings --patch`. The site and bot read and write the same saved settings in the album’s database. Check the returned values before saying “saved.” Do not create a second settings file or rely on chat memory. Settings changes do not approve Suno spending. If multiple album checkouts exist and the intended album is unclear, ask which one.
 

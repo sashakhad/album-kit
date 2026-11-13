@@ -31,6 +31,7 @@ const ONBOARDING_PHRASES = [
       'Do not go silent',
       'pnpm album:progress',
       'Milestone: Site created.',
+      'Every setup and round message includes the site URL',
     ],
   },
   {
@@ -45,6 +46,7 @@ const ONBOARDING_PHRASES = [
       'reviewTakes',
       'Milestone: Site created.',
       'Do not go silent',
+      'Every setup and round message includes the site URL',
     ],
   },
   {
@@ -68,6 +70,7 @@ const ONBOARDING_PHRASES = [
       '.mp4',
       'pnpm album:progress',
       'Do not go silent',
+      'Every setup and round message includes the site URL',
     ],
   },
 ];

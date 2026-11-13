@@ -3,7 +3,7 @@ name: judge
 description: Use while the owner votes on /vote, to explain or start rounds, park a take, or promote, extract or rename takes. It also frees up storage when the album runs low on space.
 ---
 
-# Judge · version 3
+# Judge · version 4
 
 The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. When review takes are public, they play from their stored public Suno MP4. Do not download those. When the owner chose to keep review takes private, they play from the uploaded file, and each of those downloads already spent a download credit. A take that is private on Suno stops playing from its stream. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
@@ -23,7 +23,7 @@ The owner judges. You explain the rounds, keep the files straight and move takes
 Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.json").siteUrl')`.
 
 1. **Know how rounds work,** and explain it this way when the owner asks:
-   - Use `/vote` to compare takes. Give the owner a private **Compare takes as owner** link from `pnpm owner:link /vote`. It works once and expires in ten minutes. Never paste the permanent album key into chat or a URL. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
+   - Use `/vote` to compare takes. Give the owner a private **Compare takes as owner** link from `pnpm owner:link /vote`. Paste both the `Site:` line and the `Owner:` line. It works once and expires in ten minutes. Every message includes the site URL. Never paste the permanent album key into chat, a query string, or a URL except for the owner link's fragment. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
    - Listener voting is off until the owner turns it on. When it is on, people who can already hear the album score takes on their own ballots. Those scores arrive on the owner `/api/votes` response as `listenerTallies`. They are not in `tallies` or `mine`. They do not drop takes, carry into the next round, or choose a pin. Listeners cannot start a round, park, move, download through the owner API, or open Studio or Settings. On a public album start listeners at `/listen`. On a private album, send an invitation whose secret is in the URL fragment after `#`.
    - Round 1 shows every take.
    - A vote adds +1 or -1 to the take's score for the current round, starting from whatever score carried over.
