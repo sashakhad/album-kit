@@ -4,7 +4,8 @@ import { createHmac, randomBytes } from 'node:crypto';
 
 import { prisma } from '@/lib/prisma';
 
-const LINK_AGE_MS = 10 * 60 * 1000;
+/** Single use. Long enough that a link sent in chat is still good when the owner returns. */
+export const OWNER_LINK_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function hashToken(token: string, key: string): string {
   return createHmac('sha256', key).update(`album-owner-link-v1:${token}`).digest('hex');
@@ -13,7 +14,7 @@ function hashToken(token: string, key: string): string {
 export async function createOwnerSignInLink(key: string) {
   const token = randomBytes(32).toString('base64url');
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + LINK_AGE_MS);
+  const expiresAt = new Date(now.getTime() + OWNER_LINK_AGE_MS);
   await prisma.ownerSignInLink.deleteMany({ where: { expiresAt: { lte: now } } });
   await prisma.ownerSignInLink.create({ data: { tokenHash: hashToken(token, key), expiresAt } });
   return { token, expiresAt };

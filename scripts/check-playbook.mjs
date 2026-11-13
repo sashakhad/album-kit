@@ -32,6 +32,7 @@ const ONBOARDING_PHRASES = [
       'pnpm album:progress',
       'Milestone: Site created.',
       'Every setup and round message includes the site URL',
+      'stays valid for 7 days',
     ],
   },
   {
@@ -47,6 +48,7 @@ const ONBOARDING_PHRASES = [
       'Milestone: Site created.',
       'Do not go silent',
       'Every setup and round message includes the site URL',
+      'stays valid for 7 days',
     ],
   },
   {
@@ -71,6 +73,7 @@ const ONBOARDING_PHRASES = [
       'pnpm album:progress',
       'Do not go silent',
       'Every setup and round message includes the site URL',
+      'stays valid for 7 days',
     ],
   },
 ];
