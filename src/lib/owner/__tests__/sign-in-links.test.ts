@@ -88,10 +88,10 @@ describe('owner handoff links', () => {
     );
   });
 
-  it('expires after ten minutes and is invalidated by rotating the key', async () => {
+  it('stays valid for seven days, works once, and is invalidated by rotating the key', async () => {
     vi.useFakeTimers();
     const { token, expiresAt } = await openToken();
-    expect(expiresAt.getTime() - Date.now()).toBe(600000);
+    expect(expiresAt.getTime() - Date.now()).toBe(7 * 24 * 60 * 60 * 1000);
     vi.setSystemTime(expiresAt);
     expect((await redeem(token)).status).toBe(410);
     const next = await openToken();
