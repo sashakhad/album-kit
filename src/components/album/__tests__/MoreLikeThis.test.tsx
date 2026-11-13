@@ -100,6 +100,42 @@ describe('More like this', () => {
     expect(second).toEqual(first);
   });
 
+  it('restores an interrupted request after the component is remounted', async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('connection lost'))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ next: 'Saved' }) });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    const props = {
+      filename: 'v1-01-track-one-p1-takea.mp3',
+      trackNumber: 1,
+      trackTitle: 'Track One',
+    };
+    const firstMount = render(<MoreLikeThis {...props} />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.clear(screen.getByRole('spinbutton', { name: 'How many new takes?' }));
+    await user.type(screen.getByRole('spinbutton', { name: 'How many new takes?' }), '3');
+    await user.type(
+      screen.getByRole('textbox', { name: 'What should change? (optional)' }),
+      'Keep the hook'
+    );
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    const first = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    firstMount.unmount();
+
+    render(<MoreLikeThis {...props} />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    expect(screen.getByRole('spinbutton', { name: 'How many new takes?' })).toHaveValue(3);
+    expect(screen.getByRole('textbox', { name: 'What should change? (optional)' })).toHaveValue(
+      'Keep the hook'
+    );
+    await user.click(screen.getByRole('button', { name: 'Retry same request' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved');
+    expect(JSON.parse(fetcher.mock.calls[1]![1]!.body as string)).toEqual(first);
+  });
+
   it('checks an ambiguous request before allowing an edited request', async () => {
     const fetcher = vi
       .fn()

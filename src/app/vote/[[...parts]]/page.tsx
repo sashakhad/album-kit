@@ -138,6 +138,7 @@ export default async function VotePage({ params }: VotePageProps) {
       showListenerScores={settings.listenerVoting}
       listenChoices={listenChoices}
       passSummary={passSummary}
+      canRequestVariations={!blind}
       bannerLine={bannerLine}
       progress={progress}
     />
@@ -198,6 +199,7 @@ function VoteMain({
   showListenerScores = false,
   listenChoices,
   passSummary,
+  canRequestVariations = false,
   bannerLine = null,
   progress,
 }: {
@@ -211,6 +213,7 @@ function VoteMain({
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
+  canRequestVariations?: boolean;
   bannerLine?: string | null;
   progress: AlbumProgress;
 }) {
@@ -255,6 +258,7 @@ function VoteMain({
           showListenerScores={showListenerScores}
           {...(listenChoices === undefined ? {} : { listenChoices })}
           {...(passSummary === undefined ? {} : { passSummary })}
+          canRequestVariations={canRequestVariations}
           {...(notice === undefined ? {} : { emptyNotice: notice, pendingLabel: pending })}
           {...(track === null
             ? {}
