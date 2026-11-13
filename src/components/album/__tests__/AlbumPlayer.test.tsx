@@ -435,6 +435,48 @@ describe('AlbumPlayer', () => {
     expect(screen.queryByText('OpenAI · model-x')).not.toBeInTheDocument();
   });
 
+  it('offers a visible owner a variation request even when old take provenance is missing', () => {
+    const track = sampleVersion.tracks[0]!;
+    render(
+      <AlbumPlayer
+        version={{
+          ...sampleVersion,
+          tracks: [
+            {
+              ...track,
+              takes: [
+                {
+                  ...track.takes[0]!,
+                  filename: 'v1-01-track-one-p1-takea.mp3',
+                },
+              ],
+            },
+          ],
+        }}
+        surface='vote'
+        voter='owner'
+        canRequestVariations
+      />
+    );
+    expect(screen.getByRole('button', { name: 'More like this' })).toBeInTheDocument();
+  });
+
+  it('keeps variation requests off blind and listener ballots', () => {
+    const { rerender } = render(
+      <AlbumPlayer
+        version={sampleVersion}
+        surface='vote'
+        voter='owner'
+        canRequestVariations={false}
+      />
+    );
+    expect(screen.queryByRole('button', { name: 'More like this' })).not.toBeInTheDocument();
+    rerender(
+      <AlbumPlayer version={sampleVersion} surface='vote' voter='listener' canRequestVariations />
+    );
+    expect(screen.queryByRole('button', { name: 'More like this' })).not.toBeInTheDocument();
+  });
+
   it('names parked takes on the round without putting them on the shortlist', () => {
     const track = passVersion.tracks[0];
     const keeper = track?.takes[0];

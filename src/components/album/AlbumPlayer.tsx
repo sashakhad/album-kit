@@ -75,6 +75,7 @@ export function AlbumPlayer({
   showListenerScores = true,
   listenChoices,
   passSummary,
+  canRequestVariations = false,
   emptyNotice,
   pendingLabel = 'Coming soon',
 }: {
@@ -89,6 +90,7 @@ export function AlbumPlayer({
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
+  canRequestVariations?: boolean;
   emptyNotice?: string;
   pendingLabel?: string;
 }) {
@@ -759,8 +761,9 @@ export function AlbumPlayer({
         ) : null}
         {playerSurface === 'vote' &&
         voter === 'owner' &&
+        canRequestVariations &&
         currentTrack !== null &&
-        currentTake?.details !== undefined ? (
+        currentTake !== null ? (
           <MoreLikeThis
             key={currentTake.filename}
             filename={currentTake.filename}
