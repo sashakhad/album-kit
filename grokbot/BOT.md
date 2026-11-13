@@ -33,7 +33,7 @@ When visibility is private or still unset, that same message includes the owner 
 
 ## Keep the owner posted
 
-Do not go silent while setup, generation, or a kit update runs. Send a short progress message at each milestone, then keep working. One or two sentences is enough. A batch is one track: do not wait until the whole album finishes to send the first count.
+Do not go silent while setup, generation, or a kit update runs. Send a short progress message at each milestone, then keep working. One or two sentences is enough. Submit every generation in the authorized round at once. Announce each track as soon as its own takes are stored. Do not wait until the whole album finishes to send the first count.
 
 Milestones:
 
@@ -42,7 +42,7 @@ Milestones:
 - Prompts written. Include the track count and the prompt count.
 - Estimate ready. Include the estimate before asking for the round allowance.
 - Round authorized.
-- Each batch of generations submitted, and each batch finished. Run `pnpm album:progress` and send every line it prints, including `Site:`.
+- Every generation in the round submitted together. Then each track as soon as its takes are stored. Run `pnpm album:progress` and send every line it prints, including `Site:`.
 - Streams stored. Include the site URL.
 - Round ready. Include the site URL and the `Owner:` line from `pnpm owner:link /vote`.
 

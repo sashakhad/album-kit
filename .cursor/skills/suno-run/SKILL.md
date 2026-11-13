@@ -3,7 +3,7 @@ name: suno-run
 description: Preflight, authorize and run a track sheet's prompts through Suno; collect and upload every take without duplicate spending.
 ---
 
-# Suno run · version 6
+# Suno run · version 7
 
 Use Suno's official MCP connector first. A signed-in suno.com browser is the fallback only when the connector lacks a required capability. The user handles sign-in or captcha. Do not suggest an unverified free browser download. A take is a full mix; only a split produces stems.
 
@@ -17,9 +17,11 @@ Show the complete estimate once and obtain an explicit allowance for this round.
 
 ## Execute and resume
 
-For each prompt and planned generation, create a stable operation ID and POST it to `/api/owner/rounds/<id>/jobs` **before** calling Suno. If the operation already exists, inspect it and resume; do not create another paid generation. Send only the sheet's Style paragraph, Title, resolved model and supported settings. If a required setting is missing, use the browser fallback for that prompt or stop precisely.
+Submit every generation in the authorized round at once. Do not wait for one track to finish before starting another, and do not add prompts or generations beyond the allowance.
 
-When Suno accepts the call, immediately PATCH the job with `status: accepted` and its provider job ID. Poll that ID until ready. If acceptance is ambiguous and no ID was saved, inspect Suno's history before any retry.
+For each prompt and planned generation, create a stable operation ID and POST it to `/api/owner/rounds/<id>/jobs` **before** calling Suno. If the operation already exists, inspect it and resume; do not create another paid generation. Record every job first, then start those Suno calls together. Send only the sheet's Style paragraph, Title, resolved model and supported settings. If a required setting is missing, use the browser fallback for that prompt or stop precisely.
+
+When Suno accepts a call, immediately PATCH that job with `status: accepted` and its provider job ID. Wait on the accepted jobs together. If acceptance is ambiguous and no ID was saved, inspect Suno's history before any retry. Do not send another paid request for a job that already has an operation ID.
 
 When `reviewTakes` is `public`, publish the clip once it has finished streaming, with audio-settings `visibility: public`. A clip that is still streaming can answer `publish_pending: true`; wait until it is public before storing the stream. The playable review URL is `https://cdnN.suno.ai/<clip-id>.mp4`, the clip record's `video_url` from `https://studio-api.prod.suno.com/api/clip/<clip-id>`. Ignore `audio_url`; it is a placeholder and not playable media. Do not use CloudFront `media_urls` `.m4a` files. PATCH collection progress and outputs as `{ "takes": [{ "filename": "...", "outputId": "<clip id>", "clipId": "<clip id>", "streamUrl": "https://cdnN.suno.ai/<clip-id>.mp4", "downloaded": false, "uploaded": false }] }`; use `null` for an unavailable id. Never call audio-download for a take under review. An older `https://cdnN.suno.ai/<clip-id>.mp3` stream remains valid.
 
@@ -39,6 +41,6 @@ Read `listenerVoting` and `visibility` from `pnpm album:settings` before sharing
 - Private: create a listener invitation with POST `/api/owner/invites` or Settings → Sharing. Its secret is in the URL fragment. It grants listener access only.
 - Unset: keep the album unshared until the owner chooses visibility. Owner links still work.
 
-Work one track at a time. After that track's generations are submitted, and again when its takes are stored, run `pnpm album:progress` and send every line it prints to the owner before the next track, including `Site:`. The count looks like `Round 1: 36/90 done, 72 of 180 takes ready.` Do not go silent until the whole album is done. Every setup and round message includes the site URL. When the streams for a batch are stored, say so and include the site URL. When the round is ready, open Vote and confirm it lists takes. If the page says takes are being generated, or takes are waiting to be published on Suno, report that sentence and do not call the round ready. Then run `pnpm owner:link /vote` and paste its `Site:` and `Owner:` lines. When visibility is private or still unset, the owner link is required in that message. The owner link's secret stays in the URL fragment. Never put the album key in the message or in a query string.
+As soon as a track's takes are finished, publish or upload them, refresh their streams, store them, and tell the owner. Do not hold that track until the rest of the album finishes. Run `pnpm album:progress` and send every line it prints, including `Site:`. The count looks like `Round 1: 36/90 done, 72 of 180 takes ready.` Do not go silent until the whole album is done. Every setup and round message includes the site URL. When that track's streams are stored, say so and include the site URL. When the round is ready, open Vote and confirm it lists takes. If the page says takes are being generated, or takes are waiting to be published on Suno, report that sentence and do not call the round ready. Then run `pnpm owner:link /vote` and paste its `Site:` and `Owner:` lines. When visibility is private or still unset, the owner link is required in that message. The owner link's secret stays in the URL fragment. Never put the album key in the message or in a query string.
 
 If listening mode is blind, do not show identifying prompts or model details in chat, filenames, downloads or public routes. If the owner has already seen assignments, say the current round is exposed. Follow `publish` for sheet and log changes when permitted.
