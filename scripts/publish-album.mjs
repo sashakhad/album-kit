@@ -4,7 +4,14 @@
 // Exit codes: 0 done, 1 failed, 4 the Vercel account's email can't be read.
 import { existsSync } from 'node:fs';
 
-import { createRunner, deployAsAccountOwner, EXIT, ExitError, readAlbumSite } from './setup.mjs';
+import {
+  createRunner,
+  deployAsAccountOwner,
+  deployProduction,
+  EXIT,
+  ExitError,
+  readAlbumSite,
+} from './setup.mjs';
 
 try {
   publish(process.argv.slice(2).join(' ').trim());
@@ -51,7 +58,7 @@ function publish(message) {
       push(runner);
     }
     console.log('Deploying to Vercel. This takes a minute or two.');
-    runner.must(runner.vercel(['deploy', '--prod', '--yes']));
+    deployProduction(runner);
   }
 
   console.log(typeof site.siteUrl === 'string' ? site.siteUrl : 'Published.');

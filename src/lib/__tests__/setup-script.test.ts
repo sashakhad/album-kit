@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   deployAsAccountOwner,
+  deployProduction,
   disconnectKitRepo,
   EXIT,
   ExitError,
   generateAlbumKey,
+  isTransientDeployError,
   readEnvFile,
   slugify,
   usableAlbumKey,
@@ -119,6 +121,46 @@ describe('deployAsAccountOwner', () => {
       'git config user.email <account email>',
       'git commit --allow-empty -m album: deploy as <username>',
     ]);
+  });
+});
+
+describe('deployProduction', () => {
+  it('retries when the Vercel CLI reports fetch failed', () => {
+    let deploys = 0;
+    const { runner } = fakeRunner({});
+    const vercel = runner.vercel;
+    runner.vercel = (args: string[]) => {
+      const result = vercel(args);
+      if (args[0] !== 'deploy') {
+        return result;
+      }
+      deploys += 1;
+      if (deploys < 3) {
+        return { ...result, status: 1, stderr: 'Error: fetch failed' };
+      }
+      return result;
+    };
+
+    expect(deployProduction(runner).status).toBe(0);
+    expect(deploys).toBe(3);
+    expect(isTransientDeployError('Error: fetch failed')).toBe(true);
+  });
+
+  it('stops on the first error that is not a network failure', () => {
+    let deploys = 0;
+    const { runner } = fakeRunner({});
+    runner.vercel = (args: string[]) => {
+      deploys += 1;
+      return {
+        status: args[0] === 'deploy' ? 1 : 0,
+        stdout: '',
+        stderr: 'Error: not authorized',
+        shown: 'deploy',
+      };
+    };
+
+    expect(() => deployProduction(runner)).toThrow(/not authorized/);
+    expect(deploys).toBe(1);
   });
 });
 

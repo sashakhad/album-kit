@@ -83,6 +83,35 @@ export function createRunner({ dryRun }) {
   return { dryRun, run, vercel, must };
 }
 
+export function isTransientDeployError(text) {
+  return /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|UND_ERR|network timeout|\b502\b|\b503\b|\b504\b/i.test(
+    text
+  );
+}
+
+/** Retry a production deploy when the Vercel CLI loses the network. */
+export function deployProduction(runner, args = ['deploy', '--prod', '--yes']) {
+  if (runner.dryRun) {
+    return runner.must(runner.vercel(args));
+  }
+  const attempts = 3;
+  let last = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    last = runner.vercel(args);
+    if (last.status === 0) {
+      return last;
+    }
+    const text = `${last.stderr}\n${last.stdout}`;
+    if (!isTransientDeployError(text) || attempt === attempts) {
+      throw new ExitError(EXIT.failed, `Failed: ${last.shown}\n${last.stderr.trim()}`);
+    }
+    const detail = /fetch failed/i.test(text) ? 'fetch failed' : 'a network error';
+    console.log(`Vercel deploy failed (${detail}). Retrying (${attempt + 1} of ${attempts}).`);
+    runner.run('sleep', [String(attempt * 2)]);
+  }
+  throw new ExitError(EXIT.failed, 'Vercel deploy failed.');
+}
+
 // Vercel's free plan blocks a deploy whose HEAD commit author isn't the account owner,
 // and the CLI sends `git log -1`'s author with every deploy.
 export function deployAsAccountOwner(runner, { checkSignIn = true } = {}) {
@@ -402,7 +431,7 @@ function setup(options) {
   }
 
   deployAsAccountOwner(runner, { checkSignIn: false });
-  const deploy = runner.must(runner.vercel(['deploy', '--prod', '--yes', '--json']));
+  const deploy = deployProduction(runner, ['deploy', '--prod', '--yes', '--json']);
   const siteUrl = options.dryRun ? null : productionUrl(runner, deploy);
 
   const existing = readAlbumSite(root);
