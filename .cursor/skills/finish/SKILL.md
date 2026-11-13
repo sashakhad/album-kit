@@ -3,7 +3,7 @@ name: finish
 description: Use when the owner reviews which takes play on Listen.
 ---
 
-# Finish · version 4
+# Finish · version 5
 
 Compare takes is where the owner listens, scores, and controls which take plays on Listen. The highest positive owner score plays by default. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for someone with comparison access.
 
@@ -19,7 +19,7 @@ Compare takes is where the owner listens, scores, and controls which take plays 
 3. To choose a specific take, select it and click **Use Take A on Listen** (with the selected letter). **Follow scores** clears that choice and returns to automatic selection. The server resolves blind aliases. A saved choice overrides file-backed picks in `album/album.json`.
 4. Open `<siteUrl>/listen` and verify that the chosen track plays from its stored stream, or from its uploaded file when it has no stream. For a public site, check without the key that pinned audio plays and an unpinned canonical file does not. For a private site, check with a valid invited-listener session; signed-out pages and the take list must stay closed.
 5. Share `<siteUrl>/listen` for the album or `<siteUrl>/listen/<slug>` for one track.
-6. When the owner wants a file of a final pick, export the WAV from Suno Studio (Premier; Studio exports do not count toward the 60/month download cap). If Studio export is unavailable, use one audio-download for that song. Do not download the other takes.
+6. When the owner wants a file of a final pick, export the WAV from Suno Studio (Premier; Studio exports do not count toward the 60/month download cap). If Studio export is unavailable, use one audio-download for that song. Do not download the other takes when they were streamed. The owner can switch a streamed song back to private on Suno later. A take that’s private on Suno stops playing on the site, so the best time is after picks are final, and only for takes that are no longer needed for listening. Final picks are stored as real files.
 
 If the owner asks to version the final choices in `album/album.json`, update the file only after the canonical identity has been deliberately revealed, then follow `publish`. A file update alone does not replace a choice already saved on `/vote`; reconcile the site choice too.
 

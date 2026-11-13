@@ -31,6 +31,7 @@ describe('round preflight', () => {
       generations: 2,
       expectedOutputs: 4,
       generationCredits: 20,
+      downloadsPerTake: 0,
       downloads: 0,
       sunoModel: 'v6',
       blockers: [],
@@ -62,6 +63,7 @@ describe('round preflight', () => {
       generations: 50,
       expectedOutputs: 100,
       generationCredits: 500,
+      downloadsPerTake: 0,
       downloads: 0,
     });
     expect(estimate.blockers).toContain('Need 500 generation credits; 100 available.');
@@ -77,8 +79,60 @@ describe('round preflight', () => {
       hostingChargeEstimateUsd: 0,
       hostingEligibilityVerified: true,
     });
+    expect(estimate.downloadsPerTake).toBe(0);
     expect(estimate.downloads).toBe(0);
     expect(estimate.blockers).toEqual([]);
+  });
+
+  it('shows download credits per take when review takes stay private', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...presetSettings('small-test'),
+      reviewTakes: 'private' as const,
+    };
+    const estimate = estimateRound({
+      tracks: 1,
+      settings,
+      capabilities,
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate).toMatchObject({
+      expectedOutputs: 4,
+      downloadsPerTake: 1,
+      downloads: 4,
+      blockers: [],
+    });
+  });
+
+  it('blocks a private review round that is short on download credits', () => {
+    const estimate = estimateRound({
+      tracks: 1,
+      settings: { ...DEFAULT_SETTINGS, reviewTakes: 'private', downloadLimit: 2 },
+      capabilities: { ...capabilities, downloadsAvailable: 3 },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate.downloadsPerTake).toBe(1);
+    expect(estimate.downloads).toBe(10);
+    expect(estimate.blockers).toContain('Need 10 download credits (1 per take); 3 available.');
+    expect(estimate.blockers).toContain('Download estimate exceeds the 2-download limit.');
+  });
+
+  it('asks for a verified per-take rate before a private round with no download charge', () => {
+    const estimate = estimateRound({
+      tracks: 1,
+      settings: { ...DEFAULT_SETTINGS, reviewTakes: 'private' },
+      capabilities: { ...capabilities, downloadsPerOutput: 0, downloadsAvailable: 0 },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate.downloadsPerTake).toBe(0);
+    expect(estimate.downloads).toBe(0);
+    expect(estimate.blockers).toContain(
+      'Download credits per take must be checked before a private review round.'
+    );
+    expect(estimate.blockers.some(blocker => blocker.startsWith('Need '))).toBe(false);
   });
 
   it('never invents a Grok Bot model and separates requested from observed Cursor models', () => {

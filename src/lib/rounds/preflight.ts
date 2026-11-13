@@ -48,6 +48,8 @@ export type RoundEstimate = {
   generations: number;
   expectedOutputs: number;
   generationCredits: number;
+  /** Download credits charged for one review take. Zero when review takes stream. */
+  downloadsPerTake: number;
   downloads: number;
   sunoModel: string;
   migration: string | null;
@@ -71,9 +73,27 @@ export function estimateRound(args: {
   const generations = prompts * args.settings.generationsPerPrompt;
   const expectedOutputs = generations * capabilities.outputsPerGeneration;
   const generationCredits = generations * capabilities.creditsPerGeneration;
-  // Review streams a published clip's MP4 (or an older MP3). Downloads are for a final-file export.
-  const downloads = 0;
+  // Public review streams a published clip MP4. Private review downloads every take.
+  const downloadsPerTake =
+    args.settings.reviewTakes === 'private' ? capabilities.downloadsPerOutput : 0;
+  const downloads = expectedOutputs * downloadsPerTake;
   const blockers: string[] = [];
+  if (args.settings.reviewTakes === 'private') {
+    if (downloadsPerTake === 0) {
+      blockers.push('Download credits per take must be checked before a private review round.');
+    } else if (downloads > capabilities.downloadsAvailable) {
+      blockers.push(
+        `Need ${downloads} download credits (${downloadsPerTake} per take); ${capabilities.downloadsAvailable} available.`
+      );
+    }
+    if (
+      downloadsPerTake > 0 &&
+      args.settings.downloadLimit !== null &&
+      downloads > args.settings.downloadLimit
+    ) {
+      blockers.push(`Download estimate exceeds the ${args.settings.downloadLimit}-download limit.`);
+    }
+  }
   if (capabilities.costModel !== model) {
     blockers.push(
       `Generation cost for ${model} must be verified; the supplied rate is for ${capabilities.costModel}.`
@@ -115,6 +135,7 @@ export function estimateRound(args: {
     generations,
     expectedOutputs,
     generationCredits,
+    downloadsPerTake,
     downloads,
     sunoModel: model,
     migration,
