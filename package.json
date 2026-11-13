@@ -30,6 +30,7 @@
     "owner:link": "node scripts/album-owner.mjs link",
     "album:settings": "node scripts/album-owner.mjs settings",
     "album:progress": "node scripts/album-owner.mjs progress",
+    "album:github": "node scripts/album-github.mjs",
     "check:kit": "node scripts/check-kit.mjs",
     "takes:upload": "node scripts/takes-upload.mjs",
     "takes:refresh": "node scripts/refresh-streams.mjs",

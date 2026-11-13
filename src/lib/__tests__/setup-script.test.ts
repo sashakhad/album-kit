@@ -5,6 +5,7 @@ import {
   deployAsAccountOwner,
   deployProduction,
   disconnectKitRepo,
+  ensureGitHubRepo,
   EXIT,
   ExitError,
   generateAlbumKey,
@@ -161,6 +162,59 @@ describe('deployProduction', () => {
 
     expect(() => deployProduction(runner)).toThrow(/not authorized/);
     expect(deploys).toBe(1);
+  });
+});
+
+describe('ensureGitHubRepo', () => {
+  const kit = 'https://github.com/sashakhad/album-kit.git';
+
+  it('names a signed-out GitHub CLI and does not create a repo', () => {
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kit}\n` },
+      'git remote get-url origin': { status: 2, stderr: 'No such remote' },
+      'gh auth status': { status: 1, stderr: 'You are not logged into any GitHub hosts.' },
+    });
+
+    const result = ensureGitHubRepo(runner, { project: 'my-album' });
+
+    expect(result.ok).toBe(false);
+    expect(result.blocker).toMatch(/not signed in/);
+    expect(result.blocker).toMatch(/kit remote/);
+    expect(calls.some(call => call.startsWith('gh repo create'))).toBe(false);
+  });
+
+  it('refuses to use the kit repository as origin', () => {
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kit}\n` },
+      'git remote get-url origin': { stdout: `${kit}\n` },
+    });
+
+    const result = ensureGitHubRepo(runner, { project: 'my-album' });
+
+    expect(result.ok).toBe(false);
+    expect(result.blocker).toMatch(/album kit/);
+    expect(calls.some(call => call.startsWith('gh '))).toBe(false);
+  });
+
+  it('creates a private repo when gh is signed in and origin is missing', () => {
+    const { runner, calls } = fakeRunner({
+      'git remote get-url kit': { stdout: `${kit}\n` },
+      'git remote get-url origin': { status: 2 },
+      'gh auth status': { stdout: 'Logged in to github.com\n' },
+      'gh repo create': { stdout: 'https://github.com/me/my-album\n' },
+      'gh repo view': {
+        stdout: JSON.stringify({
+          url: 'https://github.com/me/my-album',
+          isPrivate: true,
+          nameWithOwner: 'me/my-album',
+        }),
+      },
+    });
+
+    const result = ensureGitHubRepo(runner, { project: 'my-album' });
+
+    expect(result).toEqual({ ok: true, blocker: null, url: 'https://github.com/me/my-album' });
+    expect(calls.some(call => call.includes('--private'))).toBe(true);
   });
 });
 

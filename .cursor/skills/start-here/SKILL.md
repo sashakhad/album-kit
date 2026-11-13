@@ -3,7 +3,7 @@ name: start-here
 description: First run of a new album. Collect essentials, set up the user's project, connect Suno, and prepare the first round.
 ---
 
-# Start here · version 5
+# Start here · version 6
 
 ## Begin
 
@@ -44,7 +44,7 @@ Set visibility and listener voting through the authenticated `/api/owner/setting
 
 Reuse existing sessions and entitlements. In dependency order, check [Grok Bot](https://x.ai/bot), [Suno](https://suno.com/pricing), [GitHub](https://github.com/pricing), and [Vercel](https://vercel.com/pricing). Ask the user to take over for each missing sign-in. Cursor is [optional](https://cursor.com/pricing). Vercel Hobby is limited to eligible personal, non-commercial use; check the [commercial-use rules](https://vercel.com/docs/limits/fair-use-guidelines). Check whether the connected Suno plan has enough generation credits. When review takes stay public, review does not spend download credits. When the owner keeps them private, the round also needs download credits for every take. Do not buy a plan on the user's behalf.
 
-Create a repository from the kit in the user's GitHub account, with the kit as an upstream source. Use an existing suitable user-owned repo if they supplied one. A local or cloud checkout is fine. Do not put multiple users on branches of the upstream kit. Set `origin` to the user's repo and `kit` to the upstream repository. Verify both remotes. Preserve the installed kit commit ID in the handoff notes. If GitHub is not yet connected, prepare the local checkout and finish this step when the user signs in.
+Create a repository from the kit in the user's GitHub account, with the kit as an upstream source. Use an existing suitable user-owned repo if they supplied one. A local or cloud checkout is fine. Do not put multiple users on branches of the upstream kit. Set `origin` to the user's repo and `kit` to the upstream repository. Verify both remotes. Preserve the installed kit commit ID in the handoff notes. `pnpm setup:site` creates a private GitHub repo and pushes to `origin` when `gh` is signed in. If it exits 5, the site exists and GitHub does not. Report the `BLOCKER:` sentence exactly, with the site URL. Do not say the album has a GitHub home. After the owner runs `gh auth login`, run `pnpm album:github`.
 
 Install Node 24 and pnpm if needed. Connect the official Suno MCP server at `https://api.suno.com/mcp`; use a signed-in suno.com browser only if the connector cannot do the required operation. Verify available create, status, model and credit capabilities. When `reviewTakes` is public, review takes stream from a public Suno MP4, so that round does not need download allowance. When it is private, the round needs download credits per take.
 
