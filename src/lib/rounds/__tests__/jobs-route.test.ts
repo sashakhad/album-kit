@@ -193,5 +193,29 @@ describe('provider job ledger', () => {
       context
     );
     expect(streamed.status).toBe(200);
+
+    const mp4 = await PATCH(
+      request(
+        {
+          operationId: 'p1-stream',
+          status: 'complete',
+          output: {
+            takes: [
+              {
+                filename: 'v1-01-track-one-p1-takea.mp3',
+                outputId: clipId,
+                clipId,
+                streamUrl: `https://cdn1.suno.ai/${clipId}.mp4`,
+                downloaded: false,
+                uploaded: false,
+              },
+            ],
+          },
+        },
+        'PATCH'
+      ),
+      context
+    );
+    expect(mp4.status).toBe(200);
   });
 });

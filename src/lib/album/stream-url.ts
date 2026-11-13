@@ -1,8 +1,9 @@
 const SUNO_CDN_HOST = /^cdn\d+\.suno\.ai$/;
+const SUNO_STREAM_PATH = /^\/([A-Za-z0-9_-]+)\.(mp3|mp4)$/;
 
 export type SunoClip = {
   id: string;
-  audio_url: string;
+  audio_url?: string | null | undefined;
 };
 
 export type StreamCatalogEntry = {
@@ -33,14 +34,34 @@ export function parseSunoStreamUrl(url: string): { clipId: string } | null {
   } catch {
     return null;
   }
-  if (parsed.protocol !== 'https:' || !SUNO_CDN_HOST.test(parsed.hostname)) {
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.port !== '' ||
+    parsed.username !== '' ||
+    parsed.password !== '' ||
+    parsed.search !== '' ||
+    parsed.hash !== '' ||
+    !SUNO_CDN_HOST.test(parsed.hostname)
+  ) {
     return null;
   }
-  const clipId = /^\/([A-Za-z0-9_-]+)\.mp3$/.exec(parsed.pathname)?.[1];
+  const clipId = SUNO_STREAM_PATH.exec(parsed.pathname)?.[1];
   if (clipId === undefined) {
     return null;
   }
   return { clipId };
+}
+
+/** Public clip MP4s need a video element. Uploaded files and older MP3 streams stay audio. */
+export function isVideoStream(url: string | null | undefined): boolean {
+  if (url === undefined || url === null || url.length === 0) {
+    return false;
+  }
+  try {
+    return new URL(url, 'https://album.local').pathname.endsWith('.mp4');
+  } catch {
+    return false;
+  }
 }
 
 export function isDirectSunoStream(url: string | null | undefined): boolean {
@@ -76,7 +97,7 @@ export function resolvedClipId(take: {
   return null;
 }
 
-/** Prefer a stored Suno MP3. An older uploaded file remains the fallback. */
+/** Prefer a stored Suno MP3 or public-clip MP4. An older uploaded file remains the fallback. */
 export function playbackAudioUrl(args: {
   streamUrl: string | null | undefined;
   clipId: string | null | undefined;
@@ -119,7 +140,7 @@ export function takeStreamProblem(take: {
     return null;
   }
   if (!isPlayableStream(take.streamUrl, clipId ?? take.outputId)) {
-    return 'Stream URL must be the Suno MP3 for that clip';
+    return 'Stream URL must be the Suno MP3 or MP4 for that clip';
   }
   return null;
 }
@@ -138,8 +159,8 @@ export function takeIsCollected(take: {
 }
 
 /**
- * Replace a missing or stale stream with the clip's current audio_url.
- * Library rows that are not Suno MP3s for that clip id are ignored.
+ * Replace a missing or stale stream with a playable Suno MP3 or MP4 for that clip.
+ * Rows whose audio_url is not that clip's CDN stream are ignored.
  */
 export function refreshStoredStreams(
   stored: readonly StoredTakeStream[],
@@ -147,8 +168,9 @@ export function refreshStoredStreams(
 ): StreamRefresh[] {
   const audioByClip = new Map<string, string>();
   for (const clip of clips) {
-    if (isPlayableStream(clip.audio_url, clip.id)) {
-      audioByClip.set(clip.id, clip.audio_url);
+    const audioUrl = clip.audio_url;
+    if (typeof audioUrl === 'string' && isPlayableStream(audioUrl, clip.id)) {
+      audioByClip.set(clip.id, audioUrl);
     }
   }
 

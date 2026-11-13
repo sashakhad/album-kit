@@ -144,6 +144,72 @@ describe('AlbumPlayer', () => {
     expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
   });
 
+  it('plays a public Suno MP4 in the same player with the picture hidden', async () => {
+    const user = userEvent.setup();
+    const mp4 = 'https://cdn1.suno.ai/clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    const version: AlbumVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          number: 1,
+          title: 'Track One',
+          kind: 'album',
+          filename: '01-track-one.mp3',
+          audioUrl: mp4,
+          takes: [
+            {
+              label: 'A',
+              filename: '01-track-one.mp3',
+              audioUrl: mp4,
+              versionSlug: 'v1',
+              voteLabel: 'A',
+            },
+          ],
+          prompt: 'Warm and wide.',
+        },
+      ],
+    };
+    render(<AlbumPlayer version={version} />);
+
+    const video = document.querySelector('video');
+    if (video === null) {
+      throw new Error('expected a video element');
+    }
+    expect(video).toHaveAttribute('src', mp4);
+    expect(video).not.toHaveAttribute('controls');
+    expect(video.className).toContain('opacity-0');
+    expect(video.className).toContain('h-px');
+    expect(video.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector('audio')).not.toHaveAttribute('src');
+    expect(screen.getByRole('button', { name: 'Play' })).toBeEnabled();
+    expect(screen.getByRole('slider', { name: 'Seek' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Play' }));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+
+    Object.defineProperty(video, 'duration', { configurable: true, value: 80 });
+    fireEvent.durationChange(video);
+    const slider = screen.getByRole('slider', { name: 'Seek' });
+    expect(slider).toHaveAttribute('aria-valuemax', '80');
+    slider.setPointerCapture = () => undefined;
+    slider.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 200,
+        top: 0,
+        height: 44,
+        right: 200,
+        bottom: 44,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    fireEvent.pointerDown(slider, { clientX: 100, pointerId: 1, buttons: 1 });
+    expect(video.currentTime).toBe(40);
+    expect(slider).toHaveAttribute('aria-valuenow', '40');
+  });
+
   it('shows an upload hint when a version has no audio', () => {
     render(<AlbumPlayer version={emptyVersion} />);
 

@@ -60,6 +60,43 @@ describe('round readiness', () => {
     expect(audit).toEqual({ ready: true, problems: [], actualOutputs: 1 });
   });
 
+  it('accepts a public clip MP4 with no uploaded file', () => {
+    const streamUrl = 'https://cdn2.suno.ai/clip-1.mp4';
+    const audit = checkRoundReadiness({
+      ...base,
+      jobs: [
+        {
+          promptId: 'p1',
+          status: 'complete',
+          output: {
+            takes: [
+              {
+                filename,
+                outputId: 'clip-1',
+                clipId: 'clip-1',
+                streamUrl,
+                downloaded: false,
+                uploaded: false,
+              },
+            ],
+          },
+        },
+      ],
+      provenance: [
+        {
+          filename,
+          promptId: 'p1',
+          roundId: 'round-1',
+          outputId: 'clip-1',
+          clipId: 'clip-1',
+          streamUrl,
+        },
+      ],
+      storedFilenames: [],
+    });
+    expect(audit).toEqual({ ready: true, problems: [], actualOutputs: 1 });
+  });
+
   it('blocks a streamed take whose provenance has no stream URL', () => {
     const audit = checkRoundReadiness({
       ...base,

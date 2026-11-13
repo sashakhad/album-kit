@@ -123,7 +123,8 @@ function checkCommandsAndRoutes(file, lines) {
         report(file, index + 1, `names pnpm ${script}, which is not a playbook script`);
       }
     }
-    for (const match of line.matchAll(API_PATH)) {
+    const withoutAbsoluteUrls = line.replace(/https?:\/\/\S+/g, '');
+    for (const match of withoutAbsoluteUrls.matchAll(API_PATH)) {
       const route = trimRoute(match[0]);
       if (!isAllowedRoute(route)) {
         report(file, index + 1, `names ${route}, which is not an album API route`);

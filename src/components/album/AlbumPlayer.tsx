@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type SyntheticEvent,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -30,6 +38,7 @@ import {
 import { indexForTrackNumber, listenHref, voteHref } from '@/lib/album/play-path';
 import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
+import { isVideoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { DownloadButton } from '@/components/album/DownloadButton';
 import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
@@ -75,8 +84,8 @@ export function AlbumPlayer({
   const revealRefreshRequested = useRef(false);
   const playerSurface: PlayerSurface = surface ?? 'vote';
   const audioRef = useRef<HTMLAudioElement>(null);
-  const assignAudio = useCallback((node: HTMLAudioElement | null) => {
-    audioRef.current = node;
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const assignMedia = useCallback((node: HTMLMediaElement | null) => {
     if (node !== null) node.setAttribute('referrerpolicy', 'no-referrer');
   }, []);
   const playableIndexes = useMemo(() => collectPlayableIndexes(version.tracks), [version.tracks]);
@@ -224,26 +233,35 @@ export function AlbumPlayer({
   }, [currentTake, currentTrack, playerSurface, version.title]);
 
   const playSource = useCallback((url: string) => {
-    const audio = audioRef.current;
-    if (audio === null) {
+    const video = isVideoStream(url);
+    const active = video ? videoRef.current : audioRef.current;
+    const idle = video ? audioRef.current : videoRef.current;
+    if (idle !== null) {
+      idle.pause();
+      if (idle.getAttribute('src') !== null) {
+        idle.removeAttribute('src');
+        idle.load();
+      }
+    }
+    if (active === null) {
       return;
     }
 
     const nextSrc = new URL(url, window.location.href).href;
-    if (audio.src !== nextSrc) {
-      audio.src = url;
+    if (active.src !== nextSrc) {
+      active.src = url;
     }
 
     setPlaybackError(null);
     setIsLoading(true);
-    if (audio.error) audio.load();
-    void audio
+    if (active.error) active.load();
+    void active
       .play()
       .then(() => {
-        if (audio.src === nextSrc) setIsLoading(false);
+        if (active.src === nextSrc) setIsLoading(false);
       })
       .catch((error: unknown) => {
-        if (isAbortError(error) || audio.src !== nextSrc) return;
+        if (isAbortError(error) || active.src !== nextSrc) return;
         setIsPlaying(false);
         setIsLoading(false);
         setPlaybackError('Could not play this track. Try again.');
@@ -378,6 +396,7 @@ export function AlbumPlayer({
       setIsPlaying(false);
       setIsLoading(false);
       audioRef.current?.pause();
+      videoRef.current?.pause();
       return;
     }
     setIsPlaying(true);
@@ -385,21 +404,23 @@ export function AlbumPlayer({
   }, [currentAudioUrl, hasAudio, isPlaying, playIndex, playSource, playableIndexes]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (audio === null) {
-      return;
-    }
-    audio.volume = volume;
-  }, [volume]);
+    if (audioRef.current !== null) audioRef.current.volume = volume;
+    if (videoRef.current !== null) videoRef.current.volume = volume;
+  }, [currentAudioUrl, volume]);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (audio === null || currentAudioUrl === null) {
+    const media =
+      currentAudioUrl === null
+        ? null
+        : isVideoStream(currentAudioUrl)
+          ? videoRef.current
+          : audioRef.current;
+    if (media === null || currentAudioUrl === null) {
       return;
     }
 
     if (!isPlaying) {
-      audio.pause();
+      media.pause();
       return;
     }
 
@@ -409,12 +430,12 @@ export function AlbumPlayer({
       playSource(url);
     }
 
-    if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    if (media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
       playWhenReady();
     }
-    audio.addEventListener('canplay', playWhenReady);
+    media.addEventListener('canplay', playWhenReady);
     return () => {
-      audio.removeEventListener('canplay', playWhenReady);
+      media.removeEventListener('canplay', playWhenReady);
     };
   }, [currentAudioUrl, isPlaying, playSource]);
 
@@ -475,11 +496,15 @@ export function AlbumPlayer({
   }, [currentTrack, isPlaying, playNext, playPrevious, version.author, version.title]);
 
   function handleSeek(seconds: number) {
-    const audio = audioRef.current;
-    if (audio === null) {
+    const media =
+      currentAudioUrl === null
+        ? null
+        : isVideoStream(currentAudioUrl)
+          ? videoRef.current
+          : audioRef.current;
+    if (!seekMedia(media, seconds)) {
       return;
     }
-    audio.currentTime = seconds;
     setCurrentTime(seconds);
   }
 
@@ -722,17 +747,13 @@ export function AlbumPlayer({
         </div>
       ) : null}
       {currentAudioUrl !== null ? (
-        <audio
-          ref={assignAudio}
-          src={currentAudioUrl}
-          preload='metadata'
-          playsInline
-          onTimeUpdate={event => setCurrentTime(event.currentTarget.currentTime)}
-          onDurationChange={event =>
-            setDuration(
-              Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0
-            )
-          }
+        <PlaybackMedia
+          url={currentAudioUrl}
+          audioRef={audioRef}
+          videoRef={videoRef}
+          onReady={assignMedia}
+          onTime={setCurrentTime}
+          onDuration={setDuration}
           onPlaying={() => {
             setIsLoading(false);
             setPlaybackError(null);
@@ -749,6 +770,92 @@ export function AlbumPlayer({
         />
       ) : null}
     </section>
+  );
+}
+
+function PlaybackMedia({
+  url,
+  audioRef,
+  videoRef,
+  onReady,
+  onTime,
+  onDuration,
+  onPlaying,
+  onWaiting,
+  onError,
+  onEnded,
+}: {
+  url: string;
+  audioRef: { current: HTMLAudioElement | null };
+  videoRef: { current: HTMLVideoElement | null };
+  onReady: (node: HTMLMediaElement | null) => void;
+  onTime: (seconds: number) => void;
+  onDuration: (seconds: number) => void;
+  onPlaying: () => void;
+  onWaiting: () => void;
+  onError: () => void;
+  onEnded: () => void;
+}) {
+  const video = isVideoStream(url);
+
+  function fromActive(
+    event: SyntheticEvent<HTMLMediaElement>,
+    handle: (media: HTMLMediaElement) => void
+  ) {
+    const fromVideo = event.currentTarget.tagName === 'VIDEO';
+    if (fromVideo !== video) {
+      return;
+    }
+    handle(event.currentTarget);
+  }
+
+  const events = {
+    onTimeUpdate: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, media => onTime(media.currentTime));
+    },
+    onDurationChange: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, media => onDuration(Number.isFinite(media.duration) ? media.duration : 0));
+    },
+    onPlaying: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onPlaying());
+    },
+    onWaiting: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onWaiting());
+    },
+    onError: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onError());
+    },
+    onEnded: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, () => onEnded());
+    },
+  };
+
+  return (
+    <>
+      <audio
+        ref={node => {
+          audioRef.current = node;
+          onReady(node);
+        }}
+        src={video ? undefined : url}
+        preload='metadata'
+        playsInline
+        {...events}
+      />
+      <video
+        ref={node => {
+          videoRef.current = node;
+          onReady(node);
+        }}
+        src={video ? url : undefined}
+        preload='metadata'
+        playsInline
+        disablePictureInPicture
+        aria-hidden
+        className='pointer-events-none fixed top-0 left-0 -z-10 h-px w-px overflow-hidden opacity-0'
+        {...events}
+      />
+    </>
   );
 }
 
@@ -1320,6 +1427,14 @@ function IconButton({
 
 function padTrackNumber(number: number): string {
   return String(number).padStart(2, '0');
+}
+
+function seekMedia(media: HTMLMediaElement | null, seconds: number): boolean {
+  if (media === null) {
+    return false;
+  }
+  media.currentTime = seconds;
+  return true;
 }
 
 function isTypingTarget(target: EventTarget | null): boolean {

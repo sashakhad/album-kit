@@ -1,10 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildVersion } from '@/lib/album/build-version';
 import { CONTENT_SECURITY_POLICY } from '@/lib/album/content-security';
 import {
+  PUBLISH_CLIP_PROBLEM,
+  SUNO_CLIP_ENDPOINT,
+  UNPLAYABLE_PUBLIC_CLIP_PROBLEM,
+  UNREADABLE_CLIP_PROBLEM,
+  resolveClipStreams,
+} from '@/lib/album/clip-stream';
+import {
   filenamesForPlayback,
   isPlayableStream,
+  isVideoStream,
   listenerAudioUrl,
   playbackAudioUrl,
   refreshStoredStreams,
@@ -15,6 +23,7 @@ import {
 
 const clipId = 'clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const streamUrl = `https://cdn1.suno.ai/${clipId}.mp3`;
+const videoUrl = `https://cdn1.suno.ai/${clipId}.mp4`;
 const filename = 'v1-01-track-one-p1-takea.mp3';
 
 describe('stream playback', () => {
@@ -83,12 +92,25 @@ describe('stream playback', () => {
     ]);
   });
 
-  it('allows Suno CDN audio in the media policy', () => {
+  it('allows Suno CDN MP3 and public MP4 in the media policy', () => {
     expect(CONTENT_SECURITY_POLICY).toContain('https://*.suno.ai');
     expect(CONTENT_SECURITY_POLICY).toContain("media-src 'self'");
+    expect(CONTENT_SECURITY_POLICY).not.toContain('studio-api.prod.suno.com');
     expect(isPlayableStream(streamUrl, clipId)).toBe(true);
+    expect(isPlayableStream(videoUrl, clipId)).toBe(true);
+    expect(isPlayableStream(`https://cdn12.suno.ai/${clipId}.mp4`, clipId)).toBe(true);
+    expect(isPlayableStream(`https://cdn1.suno.ai/${clipId}.m4a`, clipId)).toBe(false);
+    expect(isPlayableStream(`${videoUrl}?token=1`, clipId)).toBe(false);
+    expect(isPlayableStream('https://d2lwuy8qc234o3.cloudfront.net/1/clip/x.m4a', clipId)).toBe(
+      false
+    );
     expect(isPlayableStream('http://cdn1.suno.ai/clip.mp3', 'clip')).toBe(false);
     expect(isPlayableStream('https://evil.example/clip.mp3', 'clip')).toBe(false);
+    expect(isVideoStream(videoUrl)).toBe(true);
+    expect(isVideoStream(streamUrl)).toBe(false);
+    expect(
+      playbackAudioUrl({ streamUrl: videoUrl, clipId, fileUrl: '/api/audio/v1/file.mp3' })
+    ).toBe(videoUrl);
   });
 });
 
@@ -155,7 +177,73 @@ describe('stream refresh', () => {
       'Clip id and output id must be the same Suno clip'
     );
     expect(takeStreamProblem({ outputId: clipId, streamUrl: 'https://evil.example/x.mp3' })).toBe(
-      'Stream URL must be the Suno MP3 for that clip'
+      'Stream URL must be the Suno MP3 or MP4 for that clip'
     );
+    expect(takeStreamProblem({ outputId: clipId, clipId, streamUrl: videoUrl })).toBeNull();
+    expect(
+      takeIsCollected({
+        outputId: clipId,
+        clipId,
+        streamUrl: videoUrl,
+        downloaded: false,
+        uploaded: false,
+      })
+    ).toBe(true);
+  });
+
+  it('stores a public clip MP4 when no playable audio_url was given', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        is_public: true,
+        audio_url: 'https://studio-api.prod.suno.com/api/forbidden',
+        video_url: videoUrl,
+        media_urls: [{ url: 'https://d2lwuy8qc234o3.cloudfront.net/1/clip/x.m4a' }],
+      })
+    );
+    const resolved = await resolveClipStreams(
+      [{ id: clipId, audio_url: 'https://studio-api.prod.suno.com/api/forbidden' }, { id: clipId }],
+      fetchImpl
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(`${SUNO_CLIP_ENDPOINT}${clipId}`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    expect(resolved.problems).toEqual([]);
+    expect(resolved.clips).toEqual([{ id: clipId, audio_url: videoUrl }]);
+    expect(PUBLISH_CLIP_PROBLEM).toBe('publish the clip on Suno');
+
+    const kept = await resolveClipStreams(
+      [{ id: clipId, audio_url: streamUrl }],
+      vi.fn<typeof fetch>()
+    );
+    expect(kept.clips).toEqual([{ id: clipId, audio_url: streamUrl }]);
+  });
+
+  it('tells the owner to publish a clip that is not public', async () => {
+    const privateClip = vi.fn(async () => Response.json({ is_public: false, video_url: videoUrl }));
+    const hidden = await resolveClipStreams([{ id: clipId }], privateClip);
+    expect(hidden.clips).toEqual([]);
+    expect(hidden.problems).toEqual([{ clipId, problem: PUBLISH_CLIP_PROBLEM }]);
+
+    const missing = await resolveClipStreams(
+      [{ id: clipId }],
+      vi.fn(async () => new Response('{"detail":"Not found."}', { status: 404 }))
+    );
+    expect(missing.problems).toEqual([{ clipId, problem: PUBLISH_CLIP_PROBLEM }]);
+
+    const down = await resolveClipStreams(
+      [{ id: clipId }],
+      vi.fn(async () => {
+        throw new Error('offline');
+      })
+    );
+    expect(down.problems).toEqual([{ clipId, problem: UNREADABLE_CLIP_PROBLEM }]);
+
+    const bare = await resolveClipStreams(
+      [{ id: clipId }],
+      vi.fn(async () => Response.json({ is_public: true, audio_url: videoUrl }))
+    );
+    expect(bare.problems).toEqual([{ clipId, problem: UNPLAYABLE_PUBLIC_CLIP_PROBLEM }]);
   });
 });
