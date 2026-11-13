@@ -68,6 +68,8 @@ export function AlbumPlayer({
   voter = 'owner',
   showListenerScores = true,
   listenChoices,
+  emptyNotice,
+  pendingLabel = 'Coming soon',
 }: {
   version: AlbumVersion;
   votes?: VoteSnapshot;
@@ -79,6 +81,8 @@ export function AlbumPlayer({
   voter?: 'owner' | 'listener';
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
+  emptyNotice?: string;
+  pendingLabel?: string;
 }) {
   const router = useRouter();
   const revealRefreshRequested = useRef(false);
@@ -515,7 +519,7 @@ export function AlbumPlayer({
       <div className='min-w-0 space-y-5'>
         <div className='space-y-2'>
           <p className='text-muted-foreground text-xs tracking-widest uppercase'>
-            {hasAudio ? 'Now playing' : 'Coming soon'}
+            {hasAudio ? 'Now playing' : pendingLabel}
           </p>
           <PlayerHeading className='font-display text-3xl leading-tight tracking-tight break-words sm:text-4xl'>
             {currentTrack?.title ?? version.title}
@@ -651,7 +655,9 @@ export function AlbumPlayer({
             {currentTrack === null ? null : <ParkedCount track={currentTrack} />}
           </details>
         ) : null}
-        {!hasAudio ? <EmptyAudioHint surface={playerSurface} voter={voter} /> : null}
+        {!hasAudio ? (
+          <EmptyAudioHint surface={playerSurface} voter={voter} notice={emptyNotice} />
+        ) : null}
       </div>
 
       <div className='min-w-0 space-y-6'>
@@ -682,6 +688,7 @@ export function AlbumPlayer({
                   showVotes={playerSurface !== 'listen'}
                   showTakes={playerSurface !== 'listen'}
                   listenChoice={choice}
+                  pendingLabel={pendingLabel}
                   voter={voter}
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
@@ -1107,6 +1114,7 @@ function TrackRow({
   showVotes,
   showTakes,
   listenChoice,
+  pendingLabel,
   voter,
   onSelect,
   onSelectTake,
@@ -1122,6 +1130,7 @@ function TrackRow({
   showVotes: boolean;
   showTakes: boolean;
   listenChoice: ListenChoice | undefined;
+  pendingLabel: string;
   voter: 'owner' | 'listener';
   onSelect: () => void;
   onSelectTake: (label: string) => void;
@@ -1167,7 +1176,7 @@ function TrackRow({
           <span className='text-muted-foreground text-xs'>
             {listenChoice?.manual || listenChoice?.hasBonus
               ? 'No takes in this round'
-              : 'Coming soon'}
+              : pendingLabel}
           </span>
         ) : track.compareHref === undefined ? null : (
           <Link
@@ -1375,13 +1384,31 @@ function SeekBar({
 function EmptyAudioHint({
   surface,
   voter,
+  notice,
 }: {
   surface: PlayerSurface;
   voter: 'owner' | 'listener';
+  notice?: string | undefined;
 }) {
   return (
     <div className='text-muted-foreground rounded-2xl border border-dashed border-white/15 p-5 text-sm leading-relaxed'>
-      {surface === 'vote' && voter === 'listener' ? (
+      {notice !== undefined && notice.length > 0 ? (
+        <>
+          <p>{notice}</p>
+          {surface === 'vote' && voter === 'owner' ? (
+            <p>
+              Or{' '}
+              <Link
+                href='/intake'
+                className='text-foreground inline-flex min-h-11 items-center underline underline-offset-4'
+              >
+                upload takes
+              </Link>{' '}
+              you already have.
+            </p>
+          ) : null}
+        </>
+      ) : surface === 'vote' && voter === 'listener' ? (
         <p>No takes in this round yet.</p>
       ) : surface === 'vote' ? (
         <p>
