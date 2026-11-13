@@ -71,7 +71,7 @@ export function estimateRound(args: {
   const generations = prompts * args.settings.generationsPerPrompt;
   const expectedOutputs = generations * capabilities.outputsPerGeneration;
   const generationCredits = generations * capabilities.creditsPerGeneration;
-  // Review plays stored Suno MP3s. Download credits are for a later final-file export.
+  // Review streams a published clip's MP4 (or an older MP3). Downloads are for a final-file export.
   const downloads = 0;
   const blockers: string[] = [];
   if (capabilities.costModel !== model) {
