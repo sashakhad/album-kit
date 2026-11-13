@@ -34,6 +34,8 @@ const ONBOARDING_PHRASES = [
       'Every setup and round message includes the site URL',
       'stays valid for 7 days',
       'Submit every generation in the authorized round at once',
+      'that track is already on the site',
+      'Do not say takes are still generating',
     ],
   },
   {
@@ -76,6 +78,8 @@ const ONBOARDING_PHRASES = [
       'Every setup and round message includes the site URL',
       'stays valid for 7 days',
       'Submit every generation in the authorized round at once',
+      'that track is already on the site',
+      'Do not say takes are still generating',
     ],
   },
 ];

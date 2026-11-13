@@ -1,15 +1,28 @@
 import 'server-only';
 
 import { loadAlbumConfig } from '@/lib/album/album-config';
+import { listSets } from '@/lib/album/load-album';
 import { prisma } from '@/lib/prisma';
+import { loadSettings } from '@/lib/settings/store';
 import {
   idleProgress,
+  liveTrackLinks,
   summarizeProgress,
   type AlbumProgress,
+  type LiveTrackLink,
   type ProgressPrompt,
 } from '@/lib/rounds/progress';
 
-export async function loadAlbumProgress(): Promise<AlbumProgress> {
+export type AlbumProgressReport = AlbumProgress & {
+  liveTracks: LiveTrackLink[];
+};
+
+export async function loadAlbumProgress(): Promise<AlbumProgressReport> {
+  const progress = await loadRoundProgress();
+  return { ...progress, liveTracks: await loadLiveTracks(progress) };
+}
+
+async function loadRoundProgress(): Promise<AlbumProgress> {
   if (process.env.DATABASE_URL === undefined || process.env.DATABASE_URL.length === 0) {
     return idleProgress();
   }
@@ -56,6 +69,30 @@ export async function loadAlbumProgress(): Promise<AlbumProgress> {
     });
   } catch {
     return idleProgress();
+  }
+}
+
+async function loadLiveTracks(progress: AlbumProgress): Promise<LiveTrackLink[]> {
+  try {
+    const [versions, settings] = await Promise.all([listSets(), loadSettings().catch(() => null)]);
+    const playableNumbers: number[] = [];
+    for (const version of versions) {
+      for (const track of version.tracks) {
+        if (track.takes.length === 0 || track.audioUrl === null) {
+          continue;
+        }
+        if (!playableNumbers.includes(track.number)) {
+          playableNumbers.push(track.number);
+        }
+      }
+    }
+    return liveTrackLinks({
+      tracks: progress.tracks,
+      playableNumbers,
+      listenerVoting: settings?.listenerVoting === true,
+    });
+  } catch {
+    return [];
   }
 }
 

@@ -3,6 +3,58 @@ import { pathToFileURL } from 'node:url';
 
 const [, , command, ...args] = process.argv;
 
+export const PROGRESS_UNREAD =
+  'Progress unread. Open the site before stating whether takes are still generating.';
+
+/**
+ * A progress line even when the site omits `line`. Never throws.
+ * @param {unknown} progress
+ */
+export function progressLineFrom(progress) {
+  if (!isRecord(progress)) {
+    return PROGRESS_UNREAD;
+  }
+  if (typeof progress.line === 'string' && progress.line.trim().length > 0) {
+    return progress.line.trim();
+  }
+  const ready = finiteNumber(progress.takesReady);
+  const expected = finiteNumber(progress.takesExpected);
+  if (ready === null || expected === null) {
+    return PROGRESS_UNREAD;
+  }
+  const finished = finiteNumber(progress.jobsFinished) ?? 0;
+  const jobs = finiteNumber(progress.jobsExpected) ?? 0;
+  const round =
+    typeof progress.roundNumber === 'number' && Number.isFinite(progress.roundNumber)
+      ? `Round ${progress.roundNumber}`
+      : 'This round';
+  return `${round}: ${finished}/${jobs} done, ${ready} of ${expected} takes ready.`;
+}
+
+/**
+ * Chat-ready progress. Includes the site and any track that is already playable.
+ * @param {{ siteUrl: string, progress: unknown }} report
+ */
+export function formatProgressReport({ siteUrl, progress }) {
+  const lines = [progressLineFrom(progress), `Site: ${siteUrl}`];
+  if (isRecord(progress) && Array.isArray(progress.liveTracks)) {
+    for (const track of progress.liveTracks) {
+      if (
+        !isRecord(track) ||
+        typeof track.path !== 'string' ||
+        !/^\/(vote|listen)(\/|$)/.test(track.path) ||
+        typeof track.trackNumber !== 'number'
+      ) {
+        continue;
+      }
+      const title =
+        typeof track.title === 'string' && track.title.length > 0 ? track.title : 'Track';
+      lines.push(`Track ${track.trackNumber} ${title}: ${siteUrl}${track.path}`);
+    }
+  }
+  return `${lines.join('\n')}\n`;
+}
+
 /**
  * Chat-ready lines. The album key is never one of them.
  * @param {{ siteUrl: string, progressLine?: string, ownerLink?: string }} lines
@@ -52,7 +104,14 @@ async function main() {
     method = 'PATCH';
     body = { patch: JSON.parse(readFileSync(0, 'utf8')) };
   } else if (command === 'progress' && args.length === 0) {
-    route = '/api/owner/progress';
+    const siteUrl = site.href.replace(/\/$/, '');
+    const progress = await readProgress(site, key);
+    const text = formatProgressReport({ siteUrl, progress });
+    if (text.includes(key)) {
+      throw new Error('Refusing to print progress that contains the album key.');
+    }
+    process.stdout.write(text);
+    return;
   } else {
     throw new Error(
       'Use pnpm owner:link [/settings|/vote], pnpm album:settings [--patch], or pnpm album:progress. Pass a JSON patch on stdin.'
@@ -78,13 +137,6 @@ async function main() {
     );
   }
   const siteUrl = site.href.replace(/\/$/, '');
-  if (command === 'progress') {
-    if (typeof result?.line !== 'string' || result.line.length === 0) {
-      throw new Error('The album site did not return a progress line.');
-    }
-    process.stdout.write(formatChatLines({ siteUrl, progressLine: result.line }));
-    return;
-  }
   if (command === 'link') {
     const link = new URL(result?.link);
     if (
@@ -101,6 +153,48 @@ async function main() {
       throw new Error('The album site did not return its settings.');
     process.stdout.write(`${JSON.stringify(result.resolved, null, 2)}\n`);
   }
+}
+
+class OwnerAuthError extends Error {}
+
+async function readProgress(site, key) {
+  let fallback = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(new URL('/api/owner/progress', site), {
+        method: 'GET',
+        redirect: 'error',
+        cache: 'no-store',
+        signal: AbortSignal.timeout(20000),
+        headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
+      });
+      const result = await response.json().catch(() => null);
+      if (response.status === 401 || response.status === 403) {
+        throw new OwnerAuthError(
+          typeof result?.error === 'string' ? result.error : 'Owner key required'
+        );
+      }
+      if (response.ok && progressLineFrom(result) !== PROGRESS_UNREAD) {
+        return result;
+      }
+      if (result !== null) {
+        fallback = result;
+      }
+    } catch (error) {
+      if (error instanceof OwnerAuthError) {
+        throw error;
+      }
+    }
+  }
+  return fallback ?? {};
+}
+
+function finiteNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function isRecord(value) {
+  return typeof value === 'object' && value !== null;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

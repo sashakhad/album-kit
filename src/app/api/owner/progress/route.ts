@@ -11,5 +11,12 @@ export async function GET(request: Request) {
   if (denied !== null) {
     return denied;
   }
-  return NextResponse.json(await loadAlbumProgress());
+  const progress = await loadAlbumProgress();
+  return NextResponse.json(
+    {
+      ...progress,
+      line: progress.line.length > 0 ? progress.line : 'No generation round yet.',
+    },
+    { headers: { 'Cache-Control': 'no-store' } }
+  );
 }
