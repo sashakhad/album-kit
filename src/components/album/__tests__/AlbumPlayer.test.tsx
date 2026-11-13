@@ -88,12 +88,14 @@ const emptyVersion: AlbumVersion = {
 
 describe('AlbumPlayer', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    window.localStorage.clear();
     window.history.replaceState(null, '', '/');
   });
 

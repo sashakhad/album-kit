@@ -44,7 +44,12 @@ import { DownloadButton } from '@/components/album/DownloadButton';
 import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
 import { VoteButton } from '@/components/album/VoteButton';
-import { choiceForTake, countForTake, takeCountsForTrack } from '@/lib/votes/tally';
+import {
+  choiceForTake,
+  countForTake,
+  scoredTakesOnTrack,
+  takeCountsForTrack,
+} from '@/lib/votes/tally';
 import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
 import {
   formatDuration,
@@ -205,6 +210,39 @@ export function AlbumPlayer({
   const hasVariations = version.tracks.some(track => track.takes.length > 1);
   const currentPrompt =
     currentTake?.prompt ?? currentTake?.details?.style ?? currentTrack?.prompt ?? null;
+  const voteResumeReady = useRef(playerSurface !== 'vote');
+
+  useEffect(() => {
+    if (playerSurface !== 'vote' || voteResumeReady.current) {
+      return;
+    }
+    if (initialTrackNumber === undefined && initialTrackTitle === undefined) {
+      try {
+        const saved = window.localStorage.getItem('album-kit-vote-track');
+        const number = saved === null ? Number.NaN : Number(saved);
+        const index = version.tracks.findIndex(track => track.number === number);
+        if (index >= 0) {
+          // The server has no localStorage, so the saved track is applied after mount.
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- resume the owner's last track
+          setCurrentIndex(index);
+        }
+      } catch {
+        // Storage can be blocked. The album URL still selects a track.
+      }
+    }
+    voteResumeReady.current = true;
+  }, [initialTrackNumber, initialTrackTitle, playerSurface, version.tracks]);
+
+  useEffect(() => {
+    if (!voteResumeReady.current || playerSurface !== 'vote' || currentTrack === null) {
+      return;
+    }
+    try {
+      window.localStorage.setItem('album-kit-vote-track', String(currentTrack.number));
+    } catch {
+      // The URL still records the track for this visit.
+    }
+  }, [currentTrack, playerSurface]);
 
   useEffect(() => {
     if (currentTrack === null || currentTake === null) {
@@ -279,6 +317,8 @@ export function AlbumPlayer({
         return;
       }
       if (takeLabel === undefined && track.audioUrl === null) {
+        setCurrentIndex(index);
+        setIsPlaying(false);
         return;
       }
 
@@ -294,6 +334,8 @@ export function AlbumPlayer({
 
       const url = audioUrlForTrack(track, nextSelected, preferredTakeLabelRef.current);
       if (url === null) {
+        setCurrentIndex(index);
+        setIsPlaying(false);
         return;
       }
 
@@ -661,20 +703,55 @@ export function AlbumPlayer({
       </div>
 
       <div className='min-w-0 space-y-6'>
-        <div className='flex items-baseline justify-between px-1'>
+        <div className='flex flex-wrap items-center justify-between gap-2 px-1'>
           <h2 className='text-sm font-medium'>
-            {playerSurface === 'listen' ? 'Tracks' : 'Choose a take'}
+            {playerSurface === 'listen'
+              ? 'Tracks'
+              : `Track ${formatNumberExact(currentIndex + 1)} of ${formatNumberExact(version.tracks.length)}`}
           </h2>
-          <span className='text-muted-foreground text-xs'>
-            {playableIndexes.length} ready to play
-          </span>
+          {playerSurface === 'vote' ? (
+            <div className='flex gap-2'>
+              <button
+                type='button'
+                aria-label='Previous album track'
+                className='inline-flex min-h-11 items-center rounded-lg px-3 text-sm disabled:opacity-40'
+                disabled={currentIndex <= 0}
+                onClick={() => playIndex(currentIndex - 1)}
+              >
+                Previous
+              </button>
+              <button
+                type='button'
+                aria-label='Next album track'
+                className='inline-flex min-h-11 items-center rounded-lg px-3 text-sm disabled:opacity-40'
+                disabled={currentIndex >= version.tracks.length - 1}
+                onClick={() => playIndex(currentIndex + 1)}
+              >
+                Next
+              </button>
+            </div>
+          ) : (
+            <span className='text-muted-foreground text-xs'>
+              {playableIndexes.length} ready to play
+            </span>
+          )}
         </div>
-        <ol className='bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10'>
+        <ol
+          className={cn(
+            'bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10',
+            playerSurface === 'vote' && 'max-h-[32rem] overflow-y-auto'
+          )}
+        >
           {version.tracks.map((track, index) => {
             const choice = listenChoices?.[track.number];
             if (!isOnAlbumShortlist(track) && !choice?.manual && !choice?.hasBonus) return null;
             const selectedTake = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
             const currentOnShortlist = index === currentIndex && !isParkedTake(track, selectedTake);
+            const scoreProgress = scoredTakesOnTrack(displayedVotes, track.number, track.takes);
+            const scoreLabel =
+              playerSurface === 'vote' && scoreProgress.total > 0
+                ? `${formatNumberExact(scoreProgress.scored)} of ${formatNumberExact(scoreProgress.total)} scored`
+                : undefined;
             return (
               <li key={`${track.kind}-${track.number}-${track.title}`}>
                 <TrackRow
@@ -686,9 +763,13 @@ export function AlbumPlayer({
                   votes={displayedVotes}
                   versionSlug={version.slug}
                   showVotes={playerSurface !== 'listen'}
-                  showTakes={playerSurface !== 'listen'}
+                  showTakes={
+                    playerSurface !== 'listen' &&
+                    (playerSurface !== 'vote' || index === currentIndex)
+                  }
                   listenChoice={choice}
                   pendingLabel={pendingLabel}
+                  {...(scoreLabel === undefined ? {} : { scoreLabel })}
                   voter={voter}
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
@@ -1115,6 +1196,7 @@ function TrackRow({
   showTakes,
   listenChoice,
   pendingLabel,
+  scoreLabel,
   voter,
   onSelect,
   onSelectTake,
@@ -1131,6 +1213,7 @@ function TrackRow({
   showTakes: boolean;
   listenChoice: ListenChoice | undefined;
   pendingLabel: string;
+  scoreLabel?: string;
   voter: 'owner' | 'listener';
   onSelect: () => void;
   onSelectTake: (label: string) => void;
@@ -1164,6 +1247,9 @@ function TrackRow({
             <span className={cn('block text-sm break-words', !ready && 'text-muted-foreground')}>
               {track.title}
             </span>
+            {scoreLabel === undefined ? null : (
+              <span className='text-muted-foreground block text-xs'>{scoreLabel}</span>
+            )}
             {track.status === 'preview' ? (
               <span className='text-muted-foreground text-xs'>Preview</span>
             ) : null}

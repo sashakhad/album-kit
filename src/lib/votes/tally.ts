@@ -79,6 +79,20 @@ export function choiceForTake(
   return 0;
 }
 
+export function scoredTakesOnTrack(
+  snapshot: VoteSnapshot,
+  trackNumber: number,
+  takes: readonly { versionSlug: string; voteLabel: string }[]
+): { scored: number; total: number } {
+  let scored = 0;
+  for (const take of takes) {
+    if (choiceForTake(snapshot, trackNumber, take.versionSlug, take.voteLabel) !== 0) {
+      scored += 1;
+    }
+  }
+  return { scored, total: takes.length };
+}
+
 export function leadingTakes(byVersion: VersionTakeTallies): TakeLead[] {
   let bestCount: number | null = null;
   const leaders: TakeLead[] = [];
