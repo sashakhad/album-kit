@@ -417,6 +417,9 @@ function setup(options) {
     writeFileSync(path.join(root, '.album-site.json'), `${JSON.stringify(site, null, 2)}\n`);
   }
 
+  if (typeof siteUrl === 'string' && siteUrl.startsWith('https://')) {
+    console.log(`Milestone: Site created. ${siteUrl}`);
+  }
   console.log(JSON.stringify({ siteUrl, albumKey, project: name }));
 }
 

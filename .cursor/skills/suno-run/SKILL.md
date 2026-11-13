@@ -3,7 +3,7 @@ name: suno-run
 description: Preflight, authorize and run a track sheet's prompts through Suno; collect and upload every take without duplicate spending.
 ---
 
-# Suno run · version 3
+# Suno run · version 4
 
 Use Suno's official MCP connector first. A signed-in suno.com browser is the fallback only when the connector lacks a required capability. The user handles sign-in or captcha. Do not suggest an unverified free browser download. A take is a full mix; only a split produces stems.
 
@@ -13,7 +13,7 @@ Read the track sheet and the current owner Settings from `/api/owner/settings`. 
 
 Call the owner round endpoint `/api/owner/rounds` with the current capability facts, verified hosting charge and eligibility, exact track count, and each prompt's track number, lane, ID, Style and writer attribution. Supply the generation cost's model ID separately from the rate. The route rejects missing prompt slots and title jokes in Style. Its snapshot and estimate include prompts, generations, expected outputs, generation credits, `downloadsPerTake`, and total `downloads`. When `reviewTakes` is `public`, both download figures are zero. When `reviewTakes` is `private`, `downloadsPerTake` is the account's download-credit charge for one take and `downloads` is that charge times the expected take count. Show the owner those download credits per take in the round estimate before they approve a private round. Explain any model migration. Include separately billed Cursor prompt work and hosting eligibility. If generation credits are insufficient, stop before the first paid call. If review takes are private and download credits are short of the per-take charge, stop before the first paid call. For a one-track Small test at two prompts and one standard two-output generation each, the illustrative estimate is 20 generation credits. Public review adds no download credits. Private review adds the account's download credits per take (4 download credits when the rate is one per take). Verify actual account charging first.
 
-Show the complete estimate once and obtain an explicit allowance for this round. Then authorize the saved round through `/api/owner/rounds/<id>/authorize` with `{ "approved": true }`. Saving a limit in Settings or importing a preset is not authorization. Continue through generation, status checks, public stream storage or private take downloads, and voting within the allowance, without a second approval for those included steps.
+Show the complete estimate once and obtain an explicit allowance for this round. Tell the owner the estimate is ready before that question. Then authorize the saved round through `/api/owner/rounds/<id>/authorize` with `{ "approved": true }`. Tell the owner the round is authorized. Saving a limit in Settings or importing a preset is not authorization. Continue through generation, status checks, public stream storage or private take downloads, and voting within the allowance, without a second approval for those included steps.
 
 ## Execute and resume
 
@@ -39,4 +39,6 @@ Read `listenerVoting` and `visibility` from `pnpm album:settings` before sharing
 - Private: create a listener invitation with POST `/api/owner/invites` or Settings → Sharing. Its secret is in the URL fragment. It grants listener access only.
 - Unset: keep the album unshared until the owner chooses visibility. Owner links still work.
 
-If listening mode is blind, do not show identifying prompts or model details in chat, filenames, downloads or public routes. If the owner has already seen assignments, say the current round is exposed. Report meaningful events only: preparing, awaiting sign-in, generating after Suno acceptance, collecting audio, ready to listen, or a named blocker. Follow `publish` for sheet and log changes when permitted.
+Work one track at a time. After that track's generations are submitted, and again when its takes are stored, run `pnpm album:progress` and send its line to the owner before the next track. The line looks like `Round 1: 36/90 done, 72 of 180 takes ready.` Do not go silent until the whole album is done. When the streams for a batch are stored, say so. When the round is ready, say so and include the Compare takes link.
+
+If listening mode is blind, do not show identifying prompts or model details in chat, filenames, downloads or public routes. If the owner has already seen assignments, say the current round is exposed. Follow `publish` for sheet and log changes when permitted.

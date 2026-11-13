@@ -33,9 +33,11 @@ async function main() {
     route = '/api/owner/settings';
     method = 'PATCH';
     body = { patch: JSON.parse(readFileSync(0, 'utf8')) };
+  } else if (command === 'progress' && args.length === 0) {
+    route = '/api/owner/progress';
   } else {
     throw new Error(
-      'Use pnpm owner:link [/settings|/vote] or pnpm album:settings [--patch]. Pass a JSON patch on stdin.'
+      'Use pnpm owner:link [/settings|/vote], pnpm album:settings [--patch], or pnpm album:progress. Pass a JSON patch on stdin.'
     );
   }
 
@@ -56,6 +58,13 @@ async function main() {
         ? result.error
         : `The album site returned ${response.status}.`
     );
+  }
+  if (command === 'progress') {
+    if (typeof result?.line !== 'string' || result.line.length === 0) {
+      throw new Error('The album site did not return a progress line.');
+    }
+    process.stdout.write(`${result.line}\n`);
+    return;
   }
   if (command === 'link') {
     const link = new URL(result?.link);

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
 import { buildListeningQueue, findListenTrack } from '@/lib/album/listen';
 import { getListenConfig, getListenVersion, withPublishedPlayback } from '@/lib/album/listen-store';
 import { isOwner } from '@/lib/owner/auth';
@@ -10,13 +11,20 @@ import { isViewer } from '@/lib/owner/viewer';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
 import { withVisibleDetails } from '@/lib/votes/provenance';
+import { loadAlbumProgress } from '@/lib/rounds/load-progress';
+import { progressBannerLine } from '@/lib/rounds/progress';
 
 export const dynamic = 'force-dynamic';
 type ListenPageProps = { params: Promise<{ parts?: string[] }> };
 export const metadata: Metadata = { title: 'Listen' };
 
 export default async function ListenPage({ params }: ListenPageProps) {
-  const [owner, settings, viewer] = await Promise.all([isOwner(), loadSettings(), isViewer()]);
+  const [owner, settings, viewer, progress] = await Promise.all([
+    isOwner(),
+    loadSettings(),
+    isViewer(),
+    loadAlbumProgress(),
+  ]);
   if (!canViewAlbum(settings.visibility, owner, viewer)) notFound();
   const { parts = [] } = await params;
   if (parts.length > 1) notFound();
@@ -49,6 +57,7 @@ export default async function ListenPage({ params }: ListenPageProps) {
   const hasPreviews = listen.tracks.some(track => track.status === 'preview');
   return (
     <main className='mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-10'>
+      {owner ? <RoundProgressBanner line={progressBannerLine(progress)} /> : null}
       <header className='flex flex-wrap items-end justify-between gap-4'>
         <div>
           <h1 className='font-display text-3xl tracking-tight sm:text-4xl'>{config.title}</h1>

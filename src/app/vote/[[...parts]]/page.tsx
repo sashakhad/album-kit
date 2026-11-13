@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { getListenConfig } from '@/lib/album/listen-store';
@@ -18,6 +19,8 @@ import { loadSettings } from '@/lib/settings/store';
 import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
+import { loadAlbumProgress } from '@/lib/rounds/load-progress';
+import { progressBannerLine } from '@/lib/rounds/progress';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,7 +38,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function VotePage({ params }: VotePageProps) {
   const { parts = [] } = await params;
-  const [owner, settings, viewer] = await Promise.all([isOwner(), loadSettings(), isViewer()]);
+  const [owner, settings, viewer, progress] = await Promise.all([
+    isOwner(),
+    loadSettings(),
+    isViewer(),
+    loadAlbumProgress(),
+  ]);
+  const bannerLine = progressBannerLine(progress);
   if (
     !canCastVote({
       visibility: settings.visibility,
@@ -59,6 +68,7 @@ export default async function VotePage({ params }: VotePageProps) {
       signInHref: `/key?next=${encodeURIComponent(votePath(parts))}`,
       visibility: settings.visibility,
       listeningDetails: settings.listeningDetails,
+      bannerLine,
     });
   }
   const [config, { version, originalVersion, votes, blind, awaitingReveal }] = await Promise.all([
@@ -125,6 +135,7 @@ export default async function VotePage({ params }: VotePageProps) {
       initialTake={initialTake}
       showListenerScores={settings.listenerVoting}
       listenChoices={listenChoices}
+      bannerLine={bannerLine}
     />
   );
 }
@@ -136,6 +147,7 @@ async function listenerVotePage(args: {
   signInHref: string;
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
+  bannerLine: string | null;
 }) {
   const [config, { version, votes, awaitingReveal }] = await Promise.all([
     loadAlbumConfig(),
@@ -163,6 +175,7 @@ async function listenerVotePage(args: {
       track={track}
       initialTake={initialTake}
       signInHref={args.signInHref}
+      bannerLine={args.bannerLine}
     />
   );
 }
@@ -177,6 +190,7 @@ function VoteMain({
   signInHref,
   showListenerScores = false,
   listenChoices,
+  bannerLine = null,
 }: {
   version: AlbumVersion;
   votes: VoteSnapshot;
@@ -187,9 +201,11 @@ function VoteMain({
   signInHref?: string;
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
+  bannerLine?: string | null;
 }) {
   return (
     <main className='mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8'>
+      <RoundProgressBanner line={bannerLine} />
       <div className='mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-white/10 pb-2'>
         <p className='text-muted-foreground text-sm'>
           <span className='text-foreground font-medium'>
