@@ -19,6 +19,11 @@ const readyCommands = {
   'cursor --version': { ready: true, output: 'Cursor 1.0' },
   'vercel whoami': { ready: true, output: 'owner' },
   'gh auth status': { ready: true, output: '' },
+  'gh api user --hostname github.com --jq .login': { ready: true, output: 'owner' },
+  'gh api repos/owner/album --hostname github.com --jq .full_name': {
+    ready: true,
+    output: 'owner/album',
+  },
   'git remote get-url origin': { ready: true, output: 'https://github.com/owner/album.git' },
   'git remote get-url kit': { ready: true, output: 'https://github.com/sashakhad/album-kit' },
 };
@@ -78,6 +83,85 @@ describe('onboarding checkpoint', () => {
       })
     );
     expect(status.github.albumRemote).toBe(false);
+  });
+
+  it('requires the origin owner to match the signed-in GitHub account', () => {
+    const wrongAccount = probeReadiness(
+      root,
+      runner({
+        ...readyCommands,
+        'gh api user --hostname github.com --jq .login': {
+          ready: true,
+          output: 'someone-else',
+        },
+      })
+    );
+    expect(wrongAccount.github).toMatchObject({
+      signedIn: true,
+      account: 'someone-else',
+      albumRemote: false,
+    });
+    expect(
+      nextStep({
+        ...wrongAccount,
+        suno: { ...wrongAccount.suno, capabilitiesVerified: true },
+      })
+    ).toContain('owned by someone-else');
+
+    const unverifiedAccount = probeReadiness(
+      root,
+      runner({
+        ...readyCommands,
+        'gh api user --hostname github.com --jq .login': { ready: false, output: '' },
+      })
+    );
+    expect(unverifiedAccount.github.albumRemote).toBe(false);
+    expect(
+      nextStep({
+        ...unverifiedAccount,
+        suno: { ...unverifiedAccount.suno, capabilitiesVerified: true },
+      })
+    ).toContain('gh api user');
+  });
+
+  it('rejects non-GitHub origins and accepts the signed-in owner over SSH', () => {
+    const nonGithub = probeReadiness(
+      root,
+      runner({
+        ...readyCommands,
+        'git remote get-url origin': {
+          ready: true,
+          output: 'https://github.com.evil.example/owner/album.git',
+        },
+      })
+    );
+    expect(nonGithub.github.albumRemote).toBe(false);
+
+    const ssh = probeReadiness(
+      root,
+      runner({
+        ...readyCommands,
+        'git remote get-url origin': {
+          ready: true,
+          output: 'git@github.com:OWNER/album.git',
+        },
+      })
+    );
+    expect(ssh.github.albumRemote).toBe(true);
+  });
+
+  it('does not count an owner-named origin until GitHub confirms the repository exists', () => {
+    const missingRepo = probeReadiness(
+      root,
+      runner({
+        ...readyCommands,
+        'gh api repos/owner/album --hostname github.com --jq .full_name': {
+          ready: false,
+          output: '',
+        },
+      })
+    );
+    expect(missingRepo.github.albumRemote).toBe(false);
   });
 
   it('resumes in one step after recorded live checks and invalidates a changed site', async () => {
