@@ -39,7 +39,7 @@ describe('KeyForm', () => {
     vi.stubGlobal('location', { hash: '', pathname: '/key', search: '', replace });
     render(<KeyForm next='/vote' />);
 
-    await user.type(screen.getByLabelText('Album key'), 'album-secret');
+    await user.type(screen.getByLabelText('Owner password'), 'album-secret');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(await screen.findByRole('region', { name: 'Merge listener votes' })).toHaveTextContent(
@@ -59,7 +59,7 @@ describe('KeyForm', () => {
     vi.stubGlobal('location', { hash: '', pathname: '/key', search: '', replace });
     render(<KeyForm next='/settings' />);
 
-    await user.type(screen.getByLabelText('Album key'), 'album-secret');
+    await user.type(screen.getByLabelText('Owner password'), 'album-secret');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
     await user.click(await screen.findByRole('button', { name: 'Keep them separate' }));
 
@@ -73,7 +73,7 @@ describe('KeyForm', () => {
     vi.stubGlobal('location', { hash: '', pathname: '/key', search: '', replace });
     render(<KeyForm next='/settings' />);
 
-    await user.type(screen.getByLabelText('Album key'), 'album-secret');
+    await user.type(screen.getByLabelText('Owner password'), 'album-secret');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     expect(replace).toHaveBeenCalledWith('/settings');
