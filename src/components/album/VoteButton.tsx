@@ -18,7 +18,6 @@ export function VoteButton({
   initialValue,
   onSnapshot,
   variant = 'panel',
-  onScoreClick,
 }: {
   trackNumber: number;
   versionSlug: string;
@@ -29,7 +28,6 @@ export function VoteButton({
   initialValue: number;
   onSnapshot?: (snapshot: VoteSnapshot) => void;
   variant?: 'panel' | 'inline';
-  onScoreClick?: () => void;
 }) {
   const [count, setCount] = useState(initialCount);
   const [myScore, setMyScore] = useState(initialValue);
@@ -111,28 +109,14 @@ export function VoteButton({
         data-inline-vote
       >
         {stepButton(-1)}
-        {onScoreClick === undefined ? (
-          <span
-            aria-live='polite'
-            aria-label={`Score ${scoreLabel}`}
-            title={scoreLabel}
-            className='flex h-11 min-w-11 shrink-0 items-center justify-center px-2 font-mono text-sm tabular-nums'
-          >
-            {scoreText}
-          </span>
-        ) : (
-          <button
-            type='button'
-            onClick={onScoreClick}
-            aria-expanded
-            aria-live='polite'
-            aria-label={`Hide score controls for take ${displayLabel}, score ${scoreLabel}`}
-            title={scoreLabel}
-            className='flex h-11 min-w-11 shrink-0 items-center justify-center px-2 font-mono text-sm tabular-nums'
-          >
-            {scoreText}
-          </button>
-        )}
+        <span
+          aria-live='polite'
+          aria-label={`Score ${scoreLabel}`}
+          title={scoreLabel}
+          className='flex h-11 min-w-11 shrink-0 items-center justify-center px-2 font-mono text-sm tabular-nums'
+        >
+          {scoreText}
+        </span>
         {stepButton(1)}
         {error ? (
           <span role='alert' className='text-destructive basis-full px-2 pb-1 text-xs'>

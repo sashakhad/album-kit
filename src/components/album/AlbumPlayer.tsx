@@ -1268,12 +1268,14 @@ function ListenerScore({
   if (voter !== 'owner' || votes.listenerTallies === undefined) {
     return null;
   }
-  const score = formatSignedScore(
-    votes.listenerTallies[trackNumber]?.[versionSlug]?.[takeLabel] ?? 0
-  );
+  const raw = votes.listenerTallies[trackNumber]?.[versionSlug]?.[takeLabel] ?? 0;
+  if (raw === 0) {
+    return null;
+  }
+  const score = formatSignedScore(raw);
   return (
     <span
-      className='text-muted-foreground text-xs leading-snug tabular-nums'
+      className='text-muted-foreground block text-left text-xs leading-snug whitespace-nowrap tabular-nums'
       aria-label={`Listener votes ${score} for take ${displayLabel}`}
     >
       Listeners {score}
@@ -1331,8 +1333,7 @@ function TrackRow({
 }) {
   const ready = track.audioUrl !== null;
   const showTakePills = showTakes && track.takes.length > 0;
-  const takes =
-    listenChoice === undefined ? track.takes : rankListenTakes(track.takes, takeCounts).ordered;
+  const takes = takesInLabelOrder(track.takes);
 
   return (
     <div data-track-row className={cn('@container min-w-0 px-4 py-4', isCurrent && 'bg-white/6')}>
@@ -1419,24 +1420,18 @@ function TakeScoreChips({
   onSelect: (label: string) => void;
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
 }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-
   return (
     <div className='mt-2 flex min-w-0 flex-wrap items-start gap-2'>
       {takes.map(take => {
         const id = `${take.versionSlug}:${take.voteLabel}`;
         const selected = take.label === selectedLabel;
         const count = counts[take.label] ?? 0;
-        const open = openId === id;
         return (
-          <div
-            key={id}
-            data-take-chip
-            className='flex max-w-full min-w-0 flex-col items-start gap-1'
-          >
+          <div key={id} className='flex max-w-full min-w-0 flex-col items-start gap-1'>
             <div
+              data-take-chip
               className={cn(
-                'flex w-fit max-w-full flex-wrap items-stretch rounded-lg border',
+                'flex w-fit max-w-full items-stretch overflow-hidden rounded-lg border',
                 selected ? 'border-primary' : 'border-white/15'
               )}
             >
@@ -1455,7 +1450,7 @@ function TakeScoreChips({
               >
                 {take.label}
               </button>
-              {open && voting ? (
+              {voting ? (
                 <VoteButton
                   variant='inline'
                   trackNumber={track.number}
@@ -1471,21 +1466,7 @@ function TakeScoreChips({
                     take.voteLabel
                   )}
                   onSnapshot={onVoteSnapshot}
-                  onScoreClick={() => setOpenId(current => (current === id ? null : id))}
                 />
-              ) : voting ? (
-                <button
-                  type='button'
-                  aria-expanded={false}
-                  aria-label={`Show score controls for take ${take.label}, score ${formatSignedScore(count)}`}
-                  onClick={() => setOpenId(id)}
-                  className={cn(
-                    'min-h-11 min-w-11 shrink-0 border-l border-white/15 px-2 font-mono text-sm tabular-nums',
-                    count === 0 && 'opacity-50'
-                  )}
-                >
-                  {formatCompactScore(count)}
-                </button>
               ) : (
                 <span
                   aria-label={`Score ${formatSignedScore(count)}`}
@@ -1511,6 +1492,17 @@ function TakeScoreChips({
       })}
     </div>
   );
+}
+
+function takesInLabelOrder(takes: readonly AlbumTake[]): AlbumTake[] {
+  return [...takes].sort((left, right) => compareTakeLabel(left.label, right.label));
+}
+
+function compareTakeLabel(left: string, right: string): number {
+  if (left.length !== right.length) {
+    return left.length - right.length;
+  }
+  return left.localeCompare(right);
 }
 
 function SeekBar({
