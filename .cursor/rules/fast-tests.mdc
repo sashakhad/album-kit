@@ -1,0 +1,18 @@
+---
+globs:
+alwaysApply: true
+---
+
+# Fast tests only
+
+CI is lint, type-check, fast unit tests, and build. Keep it that way.
+
+## Do not add
+
+- Cypress, Playwright, Puppeteer, or any browser driver
+- An end-to-end or browser suite
+- Slow or brittle tests, including tests that depend on a live browser, network timing, or a deployed site
+
+## Before pushing
+
+Run `pnpm exec tsc --noEmit` locally and wait until it passes. Do not push a branch on a failed type-check.
