@@ -48,7 +48,7 @@ describe('POST /api/owner/session', () => {
   it('returns 401 for a wrong or missing key', async () => {
     const wrong = await POST(postKey({ key: 'nope' }));
     expect(wrong.status).toBe(401);
-    expect(await wrong.json()).toEqual({ error: 'Wrong key' });
+    expect(await wrong.json()).toEqual({ error: 'Wrong password' });
     expect(wrong.headers.get('set-cookie')).toBeNull();
 
     expect((await POST(postKey({}))).status).toBe(401);

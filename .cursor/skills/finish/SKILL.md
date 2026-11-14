@@ -14,7 +14,7 @@ Compare takes is where the owner listens, scores, and controls which take plays 
 
 ## Steps
 
-1. Open Compare takes in the owner’s session. For a private chat handoff, run `pnpm owner:link /vote` in the album checkout. Paste both the `Site:` line and the `Owner:` line. The owner taps **Continue as owner** and lands on Compare takes. Every message includes the site URL. Do not paste the permanent album key into chat or a query string.
+1. Open Compare takes in the owner’s session. For a private chat handoff, run `pnpm owner:link /vote` in the album checkout. Paste both the `Site:` line and the `Owner:` line. The owner taps **Continue as owner** and lands on Compare takes. Every message includes the site URL. The owner can also open Compare takes by entering their password at `/key`. Do not paste the owner password into chat or a query string.
 2. The highest scores appear first for each track. The On Listen line shows the takes listeners will hear.
 3. To choose a specific take, select it and click **Use Take A on Listen** (with the selected letter). **Follow scores** clears that choice and returns to automatic selection. The server resolves blind aliases. A saved choice overrides file-backed picks in `album/album.json`.
 4. Open `<siteUrl>/listen` and verify that the chosen track plays from its stored stream, or from its uploaded file when it has no stream. For a public site, check without the key that pinned audio plays and an unpinned canonical file does not. For a private site, check with a valid invited-listener session; signed-out pages and the take list must stay closed.

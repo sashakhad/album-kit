@@ -1,5 +1,10 @@
+import { ownerPageLabel } from '@/lib/owner/destinations';
 import { canViewAlbum } from '@/lib/settings/access';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
+
+export function ownerSignInPrompt(next: string): string {
+  return `This page is for the album owner. Enter your owner password to open ${ownerPageLabel(next)}. This browser stays signed in. If you don’t remember the password, ask Album Bot to set a new one. You don’t need the old password.`;
+}
 
 export function keyPageCopy(args: {
   next: string;

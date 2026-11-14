@@ -3,7 +3,7 @@ name: start-here
 description: First run of a new album. Collect essentials, set up the user's project, connect Suno, and prepare the first round.
 ---
 
-# Start here · version 6
+# Start here · version 7
 
 ## Readiness and resume
 
@@ -31,12 +31,12 @@ The user's explicit request overrides these presets. The default site Settings p
 
 1. **“Should the album site be public, or private for you and people you invite?”**
    - Public means anyone can open the home page and Listen. Listen plays the owner’s chosen or highest-scored takes. Enabling listener voting also lets people preview current takes.
-   - Private means only the owner and people who open an invitation can see the home page and Listen. An invitation does not include the album key.
+   - Private means only the owner and people who open an invitation can see the home page and Listen. An invitation does not include the owner password.
    - Neither answer lets other people vote, upload, move takes, or open Studio or Settings.
      Leave visibility unset until answered. Private requires protected pages and private storage. Do not promise private sharing until it has been verified on a second browser.
 
 2. **“Who should be able to vote on takes: only you, or you and listeners?”**
-   - Only the owner, the default: send an owner link from `pnpm owner:link /vote` in the owner’s private chat. They tap Continue as owner. Never paste the permanent album key into chat or a URL.
+   - Only the owner, the default: they sign in at `/key` with the owner password they picked. A one-tap link from `pnpm owner:link /vote` is only a fallback. Never paste the owner password into chat or a URL.
    - Listeners too: people who can already hear the album can score takes. On a public album that is any visitor. On a private album that is someone with an invitation. Their scores stay on separate ballots and do not change the owner's scores, picks, pins, or rounds. The owner still pins takes, moves them, and uses Studio and Settings.
 
 3. **How should review takes play?** Ask this as one single-choice question widget card, with the recommended option first. Before the card, say:
@@ -62,7 +62,7 @@ For Studio, run `pnpm onboarding path studio`. Check Cursor installation and a c
 
 Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
 
-Run `pnpm setup:site --name <album-slug>` for the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. Setup gives the owner key and URL; the key stays outside git and out of chat. As soon as setup prints `Milestone: Site created.` and the site URL, send that sentence to the owner. Do not wait for prompts or generation, and do not paste the JSON line that follows it. That line contains the album key. Then run `pnpm owner:link /settings` from the album checkout. It prints `Site:` and `Owner:`. Offer **Open album settings** in the owner’s private chat and paste both lines in that same message. Every setup and round message includes the site URL. When visibility is private or still unset, that same message includes the owner link. The owner link's secret stays in the URL fragment. Never put the album key in the message or in a query string. The link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Confirm the owner can reach Settings. After settings are saved, say which values were saved. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. In Settings, **Owner access** can create another owner link or reveal the album key. The website and `pnpm album:settings` use the same authenticated `/api/owner/settings` record in the album database. Set visibility and `listenerVoting` only after the owner has answered. Set `reviewTakes` from the question widget card, and leave the default `public` if they have not answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass.
+Ask the owner to pick an owner password with a secret card before `pnpm setup:site --name <album-slug> --password-stdin`. Pipe the password on stdin. Do not generate one, pass it as an argument, or paste it into chat. The password is stored as `ALBUM_KEY` and in ignored `.album-key`. If `ALBUM_KEY` already exists, leave it; an owner-chosen password already on the project keeps working. Setup also creates the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. As soon as setup prints `Milestone: Site created.` and the site URL, send that sentence to the owner. Do not wait for prompts or generation, and do not paste the JSON line that follows it. That line does not contain the password. Tell the owner to open `/key`, which is labeled **Owner password**, and enter the password they picked. This browser stays signed in. Every setup and round message includes the site URL. When visibility is private or still unset, include the site URL. Send `pnpm owner:link /settings` only if they cannot type the password. It prints `Site:` and `Owner:`. The owner link's secret stays in the URL fragment. Never put the owner password in the message or in a query string. The link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Confirm the owner can reach Settings. After settings are saved, say which values were saved. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. In Settings, **Owner access** can change the password, create a fallback owner link, or show the password. To reset without the old password, pipe a new one to `pnpm owner:password` and redeploy. The website and `pnpm album:settings` use the same authenticated `/api/owner/settings` record in the album database. Set visibility and `listenerVoting` only after the owner has answered. Set `reviewTakes` from the question widget card, and leave the default `public` if they have not answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass.
 
 After the owner actually reaches Settings, run `pnpm onboarding confirm-owner-access`. This stores the current site URL so a later project change makes that checkpoint pending again. Resume an interrupted Vercel or Neon setup by checking the live account and rerunning `pnpm setup:site`; its existing project and environment checks avoid starting over.
 
@@ -74,6 +74,6 @@ Before paid work, use `suno-run` preflight to resolve a supported model and show
 - The album brief reflects the user's actual input; the prompt count matches the selected scope.
 - Suno capability checks were made in the connected account; no retired model was assumed.
 - The owner can reach Settings. Publication visibility and listener voting are the owner's answers, and stay unset or off if they have not answered. `reviewTakes` is `public` unless the owner chose private on the question widget card.
-- Owner handoff links open the requested page as owner. Use listener links only for sharing. Do not paste the album key.
+- The owner can reach Settings with the password they picked. Owner handoff links are a fallback and open the requested owner page, including `/stats`. Use listener links only for sharing. Do not paste the owner password.
 - The site, storage and database belong to the user; private access works before claiming privacy.
 - Any unresolved account connection or publication block is named precisely.

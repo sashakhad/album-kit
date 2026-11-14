@@ -8,7 +8,7 @@ import type { RoundEstimate } from '@/lib/rounds/preflight';
 export const runtime = 'nodejs';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const { id } = await context.params;
   const round = await prisma.generationRound.findUnique({ where: { id } });

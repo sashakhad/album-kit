@@ -56,7 +56,7 @@ export function formatProgressReport({ siteUrl, progress }) {
 }
 
 /**
- * Chat-ready lines. The album key is never one of them.
+ * Chat-ready lines. The owner password is never one of them.
  * @param {{ siteUrl: string, progressLine?: string, ownerLink?: string }} lines
  */
 export function formatChatLines({ siteUrl, progressLine, ownerLink }) {
@@ -108,13 +108,13 @@ async function main() {
     const progress = await readProgress(site, key);
     const text = formatProgressReport({ siteUrl, progress });
     if (text.includes(key)) {
-      throw new Error('Refusing to print progress that contains the album key.');
+      throw new Error('Refusing to print progress that contains the owner password.');
     }
     process.stdout.write(text);
     return;
   } else {
     throw new Error(
-      'Use pnpm owner:link [/settings|/vote], pnpm album:settings [--patch], or pnpm album:progress. Pass a JSON patch on stdin.'
+      'Use pnpm owner:link [/settings|/vote|/stats|/status], pnpm album:settings [--patch], or pnpm album:progress. Pass a JSON patch on stdin.'
     );
   }
 

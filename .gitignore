@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 !.env.example
 
-# album key (only on the bot's computer)
+# owner password (only on the bot's computer)
 .album-key
 .album-onboarding.json
 

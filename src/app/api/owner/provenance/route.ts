@@ -30,7 +30,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const raw: unknown = await request.json().catch(() => null);
   const parsed = schema.safeParse(raw);

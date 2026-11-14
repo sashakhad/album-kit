@@ -40,7 +40,7 @@ export function SiteHeader({
             </NavPill>
           ) : (
             <NavPill href='/key' active={isSection(pathname, '/key')}>
-              Owner sign-in
+              Owner password
             </NavPill>
           )}
           {showVote ? (

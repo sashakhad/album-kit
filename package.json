@@ -29,6 +29,7 @@
     "setup:site": "node scripts/setup.mjs",
     "onboarding": "node scripts/onboarding.mjs",
     "owner:link": "node scripts/album-owner.mjs link",
+    "owner:password": "node scripts/owner-password.mjs",
     "album:settings": "node scripts/album-owner.mjs settings",
     "album:progress": "node scripts/album-owner.mjs progress",
     "album:github": "node scripts/album-github.mjs",

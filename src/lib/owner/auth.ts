@@ -4,6 +4,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { cookies } from 'next/headers';
 
+import { loadOwnerPassword, ownerSecrets } from '@/lib/owner/password';
+
 export const OWNER_VISITOR_ID = 'owner';
 export const OWNER_COOKIE = 'album_owner';
 
@@ -18,9 +20,9 @@ export type OwnerCookieOptions = {
   maxAge: number;
 };
 
+/** The password currently in use. Call loadOwnerPassword first so a settings change is visible. */
 export function albumKey(): string | null {
-  const key = process.env.ALBUM_KEY;
-  return key === undefined || key.length === 0 ? null : key;
+  return ownerSecrets()[0] ?? null;
 }
 
 export function ownerCookieValue(key: string): string {
@@ -47,34 +49,32 @@ export function safeEqual(left: string, right: string): boolean {
 }
 
 export function isAlbumKey(candidate: unknown): boolean {
-  const key = albumKey();
-  return key !== null && typeof candidate === 'string' && safeEqual(candidate, key);
+  return (
+    typeof candidate === 'string' && ownerSecrets().some(secret => safeEqual(candidate, secret))
+  );
 }
 
-export function isOwnerRequest(request: Request): boolean {
-  const key = albumKey();
-  if (key === null) {
-    return false;
-  }
+export async function isOwnerRequest(request: Request): Promise<boolean> {
+  await loadOwnerPassword();
+  const secrets = ownerSecrets();
+  if (secrets.length === 0) return false;
 
   const bearer = /^Bearer\s+(.+)$/i.exec(request.headers.get('authorization')?.trim() ?? '')?.[1];
-  if (bearer !== undefined && safeEqual(bearer, key)) {
-    return true;
-  }
+  if (bearer !== undefined && secrets.some(secret => safeEqual(bearer, secret))) return true;
 
   const cookie = readCookie(request.headers.get('cookie'), OWNER_COOKIE);
-  return cookie !== null && safeEqual(cookie, ownerCookieValue(key));
+  return cookie !== null && secrets.some(secret => safeEqual(cookie, ownerCookieValue(secret)));
 }
 
 export async function isOwner(): Promise<boolean> {
-  const key = albumKey();
-  if (key === null) {
-    return false;
-  }
-
+  await loadOwnerPassword();
+  const secrets = ownerSecrets();
+  if (secrets.length === 0) return false;
   const store = await cookies();
   const cookie = store.get(OWNER_COOKIE)?.value;
-  return cookie !== undefined && safeEqual(cookie, ownerCookieValue(key));
+  return (
+    cookie !== undefined && secrets.some(secret => safeEqual(cookie, ownerCookieValue(secret)))
+  );
 }
 
 export function safeNextPath(next: string | undefined, fallback = '/vote'): string {
@@ -91,12 +91,13 @@ export function safeNextPath(next: string | undefined, fallback = '/vote'): stri
   return next;
 }
 
-export function requireOwner(request: Request): Response | null {
-  if (albumKey() === null) {
+export async function requireOwner(request: Request): Promise<Response | null> {
+  await loadOwnerPassword();
+  if (ownerSecrets().length === 0) {
     return Response.json({ error: 'ALBUM_KEY is not set' }, { status: 503 });
   }
-  if (!isOwnerRequest(request)) {
-    return Response.json({ error: 'Owner key required' }, { status: 401 });
+  if (!(await isOwnerRequest(request))) {
+    return Response.json({ error: 'Owner password required' }, { status: 401 });
   }
   return null;
 }

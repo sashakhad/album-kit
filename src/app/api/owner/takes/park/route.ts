@@ -14,7 +14,7 @@ const parkBodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) {
     return denied;
   }

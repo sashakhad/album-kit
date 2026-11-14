@@ -8,11 +8,12 @@ import {
   ensureGitHubRepo,
   EXIT,
   ExitError,
-  generateAlbumKey,
   isTransientDeployError,
   readEnvFile,
+  rotateAlbumKey,
   slugify,
   usableAlbumKey,
+  usableOwnerPassword,
 } from '../../../scripts/setup.mjs';
 
 type Result = { status: number; stdout: string; stderr: string; shown: string };
@@ -293,13 +294,24 @@ describe('disconnectKitRepo', () => {
 });
 
 describe('setup helpers', () => {
-  it('makes keys from three different words and two digits', () => {
-    for (let index = 0; index < 50; index += 1) {
-      const key = generateAlbumKey();
-      expect(key).toMatch(/^[a-z]+-[a-z]+-[a-z]+-\d{2}$/);
-      const words = key.split('-').slice(0, 3);
-      expect(new Set(words).size).toBe(3);
-    }
+  it('accepts an owner-chosen password and rejects a generated-looking placeholder', () => {
+    expect(usableOwnerPassword('shrimp-club')).toBe('shrimp-club');
+    expect(usableOwnerPassword('  correct horse  ')).toBe('correct horse');
+    expect(usableOwnerPassword('no')).toBeNull();
+    expect(usableOwnerPassword('[SENSITIVE]')).toBeNull();
+    expect(usableOwnerPassword('line\nbreak')).toBeNull();
+    expect(usableAlbumKey('dev')).toBe('dev');
+  });
+
+  it('replaces ALBUM_KEY without reading the old password', () => {
+    const { runner, calls } = fakeRunner({}, true);
+    expect(rotateAlbumKey(runner, 'shrimp-club')).toEqual({
+      updated: ['production', 'preview', 'development'],
+      cli: true,
+    });
+    expect(calls.some(call => call.includes('shrimp-club'))).toBe(false);
+    expect(calls.filter(call => call.includes('env rm ALBUM_KEY'))).toHaveLength(3);
+    expect(calls.filter(call => call.includes('--value <owner password>'))).toHaveLength(3);
   });
 
   it('slugifies album titles into project names', () => {
