@@ -634,9 +634,8 @@ describe('AlbumPlayer', () => {
       />
     );
 
-    expect(
-      screen.getByLabelText('Listener score +4, separate from your score')
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Listener votes +4 for take A')).toBeInTheDocument();
+    expect(screen.getByText('Listeners +4')).toBeInTheDocument();
   });
 
   it('keeps other listener scores off a listener ballot', () => {
