@@ -35,6 +35,20 @@ export function formatSignedScore(value: number): string {
   return formatNumberExact(value);
 }
 
+/** Signed score with one decimal when it is not a whole number. +1.5, +2, -0.4, 0. */
+export function formatAverageScore(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  const absolute = Math.abs(rounded);
+  const body = Number.isInteger(rounded) ? formatNumberExact(absolute) : absolute.toFixed(1);
+  if (rounded > 0) {
+    return `+${body}`;
+  }
+  if (rounded < 0) {
+    return `-${body}`;
+  }
+  return '0';
+}
+
 /**
  * Compact currency with $ prefix.
  * Under $1k: full. $1k–$9.9k: 1 decimal k. $10k+: whole k. $1M+: 1 decimal M. $1B+: 1 decimal B.
