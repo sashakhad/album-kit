@@ -127,6 +127,50 @@ describe('AlbumPlayer', () => {
     expect(screen.getByText('Prompt · Take B')).toBeInTheDocument();
   });
 
+  it('shows the generation prompt over revised sheet text and labels sheet-only text', async () => {
+    const user = userEvent.setup();
+    const track = sampleVersion.tracks[0]!;
+    render(
+      <AlbumPlayer
+        version={{
+          ...sampleVersion,
+          tracks: [
+            {
+              ...track,
+              takes: [
+                {
+                  ...track.takes[0]!,
+                  prompt: 'Revised sheet text',
+                  details: {
+                    style: 'Recorded generation text',
+                    writer: 'Grok Bot · model undisclosed',
+                    sunoModel: 'v6',
+                    promptSource: 'generation',
+                  },
+                },
+                {
+                  ...track.takes[1]!,
+                  prompt: 'Sheet-only text',
+                  details: {
+                    style: 'Prompt record unavailable',
+                    writer: 'Writer unverified',
+                    sunoModel: 'Suno model unverified',
+                    promptSource: 'sheet',
+                  },
+                },
+              ],
+            },
+          ],
+        }}
+      />
+    );
+    expect(screen.getByText('Recorded generation text')).toBeInTheDocument();
+    expect(screen.queryByText('Revised sheet text')).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Take B' })[0]!);
+    expect(screen.getByText('Sheet prompt (unverified) · Take B')).toBeInTheDocument();
+    expect(screen.getByText('Sheet-only text')).toBeInTheDocument();
+  });
+
   it('shows audio failures and lets the listener retry', async () => {
     const user = userEvent.setup();
     render(<AlbumPlayer version={sampleVersion} />);

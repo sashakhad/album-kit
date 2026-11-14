@@ -17,6 +17,7 @@ export type AlbumTake = {
     style: string;
     writer: string;
     sunoModel: string;
+    promptSource?: 'generation' | 'sheet' | 'unavailable';
     parentTakeFilename?: string;
     promptInstructions?: string;
   };

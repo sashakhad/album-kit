@@ -215,7 +215,9 @@ export function AlbumPlayer({
   const hasAudio = playableIndexes.length > 0;
   const hasVariations = version.tracks.some(track => track.takes.length > 1);
   const currentPrompt =
-    currentTake?.prompt ?? currentTake?.details?.style ?? currentTrack?.prompt ?? null;
+    currentTake?.details?.promptSource === 'generation'
+      ? currentTake.details.style
+      : (currentTake?.prompt ?? currentTake?.details?.style ?? currentTrack?.prompt ?? null);
   const activeCount =
     currentTrack === null || currentTake === null
       ? 0
@@ -777,7 +779,14 @@ export function AlbumPlayer({
         {currentPrompt !== null ? (
           <details className='group rounded-xl border border-white/12 bg-white/3' data-prompt>
             <summary className='flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium [&::-webkit-details-marker]:hidden'>
-              <span>Prompt{currentTake === null ? '' : ` · Take ${currentTake.label}`}</span>
+              <span>
+                {currentTake?.details?.promptSource === 'sheet'
+                  ? 'Sheet prompt (unverified)'
+                  : currentTake?.details?.promptSource === 'unavailable'
+                    ? 'Prompt record unavailable'
+                    : 'Prompt'}
+                {currentTake === null ? '' : ` · Take ${currentTake.label}`}
+              </span>
               <ChevronDown className='size-4 transition-transform group-open:rotate-180' />
             </summary>
             <div className='space-y-3 px-4 pb-4'>

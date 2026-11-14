@@ -22,6 +22,7 @@ export async function withVisibleDetails(
           style: 'Prompt record unavailable',
           writer: 'Writer unverified',
           sunoModel: 'Suno model unverified',
+          promptSource: take.prompt === undefined ? 'unavailable' : 'sheet',
         },
       };
     const writer = maskPromptModels
@@ -33,10 +34,13 @@ export async function withVisibleDetails(
           : 'Cursor · model unverified';
     return {
       ...take,
+      // The sheet is editable; the generation record is the prompt tied to this audio file.
+      prompt: row.style,
       details: {
         style: row.style,
         writer,
         sunoModel: row.sunoModel ?? 'Suno model unverified',
+        promptSource: 'generation',
         ...(row.parentTakeFilename ? { parentTakeFilename: row.parentTakeFilename } : {}),
         ...(row.promptInstructions ? { promptInstructions: row.promptInstructions } : {}),
       },
