@@ -3,7 +3,7 @@ name: publish
 description: Use after any change under album/, or when the user wants the album backed up to GitHub or Cursor Origin. It commits the album, redeploys the site and gives the site URL.
 ---
 
-# Publish · version 5
+# Publish · version 6
 
 Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio. Public review takes play from stored Suno MP4 stream URLs. Review takes the owner kept private play from their uploaded files. A private album still gates the take list behind the key. Suno CDN URLs are public, so a private album that streams published clips exposes only unguessable clip URLs to key holders. A clip that is private on Suno stops playing from its stream.
 
@@ -64,9 +64,7 @@ Check the owner's publication choice before sharing album content. A prepared de
    pnpm publish:album "<message>"
    ```
 
-   It commits `album/` and `.album-site.json` as `album: <message>`, pushes if the album has a git home, deploys and prints the site URL. With `"deploy": "git"` in `.album-site.json`, Vercel builds from the push, so the change shows a minute or two later. With `"deploy": "cli"`, it first checks that you're signed in to Vercel, and if the newest commit isn't by that account, it switches the folder's git user to the account and adds an empty commit, `album: deploy as <username>`.
-
-   If the Vercel CLI prints `fetch failed` or another network error, it retries up to 3 times and says `Retrying`. Tell the owner it is retrying. Do not stop after the first failure. If it exits with code 4, it couldn't read the signed-in Vercel account. Run `npx vercel login`, ask the user to take over the browser and sign in, then publish again.
+   It commits `album/` and `.album-site.json` as `album: <message>`, pushes to `origin`, and prints the site URL. `.album-site.json` records `"deploy": "git"`. Vercel builds that push, so the change shows a minute or two later. Do not run `vercel deploy` and do not upload project files one by one. If `origin` is missing, it exits 5 and names that blocker.
 
 4. Check that the site answers:
 
@@ -86,7 +84,7 @@ New albums get a user-owned GitHub repository during `start-here`. Use this sect
 gh repo create <project> --private --source . --remote origin --push
 ```
 
-With the GitHub plugin instead, create the private repo there, then run `git remote add origin <repo URL>` and `git push -u origin main`. Keep `"deploy": "cli"`: the site still deploys with the Vercel CLI, and every publish now pushes too.
+With the GitHub plugin instead, create the private repo there, then run `git remote add origin <repo URL>` and `git push -u origin main`. Set `"deploy": "git"` in `.album-site.json`. The push is the deploy.
 
 **Cursor Origin.** Check whether the Origin command is on this computer with `command -v origin`.
 
@@ -107,7 +105,7 @@ With the GitHub plugin instead, create the private repo there, then run `git rem
 
 - **If it prints nothing,** open https://cursor.com/codebase in your browser and ask the user to take over, sign in, click **+New** and create a private repo named `<project>`. The page then shows the command that installs `origin` and the commands that push to the new repo. Run them exactly as the page shows them, from `~/album`. When `origin auth login` runs, ask the user to take over the browser for the sign-in.
 
-Keep `"deploy": "cli"`. Origin repos only deploy on push with Vercel Pro. If the install or the sign-in fails, tell the user, remove any `origin` remote you added with `git remote remove origin`, and leave the album as it was.
+Set `"deploy": "git"`. The push is the deploy. If the install or the sign-in fails, tell the user, remove any `origin` remote you added with `git remote remove origin`, and leave the album as it was.
 
 ### Pick up kit updates
 
@@ -128,7 +126,7 @@ On albums that started from the kit (paths (a) and (c) in `start-here`), run `gi
 ## Stop and ask when
 
 - The album.json check prints a problem you can't fix from what the user told you.
-- `pnpm publish:album` fails with code 1, or with code 4 again after the user signed in. Show the user its last lines. Never force-push.
+- `pnpm publish:album` fails with code 1 or code 5. Show the user its last lines. Never force-push. Do not run `vercel deploy` instead.
 - A push is rejected because the remote has commits this folder doesn't have.
 - The site answers `500` after a publish.
 - Making the repo would make it public, or needs a paid plan.

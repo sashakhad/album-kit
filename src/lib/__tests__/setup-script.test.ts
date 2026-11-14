@@ -1,14 +1,11 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
-  deployAsAccountOwner,
-  deployProduction,
   disconnectKitRepo,
   ensureGitHubRepo,
   EXIT,
   ExitError,
-  isTransientDeployError,
   readEnvFile,
   rotateAlbumKey,
   slugify,
@@ -41,130 +38,6 @@ function fakeRunner(responses: Record<string, Partial<Result>>, dryRun = false) 
     },
   };
 }
-
-const USER = JSON.stringify({
-  user: { email: 'Owner@Example.com', name: 'Album Owner', username: 'album-owner' },
-});
-
-describe('deployAsAccountOwner', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('stops with exit code 4 when the account email cannot be read', () => {
-    const failed = fakeRunner({ 'npx --yes vercel@65.11.0 api': { status: 1 } });
-    expect(() => deployAsAccountOwner(failed.runner)).toThrow(
-      expect.objectContaining({ code: EXIT.noAccountEmail })
-    );
-
-    const noEmail = fakeRunner({
-      'npx --yes vercel@65.11.0 api': { stdout: JSON.stringify({ user: { username: 'x' } }) },
-    });
-    expect(() => deployAsAccountOwner(noEmail.runner)).toThrow(/npx vercel login/);
-    expect(EXIT.noAccountEmail).toBe(4);
-  });
-
-  it('stops with exit code 4 before the login flow when signed out', () => {
-    const { runner, calls } = fakeRunner({ 'npx --yes vercel@65.11.0 whoami': { status: 1 } });
-
-    expect(() => deployAsAccountOwner(runner)).toThrow(
-      expect.objectContaining({ code: EXIT.noAccountEmail })
-    );
-    expect(calls).toEqual(['npx --yes vercel@65.11.0 whoami']);
-  });
-
-  it('does nothing when the last commit is already the account owner', () => {
-    const { runner, calls } = fakeRunner({
-      'npx --yes vercel@65.11.0 api': { stdout: USER },
-      'git log -1': { stdout: 'owner@example.com\n' },
-    });
-
-    deployAsAccountOwner(runner);
-
-    expect(calls.some(call => call.startsWith('git config'))).toBe(false);
-    expect(calls.some(call => call.startsWith('git commit'))).toBe(false);
-  });
-
-  it('commits as the account owner when the last author differs', () => {
-    const { runner, calls } = fakeRunner({
-      'npx --yes vercel@65.11.0 api': { stdout: USER },
-      'git log -1': { stdout: 'kit@example.com\n' },
-    });
-
-    deployAsAccountOwner(runner);
-
-    expect(calls.slice(-3)).toEqual([
-      'git config user.name Album Owner',
-      'git config user.email Owner@Example.com',
-      'git commit --allow-empty -m album: deploy as album-owner',
-    ]);
-  });
-
-  it('skips the commit outside a git repo', () => {
-    const { runner, calls } = fakeRunner({
-      'npx --yes vercel@65.11.0 api': { stdout: USER },
-      'git rev-parse': { status: 128 },
-    });
-
-    deployAsAccountOwner(runner);
-
-    expect(calls.some(call => call.startsWith('git commit'))).toBe(false);
-  });
-
-  it('lists every step in a dry run', () => {
-    const { runner, calls } = fakeRunner({}, true);
-
-    deployAsAccountOwner(runner, { checkSignIn: false });
-
-    expect(calls).toEqual([
-      'npx --yes vercel@65.11.0 api /v2/user --raw',
-      'git log -1 --format=%ae',
-      'git config user.name <account name>',
-      'git config user.email <account email>',
-      'git commit --allow-empty -m album: deploy as <username>',
-    ]);
-  });
-});
-
-describe('deployProduction', () => {
-  it('retries when the Vercel CLI reports fetch failed', () => {
-    let deploys = 0;
-    const { runner } = fakeRunner({});
-    const vercel = runner.vercel;
-    runner.vercel = (args: string[]) => {
-      const result = vercel(args);
-      if (args[0] !== 'deploy') {
-        return result;
-      }
-      deploys += 1;
-      if (deploys < 3) {
-        return { ...result, status: 1, stderr: 'Error: fetch failed' };
-      }
-      return result;
-    };
-
-    expect(deployProduction(runner).status).toBe(0);
-    expect(deploys).toBe(3);
-    expect(isTransientDeployError('Error: fetch failed')).toBe(true);
-  });
-
-  it('stops on the first error that is not a network failure', () => {
-    let deploys = 0;
-    const { runner } = fakeRunner({});
-    runner.vercel = (args: string[]) => {
-      deploys += 1;
-      return {
-        status: args[0] === 'deploy' ? 1 : 0,
-        stdout: '',
-        stderr: 'Error: not authorized',
-        shown: 'deploy',
-      };
-    };
-
-    expect(() => deployProduction(runner)).toThrow(/not authorized/);
-    expect(deploys).toBe(1);
-  });
-});
 
 describe('ensureGitHubRepo', () => {
   const kit = 'https://github.com/sashakhad/album-kit.git';
