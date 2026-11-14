@@ -206,6 +206,36 @@ export function disconnectKitRepo(runner, root = process.cwd()) {
   }
 }
 
+/** Link the Vercel project to origin so a push deploys. Does not run vercel deploy. */
+export function connectAlbumRepo(runner, root = process.cwd()) {
+  const origin = runner.run('git', ['remote', 'get-url', 'origin']);
+  if (runner.dryRun) {
+    runner.vercel(['git', 'connect', '--yes'], {
+      when: 'if origin exists and the project is not already linked to it',
+    });
+    return { connected: true };
+  }
+  if (origin.status !== 0) return { connected: false };
+  const originRepo = repoPath(origin.stdout);
+  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
+  if (originRepo === null || typeof projectId !== 'string') return { connected: false };
+  const project = runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']);
+  const link = parseJson(project.stdout)?.link;
+  const linked =
+    typeof link?.org === 'string' && typeof link?.repo === 'string'
+      ? `${link.org}/${link.repo}`.toLowerCase()
+      : null;
+  if (linked === originRepo) return { connected: true };
+  const connect = runner.vercel(['git', 'connect', '--yes']);
+  if (connect.status !== 0) {
+    console.log(
+      'NEXT: Call the Vercel connector create_git_project for this repository so every push deploys. Do not run vercel deploy.'
+    );
+    return { connected: false };
+  }
+  return { connected: true };
+}
+
 export function readAlbumSite(root = process.cwd()) {
   const site = parseJson(readText(path.join(root, '.album-site.json')));
   return site !== null && typeof site === 'object' ? site : null;
@@ -499,20 +529,23 @@ function setup(options) {
     console.log(`Milestone: Site created. ${siteUrl}`);
   } else if (!options.dryRun) {
     console.log(
-      'No production URL yet. Push to the album repo after it is linked in Vercel with Git integration. Do not run vercel deploy and do not upload project files one by one.'
+      'No production URL yet. A push deploys after the repository is linked in Vercel. Do not run vercel deploy and do not upload project files one by one.'
     );
   }
-  console.log(
-    JSON.stringify({
-      siteUrl,
-      project: name,
-      ownerPassword: albumKey === null ? 'missing' : 'set',
-    })
-  );
   const github = ensureGitHubRepo(runner, { project: name });
   if (!github.ok) {
     throw new ExitError(EXIT.noGitHub, `BLOCKER: ${github.blocker}`);
   }
+  const gitLink = connectAlbumRepo(runner, root);
+  console.log(
+    JSON.stringify({
+      siteUrl,
+      project: name,
+      deploy: 'git',
+      gitLinked: gitLink.connected,
+      ownerPassword: albumKey === null ? 'missing' : 'set',
+    })
+  );
 }
 
 function maskArg(args, index, arg, options) {

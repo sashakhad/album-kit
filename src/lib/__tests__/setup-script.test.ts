@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  connectAlbumRepo,
   disconnectKitRepo,
   ensureGitHubRepo,
   EXIT,
@@ -217,5 +218,43 @@ describe('setup helpers', () => {
     expect(usableAlbumKey('  ')).toBeNull();
     expect(usableAlbumKey(undefined)).toBeNull();
     expect(usableAlbumKey(null)).toBeNull();
+  });
+});
+
+describe('connectAlbumRepo', () => {
+  it('does nothing when the project is already linked to origin', async () => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const root = await mkdtemp(path.join(os.tmpdir(), 'album-git-'));
+    await mkdir(path.join(root, '.vercel'));
+    await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_album"}');
+    const { runner, calls } = fakeRunner({
+      'git remote get-url origin': { stdout: 'https://github.com/owner/my-album.git\n' },
+      'npx --yes vercel@65.11.0 api': {
+        stdout: JSON.stringify({ link: { org: 'owner', repo: 'my-album' } }),
+      },
+    });
+
+    expect(connectAlbumRepo(runner, root)).toEqual({ connected: true });
+    expect(calls.some(call => call.includes('git connect'))).toBe(false);
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('connects origin when the project has no Git link', async () => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const root = await mkdtemp(path.join(os.tmpdir(), 'album-git-'));
+    await mkdir(path.join(root, '.vercel'));
+    await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_album"}');
+    const { runner, calls } = fakeRunner({
+      'git remote get-url origin': { stdout: 'git@github.com:owner/my-album.git\n' },
+      'npx --yes vercel@65.11.0 api': { stdout: '{}' },
+    });
+
+    expect(connectAlbumRepo(runner, root)).toEqual({ connected: true });
+    expect(calls.some(call => call.includes('git connect --yes'))).toBe(true);
+    await rm(root, { recursive: true, force: true });
   });
 });

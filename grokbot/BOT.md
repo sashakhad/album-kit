@@ -97,7 +97,7 @@ It also leaves the rest of `album/` and `.album-site.json` in place. Those files
 Register an album only after its repository and Vercel project exist:
 
 1. The repository contains `album/BRIEF.md`, `album/album.json`, and `album/tracks/`. Its production branch is the branch that should deploy. Use `main` unless there is a reason not to.
-2. The Vercel project uses Git integration for that repository and branch. A push deploys production. Do not ask the owner to log in when the Vercel connector can create that project.
+2. The Vercel project uses Git integration for that repository and branch. `pnpm setup:site` runs `vercel git connect` after the repo exists. If that cannot link it, call the Vercel connector `create_git_project`. A push deploys production. Do not run `vercel deploy`.
 3. Add `{ "repo": "<owner>/<name>", "branch": "main" }` to the `albums` array in `albums.json`.
 4. Merge that change to album-kit `main`. The workflow pushes the kit with `ALBUM_SYNC_TOKEN`. That secret must be allowed to push to the album repository. The token is never printed.
 
