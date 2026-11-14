@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -95,6 +95,7 @@ describe('AlbumPlayer', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     window.localStorage.clear();
     window.history.replaceState(null, '', '/');
   });
@@ -661,6 +662,150 @@ describe('AlbumPlayer', () => {
     expect(screen.queryByRole('button', { name: /Start round/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Take / })).not.toBeInTheDocument();
     expect(screen.queryByText(/Bubu C/)).not.toBeInTheDocument();
+  });
+
+  it('keeps Listen pins and the listeners corner off the track card', () => {
+    const track = sampleVersion.tracks[0];
+    if (track === undefined) {
+      throw new Error('expected a track');
+    }
+    render(
+      <AlbumPlayer
+        version={{ ...sampleVersion, tracks: [track] }}
+        voter='owner'
+        listenChoices={{
+          1: { manual: true, token: track.takes[0]?.filename ?? null, hasBonus: false },
+        }}
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: 2, B: 0 } } },
+          listenerTallies: { 1: { v1: { A: 0, B: 1 } } },
+        }}
+      />
+    );
+
+    const row = document.querySelector('[data-track-row]');
+    if (!(row instanceof HTMLElement)) {
+      throw new Error('expected a track card');
+    }
+    expect(within(row).queryByText('On Listen')).not.toBeInTheDocument();
+    expect(within(row).queryByText(/preview on listen/i)).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /on listen/i })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /follow scores/i })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /save take/i })).not.toBeInTheDocument();
+    expect(within(row).getByText('0 of 2 scored')).toBeInTheDocument();
+    expect(within(row).getByText('Listeners 0')).toBeInTheDocument();
+    expect(within(row).getByText('Listeners +1')).toBeInTheDocument();
+    expect(within(row).queryByText(/^listeners$/i)).not.toBeInTheDocument();
+  });
+
+  it('scores from a take chip and the player panel in sync', async () => {
+    const user = userEvent.setup();
+    const track = sampleVersion.tracks[0];
+    if (track === undefined) {
+      throw new Error('expected a track');
+    }
+    const base = {
+      downloads: {},
+      versionTotals: { v1: 1 },
+      currentRound: 1,
+      listenerTallies: { 1: { v1: { A: 0, B: 4 } } },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            ...base,
+            tallies: { 1: { v1: { A: 3, B: -1 } } },
+            mine: { 1: [{ versionSlug: 'v1', takeLabel: 'A', value: 1, round: 1 }] },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            ...base,
+            tallies: { 1: { v1: { A: 2, B: -1 } } },
+            mine: { 1: [{ versionSlug: 'v1', takeLabel: 'A', value: 0, round: 1 }] },
+          }),
+        })
+    );
+    render(
+      <AlbumPlayer
+        version={{ ...sampleVersion, tracks: [track] }}
+        voter='owner'
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: 2, B: -1 } } },
+          listenerTallies: { 1: { v1: { A: 0, B: 4 } } },
+        }}
+      />
+    );
+
+    expect(screen.getByText('Score take A')).toBeInTheDocument();
+    expect(screen.getByText(/Vote here while you listen\. Score \+2/)).toBeInTheDocument();
+    expect(screen.getByText('Listeners 0')).toBeInTheDocument();
+    expect(screen.getByText('Listeners +4')).toBeInTheDocument();
+    const showScore = screen.getByRole('button', { name: /Show score controls for take A/i });
+    expect(showScore).toHaveClass('min-h-11', 'min-w-11');
+    expect(screen.getAllByRole('button', { name: /Add one to take A of Track One/i })).toHaveLength(
+      1
+    );
+
+    await user.click(showScore);
+    const add = screen.getAllByRole('button', { name: /Add one to take A of Track One/i });
+    expect(add).toHaveLength(2);
+    expect(add[0]).toHaveClass('size-11');
+    expect(add[1]).toHaveClass('size-11');
+    const chipAdd = add[1];
+    if (chipAdd === undefined) {
+      throw new Error('expected a chip vote button');
+    }
+    await user.click(chipAdd);
+
+    expect(screen.getByText(/Vote here while you listen\. Score \+3/)).toBeInTheDocument();
+    expect(screen.getAllByText('+3').length).toBeGreaterThan(1);
+    expect(screen.getByText('Listeners 0')).toBeInTheDocument();
+
+    const subtract = screen.getAllByRole('button', {
+      name: /Subtract one from take A of Track One/i,
+    });
+    const panelSubtract = subtract[0];
+    if (panelSubtract === undefined) {
+      throw new Error('expected the player score control');
+    }
+    await user.click(panelSubtract);
+
+    expect(screen.getByText(/Vote here while you listen\. Score \+2/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Hide score controls for take A, score \+2/i })
+    ).toBeInTheDocument();
+  });
+
+  it('lets a listener score on a chip without owner listener totals', () => {
+    const track = sampleVersion.tracks[0];
+    if (track === undefined) {
+      throw new Error('expected a track');
+    }
+    render(
+      <AlbumPlayer
+        version={{ ...sampleVersion, tracks: [track] }}
+        voter='listener'
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: 2 } } },
+          listenerTallies: { 1: { v1: { A: 9 } } },
+        }}
+      />
+    );
+
+    expect(screen.queryByText(/Listeners/)).not.toBeInTheDocument();
+    expect(screen.getByText('Score take A')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /Show score controls for take A/i })
+    ).toBeInTheDocument();
   });
 });
 

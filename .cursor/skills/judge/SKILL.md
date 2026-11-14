@@ -3,7 +3,7 @@ name: judge
 description: Use while the owner votes on /vote, to explain or start rounds, park a take, or promote, extract or rename takes. It also frees up storage when the album runs low on space.
 ---
 
-# Judge · version 6
+# Judge · version 7
 
 The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. When review takes are public, they play from their stored public Suno MP4. Do not download those. When the owner chose to keep review takes private, they play from the uploaded file, and each of those downloads already spent a download credit. A take that is private on Suno stops playing from its stream. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
@@ -31,7 +31,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - When a new round starts, each take's latest positive score carries into it. Zero and negative scores don't carry. Takes at zero and takes with no votes stay in.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
    - Visible mode shows the selected take's Style prompt in the collapsed Prompt section below the playback controls. Blind modes hide it until the selected reveal point.
-   - Listen follows the highest positive owner score per track and includes ties. In Compare takes, the owner can choose a specific take or use **Follow scores** to return to automatic selection.
+   - Listen follows the highest positive owner score per track and includes ties. Score a take from its chip or from the player’s Score panel; those stay in sync. Tap a chip’s score for inline −/+. Listener votes, when voting is on, show on each take chip and do not choose what plays. Compare takes does not pin a take.
    - **More like this** can save a request for the selected take during a blind pass without revealing its identity. The bot waits for the pass to reveal before preparing that take's prompt and cost estimate; the request alone never spends credits.
 
 2. **Read the scores.**
