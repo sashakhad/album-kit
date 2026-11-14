@@ -85,6 +85,168 @@ describe('More like this', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Request saved blind');
     expect(fetcher.mock.calls[1]![0]).toBe(`/api/owner/variations?id=${saved!.id}&sourceRound=2`);
   });
+
+  it('recognizes a saved blind request after reveal before sending another POST', async () => {
+    const canonical = 'v1-01-track-one-p1-takea.mp3';
+    let first: Record<string, unknown> | null = null;
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        first = JSON.parse(init.body as string);
+        throw new Error('save response lost');
+      }
+      return {
+        ok: true,
+        json: async () => ({ ...first, parentTakeFilename: canonical, status: 'requested' }),
+      };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    const firstMount = render(
+      <MoreLikeThis
+        filename={'a'.repeat(32)}
+        trackNumber={1}
+        trackTitle='Track One'
+        blindRound={2}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    firstMount.unmount();
+
+    render(<MoreLikeThis filename={canonical} trackNumber={1} trackTitle='Track One' />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('already saved for this take');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(fetcher.mock.calls[1]![0]).toBe(`/api/owner/variations?id=${first!.id}`);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('resolves an unconfirmed blind ID before allowing a request after reveal', async () => {
+    const canonical = 'v1-01-track-one-p1-takea.mp3';
+    const fetcher = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('save response lost'))
+      .mockResolvedValueOnce({ status: 404, ok: false })
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ next: 'Saved visible' }) });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    const firstMount = render(
+      <MoreLikeThis
+        filename={'a'.repeat(32)}
+        trackNumber={1}
+        trackTitle='Track One'
+        blindRound={2}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    const first = JSON.parse(fetcher.mock.calls[0]![1]!.body as string);
+    firstMount.unmount();
+
+    render(<MoreLikeThis filename={canonical} trackNumber={1} trackTitle='Track One' />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('earlier blind request');
+    expect(screen.queryByRole('button', { name: 'Retry same request' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel request and edit' }));
+    expect(fetcher.mock.calls[2]![1]).toMatchObject({
+      method: 'DELETE',
+      body: JSON.stringify(first),
+    });
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved visible');
+    const visible = JSON.parse(fetcher.mock.calls[3]![1]!.body as string);
+    expect(visible.parentTakeFilename).toBe(canonical);
+    expect(visible).not.toHaveProperty('parentTakeToken');
+    expect(visible.id).not.toBe(first.id);
+  });
+
+  it('finds a delayed blind save during a status recheck after reveal', async () => {
+    const canonical = 'v1-01-track-one-p1-takea.mp3';
+    let first: Record<string, unknown> | null = null;
+    let checks = 0;
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        first = JSON.parse(init.body as string);
+        throw new Error('save response lost');
+      }
+      checks += 1;
+      if (checks === 1) return { ok: false, status: 404 };
+      return {
+        ok: true,
+        json: async () => ({ ...first, parentTakeFilename: canonical, status: 'requested' }),
+      };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    const firstMount = render(
+      <MoreLikeThis
+        filename={'a'.repeat(32)}
+        trackNumber={1}
+        trackTitle='Track One'
+        blindRound={2}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    firstMount.unmount();
+
+    render(<MoreLikeThis filename={canonical} trackNumber={1} trackTitle='Track One' />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('earlier blind request');
+    await user.click(screen.getByRole('button', { name: 'Check status' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Request saved');
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(fetcher.mock.calls[2]![0]).toBe(`/api/owner/variations?id=${first!.id}`);
+    expect(sessionStorage.length).toBe(0);
+  });
+
+  it('clears a saved blind request for another take while requesting the selected one', async () => {
+    const otherTake = 'v1-01-track-one-p1-takeb.mp3';
+    let first: Record<string, unknown> | null = null;
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        const body = JSON.parse(init.body as string);
+        if (body.parentTakeToken) {
+          first = body;
+          throw new Error('save response lost');
+        }
+        return { ok: true, json: async () => ({ next: 'Saved other take' }) };
+      }
+      return {
+        ok: true,
+        json: async () => ({ ...first, parentTakeFilename: 'v1-01-track-one-p1-takea.mp3' }),
+      };
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const user = userEvent.setup();
+    const firstMount = render(
+      <MoreLikeThis
+        filename={'a'.repeat(32)}
+        trackNumber={1}
+        trackTitle='Track One'
+        blindRound={2}
+      />
+    );
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Could not confirm');
+    firstMount.unmount();
+
+    render(<MoreLikeThis filename={otherTake} trackNumber={1} trackTitle='Track One' />);
+    await user.click(screen.getByRole('button', { name: 'More like this' }));
+    await user.click(screen.getByRole('button', { name: 'Request variations' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved other take');
+    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(sessionStorage.length).toBe(0);
+  });
+
   it('can cancel and return without saving a request', async () => {
     const fetcher = vi.fn();
     vi.stubGlobal('fetch', fetcher);

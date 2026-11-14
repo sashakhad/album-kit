@@ -68,6 +68,56 @@ function clearStoredAttempt(attempt: Attempt) {
   }
 }
 
+function pendingBlindAttempts(trackNumber: number): Attempt[] {
+  try {
+    const prefix = `album-variation-request:${trackNumber}:`;
+    return Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index))
+      .filter((key): key is string => key !== null && key.startsWith(prefix))
+      .flatMap(key => {
+        try {
+          const value: Attempt = JSON.parse(sessionStorage.getItem(key) ?? 'null');
+          return value?.trackNumber === trackNumber &&
+            typeof value.id === 'string' &&
+            typeof value.parentTakeToken === 'string' &&
+            typeof value.sourceRound === 'number' &&
+            typeof value.requestedTakes === 'number' &&
+            typeof value.instructions === 'string'
+            ? [value]
+            : [];
+        } catch {
+          return [];
+        }
+      });
+  } catch {
+    return [];
+  }
+}
+
+async function recoverBlindAttempt(trackNumber: number, filename: string) {
+  for (const candidate of pendingBlindAttempts(trackNumber)) {
+    try {
+      // Without sourceRound, a revealed pass returns the canonical parent for comparison.
+      const response = await fetch(`/api/owner/variations?id=${encodeURIComponent(candidate.id)}`);
+      if (!response.ok) return { kind: 'unconfirmed' as const, candidate };
+      const found: Attempt & { status?: string } = await response.json();
+      if (
+        found.id !== candidate.id ||
+        found.trackNumber !== candidate.trackNumber ||
+        found.requestedTakes !== candidate.requestedTakes ||
+        found.instructions !== candidate.instructions ||
+        typeof found.parentTakeFilename !== 'string'
+      )
+        return { kind: 'unconfirmed' as const, candidate };
+      clearStoredAttempt(candidate);
+      if (found.status !== 'canceled' && found.parentTakeFilename === filename)
+        return { kind: 'saved' as const };
+    } catch {
+      return { kind: 'unconfirmed' as const, candidate };
+    }
+  }
+  return { kind: 'none' as const };
+}
+
 export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: Props) {
   const savedMessage =
     blindRound === undefined
@@ -81,6 +131,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
   const attempt = useRef<Attempt | null>(null);
   const pendingRef = useRef(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
+  const [resolvingEarlierBlindAttempt, setResolvingEarlierBlindAttempt] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,21 +149,42 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
       setMessage('Check the earlier request before changing it.');
       return;
     }
-    const current: Attempt = previous ?? {
-      id: crypto.randomUUID(),
-      trackNumber,
-      ...(blindRound === undefined
-        ? { parentTakeFilename: filename }
-        : { parentTakeToken: filename, sourceRound: blindRound }),
-      requestedTakes: count,
-      instructions: normalized,
-    };
-    attempt.current = current;
-    storeAttempt(current);
     pendingRef.current = true;
     setPending(true);
     setMessage(null);
     try {
+      if (previous === null && blindRound === undefined) {
+        const recovered = await recoverBlindAttempt(trackNumber, filename);
+        if (recovered.kind === 'saved') {
+          setUnconfirmed(false);
+          setResolvingEarlierBlindAttempt(false);
+          setMessage(
+            'An earlier blind request is already saved for this take. No new request was sent.'
+          );
+          setOpen(false);
+          return;
+        }
+        if (recovered.kind === 'unconfirmed') {
+          attempt.current = recovered.candidate;
+          setUnconfirmed(true);
+          setResolvingEarlierBlindAttempt(true);
+          setMessage(
+            'An earlier blind request on this track is unconfirmed. Check its status or cancel its ID before requesting another take.'
+          );
+          return;
+        }
+      }
+      const current: Attempt = previous ?? {
+        id: crypto.randomUUID(),
+        trackNumber,
+        ...(blindRound === undefined
+          ? { parentTakeFilename: filename }
+          : { parentTakeToken: filename, sourceRound: blindRound }),
+        requestedTakes: count,
+        instructions: normalized,
+      };
+      attempt.current = current;
+      storeAttempt(current);
       const response = await fetch('/api/owner/variations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,6 +195,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
       clearStoredAttempt(current);
       attempt.current = null;
       setUnconfirmed(false);
+      setResolvingEarlierBlindAttempt(false);
       setMessage(body.next ?? savedMessage);
       setOpen(false);
     } catch {
@@ -139,11 +212,14 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
   async function checkStatus() {
     const current = savedAttempt(trackNumber, filename, blindRound) ?? attempt.current;
     if (current === null || pendingRef.current) return;
+    const priorBlind = blindRound === undefined && current.parentTakeToken !== undefined;
     pendingRef.current = true;
     setPending(true);
     try {
       const sourceRound =
-        current.sourceRound === undefined ? '' : `&sourceRound=${current.sourceRound}`;
+        current.sourceRound === undefined || priorBlind
+          ? ''
+          : `&sourceRound=${current.sourceRound}`;
       const response = await fetch(
         `/api/owner/variations?id=${encodeURIComponent(current.id)}${sourceRound}`
       );
@@ -158,9 +234,11 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
       if (
         found.id !== current.id ||
         found.trackNumber !== current.trackNumber ||
-        found.parentTakeFilename !== current.parentTakeFilename ||
-        found.parentTakeToken !== current.parentTakeToken ||
-        found.sourceRound !== current.sourceRound ||
+        (priorBlind
+          ? typeof found.parentTakeFilename !== 'string'
+          : found.parentTakeFilename !== current.parentTakeFilename ||
+            found.parentTakeToken !== current.parentTakeToken ||
+            found.sourceRound !== current.sourceRound) ||
         found.requestedTakes !== current.requestedTakes ||
         found.instructions !== current.instructions
       )
@@ -169,12 +247,18 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
         clearStoredAttempt(current);
         attempt.current = null;
         setUnconfirmed(false);
+        setResolvingEarlierBlindAttempt(false);
         setMessage('Request canceled. You can edit and try again.');
         return;
       }
       clearStoredAttempt(current);
       attempt.current = null;
       setUnconfirmed(false);
+      setResolvingEarlierBlindAttempt(false);
+      if (priorBlind && found.parentTakeFilename !== filename) {
+        setMessage('Earlier blind request saved for another take. You can request this one.');
+        return;
+      }
       setOpen(false);
       setMessage(savedMessage);
     } catch {
@@ -200,6 +284,7 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
       clearStoredAttempt(current);
       attempt.current = null;
       setUnconfirmed(false);
+      setResolvingEarlierBlindAttempt(false);
       setMessage('Previous request canceled. You can edit and try again.');
     } catch {
       setMessage('Could not cancel this request. Check its status or retry the same request.');
@@ -273,13 +358,15 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
             show the exact output and cost estimate for approval before using credits.
           </p>
           <div className='flex flex-wrap gap-2'>
-            <button
-              type='submit'
-              disabled={pending || count < 1 || count > 20}
-              className='bg-foreground text-background min-h-11 rounded-lg px-4 font-medium disabled:opacity-50'
-            >
-              {pending ? 'Checking…' : unconfirmed ? 'Retry same request' : 'Request variations'}
-            </button>
+            {!resolvingEarlierBlindAttempt ? (
+              <button
+                type='submit'
+                disabled={pending || count < 1 || count > 20}
+                className='bg-foreground text-background min-h-11 rounded-lg px-4 font-medium disabled:opacity-50'
+              >
+                {pending ? 'Checking…' : unconfirmed ? 'Retry same request' : 'Request variations'}
+              </button>
+            ) : null}
             {unconfirmed ? (
               <>
                 <button
