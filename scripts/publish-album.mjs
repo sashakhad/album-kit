@@ -1,17 +1,10 @@
 #!/usr/bin/env node
 // pnpm publish:album "<message>"
-// Commits album/ and .album-site.json, then pushes or deploys the site.
-// Exit codes: 0 done, 1 failed, 4 the Vercel account's email can't be read.
-import { existsSync } from 'node:fs';
+// Commits album/ and .album-site.json, then pushes. Vercel builds the push.
+// Exit codes: 0 done, 1 failed, 5 the album has no GitHub repo yet.
+import { existsSync, writeFileSync } from 'node:fs';
 
-import {
-  createRunner,
-  deployAsAccountOwner,
-  deployProduction,
-  EXIT,
-  ExitError,
-  readAlbumSite,
-} from './setup.mjs';
+import { createRunner, EXIT, ExitError, readAlbumSite } from './setup.mjs';
 
 try {
   publish(process.argv.slice(2).join(' ').trim());
@@ -29,6 +22,18 @@ function publish(message) {
     throw new ExitError(EXIT.failed, 'Usage: pnpm publish:album "<message>"');
   }
 
+  const site = readAlbumSite();
+  if (site === null || typeof site.project !== 'string') {
+    throw new ExitError(
+      EXIT.failed,
+      '.album-site.json is missing or has no project. Run pnpm setup:site first.'
+    );
+  }
+  if (site.deploy !== 'git') {
+    site.deploy = 'git';
+    writeFileSync('.album-site.json', `${JSON.stringify(site, null, 2)}\n`);
+  }
+
   const runner = createRunner({ dryRun: false });
   const paths = ['album', '.album-site.json'].filter(item => existsSync(item));
   runner.must(runner.run('git', ['add', '--', ...paths]));
@@ -41,34 +46,20 @@ function publish(message) {
     runner.must(staged);
   }
 
-  const site = readAlbumSite();
-  if (site?.deploy !== 'git' && site?.deploy !== 'cli') {
+  const remotes = runner.must(runner.run('git', ['remote'])).stdout.split('\n');
+  if (!remotes.some(remote => remote.trim() === 'origin')) {
     throw new ExitError(
-      EXIT.failed,
-      '.album-site.json is missing or has no deploy mode. Run pnpm setup:site first.'
+      EXIT.noGitHub,
+      'BLOCKER: This album has no origin. Create its GitHub repo and link the Vercel project with Git integration. Do not run vercel deploy and do not upload project files one by one.'
     );
   }
 
-  if (site.deploy === 'git') {
-    push(runner);
-  } else {
-    deployAsAccountOwner(runner);
-    const remotes = runner.must(runner.run('git', ['remote'])).stdout.split('\n');
-    if (remotes.some(remote => remote.trim() === 'origin')) {
-      push(runner);
-    }
-    console.log('Deploying to Vercel. This takes a minute or two.');
-    deployProduction(runner);
-  }
-
-  console.log(typeof site.siteUrl === 'string' ? site.siteUrl : 'Published.');
-}
-
-function push(runner) {
+  console.log('Pushing. Vercel builds this push. Do not run vercel deploy.');
   const result = runner.run('git', ['push']);
   if (result.status !== 0 && /no upstream branch/i.test(result.stderr)) {
     runner.must(runner.run('git', ['push', '--set-upstream', 'origin', 'HEAD']));
-    return;
+  } else {
+    runner.must(result);
   }
-  runner.must(result);
+  console.log(typeof site.siteUrl === 'string' ? site.siteUrl : 'Published.');
 }

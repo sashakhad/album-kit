@@ -7,7 +7,7 @@
 // Exit codes: 0 done, 1 failed, 2 not signed in to Vercel, 3 the Neon step
 // needs the browser, 4 the Vercel account's email can't be read, 5 the site
 // exists but no private GitHub repo could be created, 6 the owner password
-// is missing.
+// is missing. A push deploys. This command does not run vercel deploy.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -73,35 +73,6 @@ export function createRunner({ dryRun }) {
   }
 
   return { dryRun, run, vercel, must };
-}
-
-export function isTransientDeployError(text) {
-  return /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|UND_ERR|network timeout|\b502\b|\b503\b|\b504\b/i.test(
-    text
-  );
-}
-
-/** Retry a production deploy when the Vercel CLI loses the network. */
-export function deployProduction(runner, args = ['deploy', '--prod', '--yes']) {
-  if (runner.dryRun) {
-    return runner.must(runner.vercel(args));
-  }
-  const attempts = 3;
-  let last = null;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    last = runner.vercel(args);
-    if (last.status === 0) {
-      return last;
-    }
-    const text = `${last.stderr}\n${last.stdout}`;
-    if (!isTransientDeployError(text) || attempt === attempts) {
-      throw new ExitError(EXIT.failed, `Failed: ${last.shown}\n${last.stderr.trim()}`);
-    }
-    const detail = /fetch failed/i.test(text) ? 'fetch failed' : 'a network error';
-    console.log(`Vercel deploy failed (${detail}). Retrying (${attempt + 1} of ${attempts}).`);
-    runner.run('sleep', [String(attempt * 2)]);
-  }
-  throw new ExitError(EXIT.failed, 'Vercel deploy failed.');
 }
 
 const GITHUB_SIGNED_OUT =
@@ -202,50 +173,6 @@ function firstLine(text) {
     .map(item => item.trim())
     .find(item => item.length > 0);
   return line ?? '';
-}
-
-// Vercel's free plan blocks a deploy whose HEAD commit author isn't the account owner,
-// and the CLI sends `git log -1`'s author with every deploy.
-export function deployAsAccountOwner(runner, { checkSignIn = true } = {}) {
-  const noEmail = new ExitError(
-    EXIT.noAccountEmail,
-    "Couldn't read the email of the signed-in Vercel account, and Vercel only deploys commits made by the account owner. Run: npx vercel login\nThen run this command again."
-  );
-  // Logged out, `vercel api` starts a device login and waits, so check the sign-in first.
-  if (checkSignIn && runner.vercel(['whoami']).status !== 0) {
-    throw noEmail;
-  }
-  const userResult = runner.vercel(['api', '/v2/user', '--raw'], { timeoutMs: 60_000 });
-  if (runner.dryRun) {
-    runner.run('git', ['log', '-1', '--format=%ae']);
-    const when = 'if the last commit author is not the Vercel account email';
-    runner.run('git', ['config', 'user.name', '<account name>'], { when });
-    runner.run('git', ['config', 'user.email', '<account email>'], { when });
-    runner.run('git', ['commit', '--allow-empty', '-m', 'album: deploy as <username>'], { when });
-    return;
-  }
-
-  const user = parseJson(userResult.stdout)?.user;
-  const email = typeof user?.email === 'string' ? user.email.trim() : '';
-  if (userResult.status !== 0 || email.length === 0) {
-    throw noEmail;
-  }
-
-  const insideRepo = runner.run('git', ['rev-parse', '--is-inside-work-tree']);
-  const head = insideRepo.status === 0 ? runner.run('git', ['log', '-1', '--format=%ae']) : null;
-  if (head === null || head.status !== 0) {
-    return;
-  }
-  if (head.stdout.trim().toLowerCase() === email.toLowerCase()) {
-    return;
-  }
-
-  const username =
-    typeof user.username === 'string' && user.username.length > 0 ? user.username : email;
-  const name = typeof user.name === 'string' && user.name.length > 0 ? user.name : username;
-  runner.must(runner.run('git', ['config', 'user.name', name]));
-  runner.must(runner.run('git', ['config', 'user.email', email]));
-  runner.must(runner.run('git', ['commit', '--allow-empty', '-m', `album: deploy as ${username}`]));
 }
 
 // A project that `vercel link` creates gets connected to the folder's git remote, and on a fresh
@@ -417,37 +344,18 @@ function productionEnvKeys(runner) {
   return keys;
 }
 
-function productionUrl(runner, deploy) {
-  const output = parseJson(deploy.stdout);
-  const fromJson = output?.productionUrl ?? output?.deployment?.productionUrl;
-  if (typeof fromJson === 'string' && fromJson.startsWith('https://')) {
-    return fromJson;
+function linkedProductionUrl(runner, root) {
+  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
+  if (typeof projectId !== 'string' || runner.dryRun) {
+    return null;
   }
-
-  const aliased = /Aliased:?\s+(https:\/\/\S+)/.exec(
-    stripAnsi(`${deploy.stdout}\n${deploy.stderr}`)
-  );
-  if (aliased?.[1] !== undefined) {
-    return aliased[1];
+  const project = runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']);
+  const aliases = parseJson(project.stdout)?.targets?.production?.alias;
+  const domain = Array.isArray(aliases) ? aliases.find(item => typeof item === 'string') : null;
+  if (typeof domain !== 'string' || domain.length === 0) {
+    return null;
   }
-
-  const deploymentUrl = output?.url ?? output?.deployment?.url;
-  if (typeof deploymentUrl === 'string') {
-    const inspect = runner.vercel(['inspect', deploymentUrl, '--json']);
-    const aliases = parseJson(inspect.stdout)?.aliases;
-    const domains = (Array.isArray(aliases) ? aliases : [])
-      .map(alias => (typeof alias === 'string' ? alias : (alias?.alias ?? alias?.domain)))
-      .filter(domain => typeof domain === 'string' && domain.length > 0)
-      .sort((left, right) => left.length - right.length);
-    if (domains[0] !== undefined) {
-      return domains[0].startsWith('https://') ? domains[0] : `https://${domains[0]}`;
-    }
-  }
-
-  throw new ExitError(
-    EXIT.failed,
-    `Failed: ${deploy.shown}\nThe deploy finished, but its production domain wasn't in the output. Check the project's Domains page on vercel.com.`
-  );
+  return domain.startsWith('https://') ? domain : `https://${domain}`;
 }
 
 function setup(options) {
@@ -570,15 +478,16 @@ function setup(options) {
     }
   }
 
-  deployAsAccountOwner(runner, { checkSignIn: false });
-  const deploy = deployProduction(runner, ['deploy', '--prod', '--yes', '--json']);
-  const siteUrl = options.dryRun ? null : productionUrl(runner, deploy);
-
   const existing = readAlbumSite(root);
+  const linkedUrl = linkedProductionUrl(runner, root);
+  const siteUrl =
+    typeof existing?.siteUrl === 'string' && existing.siteUrl.startsWith('https://')
+      ? existing.siteUrl
+      : linkedUrl;
   const site = {
     siteUrl,
     project: name,
-    deploy: existing?.deploy === 'git' || existing?.deploy === 'cli' ? existing.deploy : 'cli',
+    deploy: 'git',
     kitSource: 'https://github.com/sashakhad/album-kit',
     kitRevision: existing?.kitRevision ?? kitRevision,
   };
@@ -588,6 +497,10 @@ function setup(options) {
 
   if (typeof siteUrl === 'string' && siteUrl.startsWith('https://')) {
     console.log(`Milestone: Site created. ${siteUrl}`);
+  } else if (!options.dryRun) {
+    console.log(
+      'No production URL yet. Push to the album repo after it is linked in Vercel with Git integration. Do not run vercel deploy and do not upload project files one by one.'
+    );
   }
   console.log(
     JSON.stringify({
@@ -617,10 +530,6 @@ function quote(value) {
 function repoPath(url) {
   const match = /[/:]([^/:]+)\/([^/]+?)(?:\.git)?\/*$/.exec(url.trim());
   return match === null ? null : `${match[1]}/${match[2]}`.toLowerCase();
-}
-
-function stripAnsi(value) {
-  return value.replace(/\u001b\[[0-9;]*m/g, '');
 }
 
 function parseJson(text) {
