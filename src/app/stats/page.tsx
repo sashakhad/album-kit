@@ -1,17 +1,20 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { ModelStatsDashboard } from '@/components/stats/ModelStatsDashboard';
 import { getListenConfig } from '@/lib/album/listen-store';
-import { formatSignedScore } from '@/lib/formatters';
+import { formatDate, formatDateRange, isAfter, isBefore } from '@/lib/date';
+import { formatNumber, formatSignedScore } from '@/lib/formatters';
 import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 import { getConsolidatedPass } from '@/lib/votes/pass-store';
 import { countForTake } from '@/lib/votes/tally';
 import { EMPTY_VOTE_SNAPSHOT, type TrackTallies } from '@/lib/votes/types';
 import {
+  albumHeadline,
+  chartRows,
   promptModelLabel,
-  summarizeModels,
-  type ModelSummary,
+  trackModelCells,
   type ModelTake,
 } from '@/lib/votes/model-stats';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
@@ -86,177 +89,81 @@ export default async function StatsPage() {
     cut: !active.has(take.filename) && !parked.has(take.filename),
     parked: parked.has(take.filename),
   }));
-  const models = summarizeModels(takes);
-  const trackNumbers = [...new Set(takes.map(take => take.trackNumber))].sort((a, b) => a - b);
+  const dates: Date[] = [];
+  for (const take of source) {
+    const createdAt = byFile.get(take.filename)?.createdAt;
+    if (createdAt instanceof Date) {
+      dates.push(createdAt);
+    }
+  }
+  const span = takeSpan(dates);
+  const passLabel = `Pass ${formatNumber(view.votes.currentRound)}`;
+  const rows = chartRows(takes);
+  const cells = trackModelCells(takes);
+  const headline = albumHeadline(takes);
 
   return (
-    <main className='mx-auto max-w-6xl space-y-8 px-4 py-7 sm:px-6 sm:py-10'>
-      <header className='space-y-2'>
+    <main className='mx-auto max-w-6xl space-y-4 px-4 py-5 sm:px-6 sm:py-8'>
+      <header className='flex flex-wrap items-end justify-between gap-x-4 gap-y-2'>
+        <div className='min-w-0 space-y-1'>
+          <p className='text-muted-foreground text-xs'>
+            {span === null ? passLabel : `${passLabel} · ${span}`}
+          </p>
+          <h1 className='font-display text-2xl tracking-tight sm:text-3xl'>Model stats</h1>
+        </div>
         <Link
           href='/vote'
           className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-sm underline underline-offset-4'
         >
-          ← Compare takes
+          Compare takes
         </Link>
-        <h1 className='font-display text-3xl tracking-tight sm:text-4xl'>Prompt model stats</h1>
-        <p className='text-muted-foreground max-w-3xl text-sm leading-relaxed'>
-          Pass {view.votes.currentRound}. Likes count active takes with a positive owner score.
-          Current score sums only active takes; cuts count takes removed by an earlier pass. Picks
-          include manual choices and ties for the highest positive owner score. One take counts once
-          in each category.
-        </p>
       </header>
       <ListenerVoteList takes={source} tallies={view.votes.listenerTallies} />
-      {hidden ? (
-        <div className='rounded-2xl border border-white/12 bg-white/4 p-6'>
-          <h2 className='font-semibold'>Model assignments are hidden</h2>
-          <p className='text-muted-foreground mt-2 text-sm'>
-            Your current listening detail or model mask setting hides identities for this pass.
-            Reveal the pass or change the owner setting to inspect model charts.
-          </p>
-        </div>
-      ) : takes.length === 0 ? (
-        <p className='text-muted-foreground'>No uploaded takes yet.</p>
+      {takes.length === 0 ? (
+        <p className='text-muted-foreground rounded-2xl border border-dashed border-white/15 p-5 text-sm'>
+          No uploaded takes yet.
+        </p>
       ) : (
         <>
-          <div className='grid gap-4 lg:grid-cols-3'>
-            <ModelChart
-              title='Liked takes'
-              explanation='Positive owner score / active takes'
-              models={models}
-              value={row => row.liked}
-              denominator={row => row.active}
-            />
-            <ModelChart
-              title='Cuts'
-              explanation='Removed before this pass / all takes'
-              models={models}
-              value={row => row.cuts}
-              denominator={row => row.takes}
-            />
-            <ModelChart
-              title='Listen picks'
-              explanation='Chosen takes / all takes'
-              models={models}
-              value={row => row.picks}
-              denominator={row => row.takes}
-            />
-          </div>
-          <section className='space-y-3'>
-            <h2 className='text-xl font-semibold'>Current owner scores</h2>
-            <p className='text-muted-foreground text-xs'>
-              Scores can change with repeated votes and carry into later passes. Compare them with
-              active take counts.
-            </p>
-            <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
-              {models.map(row => (
-                <div key={row.model} className='rounded-xl border border-white/12 bg-white/4 p-4'>
-                  <p className='truncate text-sm' title={row.model}>
-                    {row.model}
-                  </p>
-                  <p className='mt-2 text-2xl font-semibold tabular-nums'>
-                    {row.score > 0 ? '+' : ''}
-                    {row.score}
-                  </p>
-                  <p className='text-muted-foreground text-xs'>
-                    {row.active} active {row.active === 1 ? 'take' : 'takes'}
-                  </p>
-                </div>
-              ))}
+          <ModelStatsDashboard
+            headline={headline}
+            rows={hidden ? [] : rows}
+            cells={hidden ? [] : cells}
+            showCharts={!hidden}
+          />
+          {hidden ? (
+            <div className='rounded-2xl border border-white/12 bg-white/4 p-5'>
+              <h2 className='text-sm font-semibold'>Model assignments are hidden</h2>
+              <p className='text-muted-foreground mt-1 text-sm leading-relaxed'>
+                Reveal this pass, or turn off the model mask, to see how each prompt writer scored.
+              </p>
             </div>
-          </section>
-          <section className='space-y-3'>
-            <h2 className='text-xl font-semibold'>By track</h2>
-            <div className='overflow-x-auto rounded-2xl border border-white/12'>
-              <table className='w-full min-w-[42rem] text-left text-sm'>
-                <thead className='bg-white/5 text-xs'>
-                  <tr>
-                    <th className='p-3'>Track</th>
-                    <th className='p-3'>Prompt model</th>
-                    <th className='p-3'>Takes</th>
-                    <th className='p-3'>Liked</th>
-                    <th className='p-3'>Cuts</th>
-                    <th className='p-3'>Picks</th>
-                    <th className='p-3'>Current score</th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-white/8'>
-                  {trackNumbers.flatMap(number =>
-                    summarizeModels(takes.filter(take => take.trackNumber === number)).map(row => (
-                      <tr key={`${number}-${row.model}`}>
-                        <th scope='row' className='p-3 font-medium'>
-                          {String(number).padStart(2, '0')} ·{' '}
-                          {takes.find(take => take.trackNumber === number)?.trackTitle}
-                        </th>
-                        <td className='p-3'>{row.model}</td>
-                        <td className='p-3 tabular-nums'>{row.takes}</td>
-                        <td className='p-3 tabular-nums'>
-                          {row.liked}/{row.active}
-                        </td>
-                        <td className='p-3 tabular-nums'>{row.cuts}</td>
-                        <td className='p-3 tabular-nums'>{row.picks}</td>
-                        <td className='p-3 tabular-nums'>
-                          {row.score > 0 ? '+' : ''}
-                          {row.score}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <section className='space-y-3'>
-            <h2 className='text-xl font-semibold'>Every take</h2>
-            <p className='text-muted-foreground text-xs'>
-              Set and canonical take letters identify each uploaded file. A negative current score
-              is cut only when the next pass starts.
-            </p>
-            <div className='overflow-x-auto rounded-2xl border border-white/12'>
-              <table className='w-full min-w-[38rem] text-left text-sm'>
-                <thead className='bg-white/5 text-xs'>
-                  <tr>
-                    <th className='p-3'>Track</th>
-                    <th className='p-3'>Take</th>
-                    <th className='p-3'>Prompt model</th>
-                    <th className='p-3'>Status</th>
-                    <th className='p-3'>Current score</th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-white/8'>
-                  {takes.map((take, index) => (
-                    <tr key={take.filename}>
-                      <th scope='row' className='p-3 font-medium'>
-                        {String(take.trackNumber).padStart(2, '0')} · {take.trackTitle}
-                      </th>
-                      <td className='p-3 font-mono text-xs'>
-                        {source[index]?.versionSlug} · {source[index]?.voteLabel}
-                      </td>
-                      <td className='p-3'>{take.model}</td>
-                      <td className='p-3'>
-                        {take.picked
-                          ? 'Chosen for Listen'
-                          : take.cut
-                            ? 'Cut'
-                            : take.parked
-                              ? 'Parked'
-                              : take.score !== null && take.score < 0
-                                ? 'Cut next pass'
-                                : 'In this pass'}
-                      </td>
-                      <td className='p-3 font-mono tabular-nums'>
-                        {take.score === null ? '—' : `${take.score > 0 ? '+' : ''}${take.score}`}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          ) : null}
         </>
       )}
     </main>
   );
+}
+
+function takeSpan(dates: readonly Date[]): string | null {
+  const first = dates[0];
+  if (first === undefined) {
+    return null;
+  }
+  let earliest = first;
+  let latest = first;
+  for (const date of dates) {
+    if (isBefore(date, earliest)) {
+      earliest = date;
+    }
+    if (isAfter(date, latest)) {
+      latest = date;
+    }
+  }
+  if (formatDate(earliest) === formatDate(latest)) {
+    return formatDate(earliest);
+  }
+  return formatDateRange(earliest.toISOString(), latest.toISOString());
 }
 
 function ListenerVoteList({
@@ -291,7 +198,7 @@ function ListenerVoteList({
 
   return (
     <section className='space-y-3' aria-labelledby='listener-votes-heading'>
-      <h2 id='listener-votes-heading' className='text-xl font-semibold'>
+      <h2 id='listener-votes-heading' className='text-sm font-semibold tracking-tight'>
         Listener votes
       </h2>
       <p className='text-muted-foreground text-xs'>
@@ -300,78 +207,30 @@ function ListenerVoteList({
       {rows.length === 0 ? (
         <p className='text-muted-foreground text-sm'>No listener votes yet.</p>
       ) : (
-        <div className='overflow-x-auto rounded-2xl border border-white/12'>
-          <table className='w-full min-w-[28rem] text-left text-sm'>
-            <thead className='bg-white/5 text-xs'>
-              <tr>
-                <th className='p-3'>Track</th>
-                <th className='p-3'>Take</th>
-                <th className='p-3'>Listener score</th>
-              </tr>
-            </thead>
-            <tbody className='divide-y divide-white/8'>
-              {rows.map(row => (
-                <tr key={row.filename}>
-                  <th scope='row' className='p-3 font-medium'>
-                    {String(row.trackNumber).padStart(2, '0')} · {row.trackTitle}
-                  </th>
-                  <td className='p-3 font-mono text-xs'>
-                    {row.versionSlug} · {row.voteLabel}
-                  </td>
-                  <td className='p-3 font-mono tabular-nums'>{formatSignedScore(row.score)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ModelChart({
-  title,
-  explanation,
-  models,
-  value,
-  denominator,
-}: {
-  title: string;
-  explanation: string;
-  models: ModelSummary[];
-  value: (model: ModelSummary) => number;
-  denominator: (model: ModelSummary) => number;
-}) {
-  return (
-    <section className='space-y-4 rounded-2xl border border-white/12 bg-white/4 p-4 sm:p-5'>
-      <div>
-        <h2 className='font-semibold'>{title}</h2>
-        <p className='text-muted-foreground text-xs'>{explanation}</p>
-      </div>
-      <div className='space-y-4'>
-        {models.map(row => {
-          const count = value(row);
-          const total = denominator(row);
-          const percent = total === 0 ? 0 : Math.min(100, (count / total) * 100);
-          return (
-            <div key={row.model} className='space-y-1.5'>
-              <div className='flex items-start justify-between gap-2 text-xs'>
-                <span className='min-w-0 break-words'>{row.model}</span>
-                <span className='shrink-0 font-mono tabular-nums'>
-                  {count}/{total}
-                </span>
-              </div>
-              <div
-                className='h-2 rounded-full bg-white/10'
-                role='img'
-                aria-label={`${row.model}: ${count} of ${total}`}
+        <ul className='bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10'>
+          {rows.map(function listenerRow(row) {
+            return (
+              <li
+                key={row.filename}
+                className='flex items-center justify-between gap-3 px-3 py-2 text-sm'
               >
-                <div className='bg-primary h-full rounded-full' style={{ width: `${percent}%` }} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                <span className='min-w-0 truncate'>
+                  <span className='text-muted-foreground mr-2 font-mono text-xs'>
+                    {String(row.trackNumber).padStart(2, '0')}
+                  </span>
+                  {row.trackTitle}
+                  <span className='text-muted-foreground ml-2 font-mono text-xs'>
+                    {row.versionSlug} · {row.voteLabel}
+                  </span>
+                </span>
+                <span className='shrink-0 font-mono tabular-nums'>
+                  {formatSignedScore(row.score)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </section>
   );
 }

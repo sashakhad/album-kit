@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  formatAverageScore,
   formatCurrency,
   formatCurrencyExact,
   formatDuration,
@@ -31,6 +32,16 @@ describe('formatSignedScore', () => {
     expect(formatSignedScore(3)).toBe('+3');
     expect(formatSignedScore(0)).toBe('0');
     expect(formatSignedScore(-2)).toBe('-2');
+  });
+});
+
+describe('formatAverageScore', () => {
+  it('keeps one decimal and a sign', () => {
+    expect(formatAverageScore(1.5)).toBe('+1.5');
+    expect(formatAverageScore(2)).toBe('+2');
+    expect(formatAverageScore(0)).toBe('0');
+    expect(formatAverageScore(-1.24)).toBe('-1.2');
+    expect(formatAverageScore(-2)).toBe('-2');
   });
 });
 

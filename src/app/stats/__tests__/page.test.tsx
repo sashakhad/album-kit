@@ -1,6 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { formatDateRange } from '@/lib/date';
+
 const state = vi.hoisted(() => ({ owner: true, blind: false, mask: false }));
 
 vi.mock('server-only', () => ({}));
@@ -64,6 +66,7 @@ vi.mock('@/lib/prisma', () => ({
           writerProvider: 'OpenAI',
           observedModel: 'gpt-5',
           attribution: 'verified',
+          createdAt: new Date('2026-03-01T12:00:00.000Z'),
         },
         {
           filename: b.filename,
@@ -71,6 +74,7 @@ vi.mock('@/lib/prisma', () => ({
           writerProvider: null,
           observedModel: null,
           attribution: 'undisclosed',
+          createdAt: new Date('2026-03-18T12:00:00.000Z'),
         },
         {
           filename: c.filename,
@@ -101,24 +105,48 @@ describe('owner model stats page', () => {
 
   it('renders saved provenance, active scores, cuts, picks and track breakdown', async () => {
     render(await StatsPage());
-    const liked = screen.getByRole('heading', { name: 'Liked takes' }).closest('section');
-    const cuts = screen.getByRole('heading', { name: 'Cuts' }).closest('section');
-    const picks = screen.getByRole('heading', { name: 'Listen picks' }).closest('section');
+    expect(
+      screen.getByText(
+        `Pass 2 · ${formatDateRange('2026-03-01T12:00:00.000Z', '2026-03-18T12:00:00.000Z')}`
+      )
+    ).toBeInTheDocument();
+    const totals = screen.getByRole('region', { name: 'Album totals' });
+    expect(within(totals).getByText('Takes').closest('div')).toHaveTextContent('5');
+    expect(within(totals).getByText('Liked').closest('div')).toHaveTextContent('2');
+    expect(within(totals).getByText('Avg score').closest('div')).toHaveTextContent('+0.7');
+    expect(within(totals).getByText('Cut rate').closest('div')).toHaveTextContent('20%');
+    expect(within(totals).getByText('Picks').closest('div')).toHaveTextContent('2');
+    expect(within(totals).getByText('Models').closest('div')).toHaveTextContent('4');
+
+    const liked = screen
+      .getByRole('heading', { name: 'Likes and average score' })
+      .closest('section');
+    const cuts = screen.getByRole('heading', { name: 'Cut rate' }).closest('section');
+    const picks = screen.getByRole('heading', { name: 'Picks' }).closest('section');
+    const tracks = screen.getByRole('heading', { name: 'By track' }).closest('section');
     expect(liked).not.toBeNull();
     expect(cuts).not.toBeNull();
     expect(picks).not.toBeNull();
-    expect(within(liked!).getByRole('img', { name: 'OpenAI · gpt-5: 1 of 1' })).toBeInTheDocument();
+    expect(tracks).not.toBeNull();
+    expect(within(liked!).getByText('OpenAI · gpt-5: 1 like, average +2')).toBeInTheDocument();
+    expect(within(liked!).getByText('Unverified / missing: 1 like, average 0')).toBeInTheDocument();
     expect(
-      within(cuts!).getByRole('img', { name: 'OpenAI · unverified: 1 of 1' })
+      within(liked!).getByText('Grok Bot · undisclosed: 0 likes, no active takes')
     ).toBeInTheDocument();
-    expect(within(picks!).getByRole('img', { name: 'OpenAI · gpt-5: 1 of 1' })).toBeInTheDocument();
-    const takeTable = screen.getByRole('heading', { name: 'Every take' }).closest('section');
-    expect(takeTable).not.toBeNull();
-    expect(within(takeTable!).getAllByText('Chosen for Listen')).toHaveLength(2);
-    expect(within(takeTable!).getByText('Parked')).toBeInTheDocument();
-    expect(within(takeTable!).getByText('Cut')).toBeInTheDocument();
-    expect(within(takeTable!).getByText('Cut next pass')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'By track' })).toBeInTheDocument();
+    expect(within(cuts!).getByText('OpenAI · unverified: 100%')).toBeInTheDocument();
+    expect(within(picks!).getByText('OpenAI · gpt-5: 1')).toBeInTheDocument();
+    expect(within(picks!).getByText('Unverified / missing: 1')).toBeInTheDocument();
+    expect(
+      within(tracks!).getByRole('cell', { name: '01 One, OpenAI · gpt-5, +2, 1 picks' })
+    ).toBeInTheDocument();
+    expect(
+      within(tracks!).getByRole('cell', { name: '02 Two, Unverified / missing, 0, 1 picks' })
+    ).toBeInTheDocument();
+    expect(
+      within(tracks!).getByRole('cell', {
+        name: '01 One, Grok Bot · undisclosed, no active score, 0 picks',
+      })
+    ).toBeInTheDocument();
     const listenerVotes = screen
       .getByRole('heading', { name: 'Listener votes' })
       .closest('section');
