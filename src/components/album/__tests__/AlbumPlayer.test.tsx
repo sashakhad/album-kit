@@ -292,6 +292,34 @@ describe('AlbumPlayer', () => {
     expect(audioElement().getAttribute('src')).toBe('/api/audio/v1/03-track-three-takeb.mp3');
   });
 
+  it('does not offer a download control on vote or listen', () => {
+    const track = sampleVersion.tracks[0]!;
+    const version: AlbumVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          ...track,
+          parkedTakes: [
+            {
+              label: 'D',
+              filename: '01-track-one-taked.mp3',
+              audioUrl: '/api/audio/v1/01-track-one-taked.mp3',
+              versionSlug: 'v1',
+              voteLabel: 'D',
+            },
+          ],
+        },
+        ...sampleVersion.tracks.slice(1),
+      ],
+    };
+    const { rerender } = render(<AlbumPlayer version={version} surface='vote' voter='owner' />);
+    expect(screen.queryByRole('button', { name: /save take/i })).not.toBeInTheDocument();
+    rerender(<AlbumPlayer version={version} surface='listen' voter='owner' />);
+    expect(screen.queryByRole('button', { name: /save take/i })).not.toBeInTheDocument();
+    rerender(<AlbumPlayer version={version} surface='vote' voter='listener' />);
+    expect(screen.queryByRole('button', { name: /save take/i })).not.toBeInTheDocument();
+  });
+
   it('writes the song, set and take into the vote url', async () => {
     window.history.replaceState(null, '', '/vote');
     const user = userEvent.setup();
