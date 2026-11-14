@@ -31,9 +31,14 @@ const current = {
     { number: 2, title: 'Two', takes: [d, e] },
   ],
 };
-const votes = {
+const votes: {
+  currentRound: number;
+  tallies: Record<number, Record<string, Record<string, number>>>;
+  listenerTallies?: Record<number, Record<string, Record<string, number>>>;
+} = {
   currentRound: 2,
   tallies: { 1: { v1: { A: 2 } }, 2: { v1: { A: 1, B: -1 } } },
+  listenerTallies: { 1: { v1: { A: 5 } }, 2: { v1: { B: -2 } } },
 };
 
 vi.mock('@/lib/votes/owner-view', () => ({
@@ -85,6 +90,7 @@ afterEach(() => {
   state.owner = true;
   state.blind = false;
   state.mask = false;
+  votes.listenerTallies = { 1: { v1: { A: 5 } }, 2: { v1: { B: -2 } } };
 });
 
 describe('owner model stats page', () => {
@@ -113,6 +119,17 @@ describe('owner model stats page', () => {
     expect(within(takeTable!).getByText('Cut')).toBeInTheDocument();
     expect(within(takeTable!).getByText('Cut next pass')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'By track' })).toBeInTheDocument();
+    const listenerVotes = screen
+      .getByRole('heading', { name: 'Listener votes' })
+      .closest('section');
+    expect(listenerVotes).not.toBeNull();
+    expect(within(listenerVotes!).getByText('+5')).toBeInTheDocument();
+    expect(within(listenerVotes!).getByText('-2')).toBeInTheDocument();
+    expect(
+      within(listenerVotes!).getByText(
+        'Listener ballots stay listed here whether or not listeners can vote.'
+      )
+    ).toBeInTheDocument();
   });
 
   it.each(['blind', 'mask'] as const)('hides model assignments when %s is enabled', async mode => {
@@ -121,5 +138,14 @@ describe('owner model stats page', () => {
     expect(screen.getByText('Model assignments are hidden')).toBeInTheDocument();
     expect(screen.queryByText('OpenAI · gpt-5')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Every take' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Listener votes' })).toBeInTheDocument();
+    expect(screen.getByText('+5')).toBeInTheDocument();
+  });
+
+  it('shows an empty listener list when nobody has voted as a listener', async () => {
+    delete votes.listenerTallies;
+    render(await StatsPage());
+    expect(screen.getByText('No listener votes yet.')).toBeInTheDocument();
+    votes.listenerTallies = { 1: { v1: { A: 5 } }, 2: { v1: { B: -2 } } };
   });
 });

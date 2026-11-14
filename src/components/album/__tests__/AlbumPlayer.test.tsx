@@ -620,6 +620,39 @@ describe('AlbumPlayer', () => {
     expect(audioElement().getAttribute('src')).toBe('/b.mp3');
   });
 
+  it('shows listener scores to the owner when listener voting is off', () => {
+    render(
+      <AlbumPlayer
+        version={sampleVersion}
+        voter='owner'
+        showListenerScores={false}
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          listenerTallies: { 1: { v1: { A: 4 } } },
+        }}
+      />
+    );
+
+    expect(
+      screen.getByLabelText('Listener score +4, separate from your score')
+    ).toBeInTheDocument();
+  });
+
+  it('keeps other listener scores off a listener ballot', () => {
+    render(
+      <AlbumPlayer
+        version={sampleVersion}
+        voter='listener'
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          listenerTallies: { 1: { v1: { A: 4 } } },
+        }}
+      />
+    );
+
+    expect(screen.queryByText('listeners')).not.toBeInTheDocument();
+  });
+
   it('hides votes on Listen', () => {
     render(<AlbumPlayer version={passVersion} surface='listen' />);
 
