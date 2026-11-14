@@ -78,6 +78,23 @@ describe('owner handoff links', () => {
     expect(rows.size).toBe(0);
   });
 
+  it('opens every owner page, including stats and status', async () => {
+    for (const next of [
+      '/stats',
+      '/status',
+      '/settings',
+      '/studio/track-one',
+      '/intake',
+      '/final',
+      '/listen',
+      '/vote/prawnhub',
+    ]) {
+      expect((await issue(next)).status).toBe(201);
+    }
+    expect((await issue('/key')).status).toBe(400);
+    expect((await issue('/api/owner/password')).status).toBe(400);
+  });
+
   it('opens the intended page and cannot be redeemed twice, even concurrently', async () => {
     const { token } = await openToken('/vote/track-one/v1/a');
     expect(rows.has(token)).toBe(false);

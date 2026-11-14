@@ -18,8 +18,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (!isOwnerRequest(request)) {
-    return NextResponse.json({ error: 'Owner key required' }, { status: 401 });
+  if (!(await isOwnerRequest(request))) {
+    return NextResponse.json({ error: 'Owner password required' }, { status: 401 });
   }
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {

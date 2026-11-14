@@ -11,7 +11,7 @@ describe('ListenerOwnerClaim', () => {
     expect(screen.getByRole('region', { name: 'Listener ballot' })).toHaveTextContent(
       'You’re voting as a listener'
     );
-    expect(screen.queryByLabelText('Album key')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Owner password')).not.toBeInTheDocument();
   });
 
   it('opens the owner password on one tap', async () => {
@@ -20,7 +20,7 @@ describe('ListenerOwnerClaim', () => {
 
     await user.click(screen.getByRole('button', { name: 'I’m the owner' }));
 
-    expect(screen.getByLabelText('Album key')).toBeInTheDocument();
-    expect(screen.getByLabelText('Album key')).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText('Owner password')).toBeInTheDocument();
+    expect(screen.getByLabelText('Owner password')).toHaveAttribute('type', 'password');
   });
 });

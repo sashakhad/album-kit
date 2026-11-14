@@ -77,7 +77,7 @@ function savedInput(input: RequestInput, parentTakeFilename: string) {
 }
 
 export async function GET(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const id = new URL(request.url).searchParams.get('id');
   const roundText = new URL(request.url).searchParams.get('sourceRound');
@@ -103,7 +103,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const raw: unknown = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(raw);
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
 
 /** A canceled ID is kept as a tombstone so a delayed retry cannot create it later. */
 export async function DELETE(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const raw: unknown = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(raw);

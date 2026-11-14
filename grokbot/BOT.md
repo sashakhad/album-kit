@@ -29,11 +29,23 @@ Ask whether the album site should be public or private, and whether listeners ma
 
 Save the answer as `reviewTakes` (`public` or `private`) on the album settings record, for example `{ "patch": { "reviewTakes": "public" } }`. The default is `public` when the owner has not answered. The owner’s scores set the Listen lineup and the owner can override it. Private publication requires verified private storage. Do not call a vote blind after showing identifying prompts in chat. Report only actual state changes and precise blockers.
 
+## Owner password
+
+The owner password is `ALBUM_KEY`. The site checks the password the owner types with that existing check. Do not generate a password and do not invent a second secret. A password the owner already stored as `ALBUM_KEY` keeps working.
+
+At setup, ask the owner to pick a password with a secret card. Pipe it to `pnpm setup:site --name <album-slug> --password-stdin`. Never pass it as an argument, paste it into chat, or put it in a URL. The command writes ignored `.album-key` and sets `ALBUM_KEY`. If the project already has `ALBUM_KEY`, leave it.
+
+The browser remembers a signed-in owner with a long-lived cookie. A signed-out owner page, including `/stats`, opens `/key`. That page is labeled **Owner password** and says what to do.
+
+To reset, show a secret card, pipe the new password to `pnpm owner:password`, then redeploy. The old password is not required. A signed-in owner can also change it under **Settings → Owner access**. After that, ask for the same new password on a secret card and run `pnpm owner:password` so the next deploy keeps it. Until that redeploy, both the new password and the previous `ALBUM_KEY` work.
+
+One-tap owner links are only a fallback. `pnpm owner:link` accepts every owner page: `/settings`, `/vote`, `/listen`, `/intake`, `/studio`, `/final`, `/stats`, and `/status`. The secret stays in the URL fragment.
+
 ## Always send the site link
 
 Every setup and round message includes the site URL. `pnpm album:progress` and `pnpm owner:link` each print a `Site:` line. Paste that line in the message. Do not send a milestone, an estimate, or a round update without it.
 
-When visibility is private or still unset, that same message includes the owner link. Run `pnpm owner:link /settings` or `pnpm owner:link /vote` and paste both the `Site:` line and the `Owner:` line. The owner link's secret stays in the URL fragment. Never put the album key in the message or in a query string. A public album can share `/listen` without an owner link. The owner's own messages still include the site URL.
+When visibility is private or still unset, that same message includes the site URL. The owner signs in with the password they picked. Send a one-tap owner link only when they cannot type the password. Run `pnpm owner:link /settings` or `pnpm owner:link /vote` and paste both the `Site:` line and the `Owner:` line. The owner link's secret stays in the URL fragment. Never put the owner password in the message or in a query string. A public album can share `/listen` without an owner link. The owner's own messages still include the site URL.
 
 ## Keep the owner posted
 
@@ -41,7 +53,7 @@ Do not go silent while setup, generation, or a kit update runs. Send a short pro
 
 Milestones:
 
-- Site created. `pnpm setup:site` prints `Milestone: Site created.` and the site URL. Send that sentence as soon as it appears. Do not paste the JSON line after it; that line contains the album key.
+- Site created. `pnpm setup:site` prints `Milestone: Site created.` and the site URL. Send that sentence as soon as it appears. Do not paste the JSON line after it. The owner password stays in `.album-key`.
 - Publishing. If `pnpm publish:album` hits a Vercel network error such as `fetch failed`, it retries and prints `Retrying`. Tell the owner it is retrying. Do not stop after the first failure.
 - GitHub home. Setup creates a private repo when `gh` is signed in. If it exits 5, report the `BLOCKER:` sentence and the site URL. Do not say the album has a GitHub home. After `gh auth login`, run `pnpm album:github`.
 - Settings saved. Name the values you checked on the settings response.
@@ -56,7 +68,7 @@ The same line is on the site. Vote and Listen show it while a round is still run
 
 ## Open the right page for the owner
 
-Use the current album’s checkout and `.album-site.json`. Run `pnpm owner:link /settings` for settings. Use `pnpm owner:link /vote` when the owner wants to compare takes. The command prints `Site:` and `Owner:`. Paste both lines with that action’s name in the owner’s private chat. They tap **Continue as owner** and land on that page. The link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in, so a later visit can use the site URL. Make a fresh link for another browser, or if this one expires unused. Never use an owner link as a listener share link, put it in project notes, or paste the permanent album key into chat or a query string. If already signed in, Settings is visible in the header; **Owner access** there can create another sign-in link or reveal the key. The site URL still belongs in the message.
+Use the current album’s checkout and `.album-site.json`. The owner opens the site URL and enters the password they picked. `/key` explains that. Use `pnpm owner:link /settings` or `pnpm owner:link /vote` only as a fallback, including for `/stats` and `/status`. The command prints `Site:` and `Owner:`. Paste both lines with that action’s name in the owner’s private chat. They tap **Continue as owner** and land on that page. The link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in, so a later visit can use the site URL. Make a fresh link for another browser, or if this one expires unused. Never use an owner link as a listener share link, put it in project notes, or paste the owner password into chat or a query string. If already signed in, Settings is visible in the header; **Owner access** there can change the password, create a fallback sign-in link, or show the password. The site URL still belongs in the message.
 
 When someone asks “what are my settings?”, run `pnpm album:settings` from that album’s checkout. When they ask for a specific change, pass only the requested fields as a JSON object on stdin to `pnpm album:settings --patch`. The site and bot read and write the same saved settings in the album’s database. Check the returned values before saying “saved.” Do not create a second settings file or rely on chat memory. Settings changes do not approve Suno spending. If multiple album checkouts exist and the intended album is unclear, ask which one.
 

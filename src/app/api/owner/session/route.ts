@@ -8,6 +8,7 @@ import {
   ownerCookieOptions,
   ownerCookieValue,
 } from '@/lib/owner/auth';
+import { loadOwnerPassword } from '@/lib/owner/password';
 import { consumeOwnerSignInLink } from '@/lib/owner/sign-in-links';
 
 export const runtime = 'nodejs';
@@ -19,6 +20,7 @@ const sessionBodySchema = z.union([
 ]);
 
 export async function POST(request: Request) {
+  await loadOwnerPassword();
   const key = albumKey();
   if (key === null) {
     return NextResponse.json({ error: 'ALBUM_KEY is not set' }, { status: 503 });
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
   const raw: unknown = await request.json().catch(() => null);
   const parsed = sessionBodySchema.safeParse(raw);
   if (!parsed.success || ('key' in parsed.data && !isAlbumKey(parsed.data.key))) {
-    return NextResponse.json({ error: 'Wrong key' }, { status: 401 });
+    return NextResponse.json({ error: 'Wrong password' }, { status: 401 });
   }
   if ('token' in parsed.data && !(await consumeOwnerSignInLink(parsed.data.token, key))) {
     return NextResponse.json(

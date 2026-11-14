@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { keyPageCopy } from '@/lib/settings/key-copy';
+import { keyPageCopy, ownerSignInPrompt } from '@/lib/settings/key-copy';
 
 describe('owner sign-in listener links', () => {
+  it('tells a signed-out owner how to open stats', () => {
+    expect(ownerSignInPrompt('/stats')).toContain('model stats');
+    expect(ownerSignInPrompt('/stats')).toContain('owner password');
+    expect(ownerSignInPrompt('/stats')).toContain('Album Bot');
+    expect(ownerSignInPrompt('/status')).toContain('progress');
+  });
+
   it('sends public listeners to Listen when comparison requires the owner', () => {
     const copy = keyPageCopy({
       next: '/vote/prawnhub',

@@ -14,7 +14,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (key === null || !/^[0-9a-f]{32}$/.test(token)) return notFound();
 
   const settings = await loadSettings();
-  const owner = isOwnerRequest(request);
+  const owner = await isOwnerRequest(request);
   const viewer = settings.visibility === 'private' && !owner && (await isViewerRequest(request));
   if (!canViewAlbum(settings.visibility, owner, viewer)) return notFound();
 

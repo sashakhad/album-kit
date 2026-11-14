@@ -51,7 +51,7 @@ export function KeyForm({ next }: { next: string }) {
         setOwnerLink(null);
         setError('This link expired or was already used. Ask Grok Bot for a fresh owner link.');
       } else if (response.status === 401 && 'key' in credentials) {
-        setError('That album key didn’t match. Check it and try again.');
+        setError('That owner password didn’t match. Check it and try again.');
       } else {
         setError('Owner sign-in is unavailable right now. Try again in a moment.');
       }
@@ -89,7 +89,7 @@ export function KeyForm({ next }: { next: string }) {
       {ownerLink === null ? (
         <form onSubmit={onSubmit} className='space-y-4'>
           <label className='block space-y-2 text-sm font-medium'>
-            <span>Album key</span>
+            <span>Owner password</span>
             <Input
               type='password'
               name='key'
@@ -125,7 +125,7 @@ export function KeyForm({ next }: { next: string }) {
             }}
             className='min-h-11 w-full'
           >
-            Use album key instead
+            Use owner password instead
           </Button>
         </div>
       )}

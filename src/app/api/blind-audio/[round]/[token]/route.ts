@@ -13,13 +13,13 @@ export async function GET(
   context: { params: Promise<{ round: string; token: string }> }
 ) {
   if (!(await canPlayBlindTake(request)))
-    return Response.json({ error: 'Owner key required' }, { status: 401 });
+    return Response.json({ error: 'Owner password required' }, { status: 401 });
   const { round: rawRound, token } = await context.params;
   const round = Number(rawRound);
   if (!Number.isSafeInteger(round) || round < 1 || !/^[0-9a-f]{32}$/.test(token))
     return Response.json({ error: 'Not found' }, { status: 404 });
   const currentRound = await getVisitorCurrentRound(OWNER_VISITOR_ID);
-  const owner = isOwnerRequest(request);
+  const owner = await isOwnerRequest(request);
   if (!owner && round !== currentRound)
     return Response.json({ error: 'Not found' }, { status: 404 });
   const version =

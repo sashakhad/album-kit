@@ -38,7 +38,7 @@ export function OwnerKeyControls() {
     } catch {
       setError(
         action === 'key'
-          ? 'Couldn’t load the album key. Try again.'
+          ? 'Couldn’t load the owner password. Try again.'
           : action === 'link'
             ? 'Couldn’t create a sign-in link. Try again.'
             : 'Couldn’t sign out. Try again.'
@@ -76,11 +76,15 @@ export function OwnerKeyControls() {
           disabled={busy !== null}
           onClick={() => (key === null ? void request('key') : setKey(null))}
         >
-          {busy === 'key' ? 'Loading…' : key === null ? 'Show album key' : 'Hide album key'}
+          {busy === 'key'
+            ? 'Loading…'
+            : key === null
+              ? 'Show owner password'
+              : 'Hide owner password'}
         </Button>
       </div>
       {link === null ? null : <CopyableValue value={link} label='Owner sign-in link' />}
-      {key === null ? null : <CopyableValue value={key} label='Album key' />}
+      {key === null ? null : <CopyableValue value={key} label='Owner password' />}
       {error.length === 0 ? null : (
         <p role='alert' className='text-destructive text-sm'>
           {error}

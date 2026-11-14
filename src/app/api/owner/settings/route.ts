@@ -15,7 +15,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const stored = await loadStoredSettings();
   return NextResponse.json({
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const body: unknown = await request.json().catch(() => null);
   if (typeof body !== 'object' || body === null || !('patch' in body)) {
@@ -55,7 +55,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const raw: unknown = await request.json().catch(() => null);
   try {

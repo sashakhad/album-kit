@@ -16,7 +16,7 @@ const jobSchema = z.object({
 });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const { id } = await context.params;
   const raw: unknown = await request.json().catch(() => null);
@@ -87,7 +87,7 @@ const updateSchema = z.object({
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const { id } = await context.params;
   const raw: unknown = await request.json().catch(() => null);

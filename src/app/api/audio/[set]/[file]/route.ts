@@ -46,14 +46,14 @@ export async function serveAudio(
     return notFound();
   }
 
-  const owner = isOwnerRequest(request);
+  const owner = await isOwnerRequest(request);
   const settings = await loadSettings();
   const viewer =
     settings.visibility === 'private' && !owner ? await isViewerRequest(request) : false;
   if (!canViewAlbum(settings.visibility, owner, viewer)) return notFound();
   const pinned = isListenFile(config, set, file);
   if (!owner && !pinned && options.allowUnpinned !== true) {
-    return Response.json({ error: 'Owner key required' }, { status: 401 });
+    return Response.json({ error: 'Owner password required' }, { status: 401 });
   }
   const cacheControl = settings.visibility === 'public' && pinned ? PUBLIC_CACHE : OWNER_CACHE;
 

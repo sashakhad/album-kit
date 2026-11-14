@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const privateJson = { 'Cache-Control': 'private, no-store' };
 
 export async function GET(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) {
     return denied;
   }
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) {
     return denied;
   }

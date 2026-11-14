@@ -30,8 +30,8 @@ export async function POST(request: Request) {
       body,
       request,
       async onBeforeGenerateToken(pathname) {
-        if (!isOwnerRequest(request)) {
-          throw new UploadRejected('Owner key required', 401);
+        if (!(await isOwnerRequest(request))) {
+          throw new UploadRejected('Owner password required', 401);
         }
         const filename = pathname.startsWith('takes/') ? pathname.slice('takes/'.length) : '';
         const take = parseCanonicalTake(filename);
