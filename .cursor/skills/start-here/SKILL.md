@@ -7,7 +7,7 @@ description: First run of a new album. Collect essentials, set up the user's pro
 
 ## Readiness and resume
 
-At the first message, inspect the actual tools and sessions available to the bot for Suno, Vercel and (if Studio was requested) Cursor. Do not equate an installed app, an old chat claim or a connected MCP server with a signed-in account and working capabilities. Once the album checkout exists, run `pnpm onboarding status` from it. It probes the local Cursor installation, Vercel CLI sign-in, GitHub CLI sign-in, album file, distinct remotes and local site record, and displays one next step. It does not verify that a remote is owned by this user or that the saved site URL is live; check those separately. Its ignored `.album-onboarding.json` stores only checkpoints, never credentials or codes. Run it again at the start of a resumed chat and before a step that needs Suno, Cursor or Vercel. A stale Suno check is not sufficient for generation.
+At the first message, inspect the actual tools and sessions available to the bot for Suno, Vercel and (if Studio was requested) Cursor. Do not equate an installed app, an old chat claim or a connected MCP server with a signed-in account and working capabilities. Once the album checkout exists, run `pnpm onboarding status` from it. It probes the local Cursor installation, Vercel CLI sign-in, GitHub CLI sign-in and account identity, album file, remotes and local site record, and displays one next step. It requires `origin` to belong to the signed-in GitHub account, verifies that repo through GitHub, and requires `kit` to point to a different GitHub repository. It does not verify that the saved site URL is live; check that separately. Its ignored `.album-onboarding.json` stores only checkpoints, never credentials or codes. Run it again at the start of a resumed chat and before a step that needs Suno, Cursor or Vercel. A stale Suno check is not sufficient for generation.
 
 Present progress as “setup preparation X/Y” and one actionable next step. Finish that step, verify the result, then show the next. If a handoff is pending, keep its step pending; do not advance from an opened sign-up page, submitted form, or sent code. Do not claim that setup is complete until the deployed site, owner access, audio, and Compare takes are verified. The checkpoint's final “run preflight” step is a boundary before music generation, not a completion claim.
 
@@ -70,7 +70,7 @@ Before paid work, use `suno-run` preflight to resolve a supported model and show
 
 ## Check before saying done
 
-- The user's repo and `kit` remotes are distinct; the checkout includes `album/album.json` and the skills.
+- The `origin` repo belongs to the signed-in GitHub account and `kit` is a distinct GitHub remote; the checkout includes `album/album.json` and the skills.
 - The album brief reflects the user's actual input; the prompt count matches the selected scope.
 - Suno capability checks were made in the connected account; no retired model was assumed.
 - The owner can reach Settings. Publication visibility and listener voting are the owner's answers, and stay unset or off if they have not answered. `reviewTakes` is `public` unless the owner chose private on the question widget card.

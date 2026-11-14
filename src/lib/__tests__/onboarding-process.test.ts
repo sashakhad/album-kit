@@ -67,7 +67,15 @@ describe('new-owner onboarding across fresh CLI processes', () => {
       'git',
       "if (process.argv.slice(2).join(' ') === 'remote get-url origin') console.log('https://github.com/owner/album.git'); else console.log('https://github.com/sashakhad/album-kit.git');"
     );
-    await fakeCommand('gh', 'process.exit(0);');
+    await fakeCommand(
+      'gh',
+      "if (process.argv.slice(2).join(' ') === 'api user --hostname github.com --jq .login') console.log('other-owner'); if (process.argv.slice(2).join(' ') === 'api repos/owner/album --hostname github.com --jq .full_name') console.log('owner/album');"
+    );
+    expect(run('status')).toContain('owned by other-owner');
+    await fakeCommand(
+      'gh',
+      "if (process.argv.slice(2).join(' ') === 'api user --hostname github.com --jq .login') console.log('owner'); if (process.argv.slice(2).join(' ') === 'api repos/owner/album --hostname github.com --jq .full_name') console.log('owner/album');"
+    );
     expect(run('status')).toContain('Next: Ask the owner to finish Vercel sign-in');
 
     await fakeCommand('vercel', 'process.exit(0);');

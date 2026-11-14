@@ -10,13 +10,12 @@ const SUNO_REQUIRED_CAPABILITIES = ['create', 'status', 'models', 'credits'];
 const SUNO_OPTIONAL_CAPABILITIES = ['download'];
 const FRESH_MS = 30 * 60 * 1000;
 
-function remoteIdentity(url) {
-  const trimmed = url
-    .trim()
-    .replace(/\.git\/?$/, '')
-    .replace(/\/$/, '')
-    .toLowerCase();
-  return /github\.com[:/]([^/]+\/[^/]+)$/.exec(trimmed)?.[1] ?? trimmed;
+function githubRemoteIdentity(url) {
+  const match =
+    /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([a-z0-9-]+)\/([a-z0-9._-]+?)(?:\.git)?\/?$/i.exec(
+      url.trim()
+    );
+  return match === null ? null : `${match[1]}/${match[2]}`.toLowerCase();
 }
 
 function freshCheck(checkedAt, now) {
@@ -53,8 +52,34 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
   const cursorInstalled = run('cursor', ['--version']).ready;
   const vercelSignedIn = run('vercel', ['whoami']).ready;
   const githubSignedIn = run('gh', ['auth', 'status']).ready;
+  const githubAccount = githubSignedIn
+    ? run('gh', ['api', 'user', '--hostname', 'github.com', '--jq', '.login'])
+    : null;
+  const githubLogin =
+    githubAccount?.ready && /^[a-z0-9-]+$/i.test(githubAccount.output)
+      ? githubAccount.output.toLowerCase()
+      : null;
   const origin = run('git', ['remote', 'get-url', 'origin']);
   const kit = run('git', ['remote', 'get-url', 'kit']);
+  const originIdentity = origin.ready ? githubRemoteIdentity(origin.output) : null;
+  const kitIdentity = kit.ready ? githubRemoteIdentity(kit.output) : null;
+  const originOwnedByAccount = Boolean(
+    githubLogin &&
+    originIdentity &&
+    kitIdentity &&
+    originIdentity !== kitIdentity &&
+    originIdentity.split('/')[0] === githubLogin
+  );
+  const originRepo = originOwnedByAccount
+    ? run('gh', [
+        'api',
+        `repos/${originIdentity}`,
+        '--hostname',
+        'github.com',
+        '--jq',
+        '.full_name',
+      ])
+    : null;
   const suno = state.suno;
   const sunoFresh = freshCheck(suno?.checkedAt, now);
   const sunoCapabilitiesVerified = Boolean(
@@ -103,11 +128,11 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
     },
     github: {
       signedIn: githubSignedIn,
+      account: githubLogin,
       albumRemote: Boolean(
-        origin.ready &&
-        kit.ready &&
-        origin.output &&
-        remoteIdentity(origin.output) !== remoteIdentity(kit.output)
+        originOwnedByAccount &&
+        originRepo?.ready &&
+        originRepo.output.toLowerCase() === originIdentity
       ),
     },
     ownerAccessConfirmed: Boolean(
@@ -125,8 +150,14 @@ export function nextStep(status) {
   if (!status.suno.capabilitiesVerified) {
     return 'Check the signed-in Suno connector for create, status, models, and credits. Check download for private review or final export. Hand sign-in or a code to the owner if needed; then record the observed capabilities.';
   }
-  if (!status.github.signedIn || !status.github.albumRemote) {
-    return 'Sign in to GitHub if needed and make a user-owned album repository with distinct origin and kit remotes.';
+  if (!status.github.signedIn) {
+    return 'Sign in to GitHub, then make a user-owned album repository with distinct origin and kit remotes.';
+  }
+  if (status.github.account === null) {
+    return 'Check the signed-in GitHub account with gh api user --hostname github.com --jq .login, then recheck the album remotes.';
+  }
+  if (!status.github.albumRemote) {
+    return `Make origin a GitHub repository owned by ${status.github.account}, with kit pointing to a different GitHub repository.`;
   }
   if (!status.vercel.cliSignedIn) {
     return 'Ask the owner to finish Vercel sign-in, then recheck vercel whoami.';
