@@ -17,6 +17,8 @@ export function VoteButton({
   initialCount,
   initialValue,
   onSnapshot,
+  variant = 'panel',
+  onScoreClick,
 }: {
   trackNumber: number;
   versionSlug: string;
@@ -26,6 +28,8 @@ export function VoteButton({
   initialCount: number;
   initialValue: number;
   onSnapshot?: (snapshot: VoteSnapshot) => void;
+  variant?: 'panel' | 'inline';
+  onScoreClick?: () => void;
 }) {
   const [count, setCount] = useState(initialCount);
   const [myScore, setMyScore] = useState(initialValue);
@@ -70,46 +74,89 @@ export function VoteButton({
     }
   }
 
+  function stepButton(value: VoteDelta) {
+    const subtract = value < 0;
+    const active = subtract ? shownMyScore < 0 : shownMyScore > 0;
+    return (
+      <button
+        type='button'
+        onClick={event => void cast(event, value)}
+        disabled={pending}
+        aria-label={
+          subtract
+            ? `Subtract one from take ${displayLabel} of ${trackTitle}`
+            : `Add one to take ${displayLabel} of ${trackTitle}`
+        }
+        className={cn(
+          'flex size-11 shrink-0 items-center justify-center rounded-md',
+          active
+            ? subtract
+              ? 'text-destructive bg-destructive/12'
+              : 'text-primary bg-primary/12'
+            : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
+        )}
+      >
+        {subtract ? <Minus className='size-4' /> : <Plus className='size-4' />}
+      </button>
+    );
+  }
+
+  const scoreLabel = formatSignedScore(shownCount);
+  const scoreText = formatCompactScore(shownCount);
+
+  if (variant === 'inline') {
+    return (
+      <div
+        className='flex max-w-full flex-wrap items-center border-l border-white/15'
+        data-inline-vote
+      >
+        {stepButton(-1)}
+        {onScoreClick === undefined ? (
+          <span
+            aria-live='polite'
+            aria-label={`Score ${scoreLabel}`}
+            title={scoreLabel}
+            className='flex h-11 min-w-11 shrink-0 items-center justify-center px-2 font-mono text-sm tabular-nums'
+          >
+            {scoreText}
+          </span>
+        ) : (
+          <button
+            type='button'
+            onClick={onScoreClick}
+            aria-expanded
+            aria-live='polite'
+            aria-label={`Hide score controls for take ${displayLabel}, score ${scoreLabel}`}
+            title={scoreLabel}
+            className='flex h-11 min-w-11 shrink-0 items-center justify-center px-2 font-mono text-sm tabular-nums'
+          >
+            {scoreText}
+          </button>
+        )}
+        {stepButton(1)}
+        {error ? (
+          <span role='alert' className='text-destructive basis-full px-2 pb-1 text-xs'>
+            Score not saved. Try again.
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className='relative flex shrink-0 flex-col items-center gap-1'>
       <span className='text-muted-foreground text-[10px] tracking-wide uppercase'>Score</span>
       <div className='flex items-center rounded-lg border border-white/15 bg-black/15 p-0.5'>
-        <button
-          type='button'
-          onClick={event => void cast(event, -1)}
-          disabled={pending}
-          aria-label={`Subtract one from take ${displayLabel} of ${trackTitle}`}
-          className={cn(
-            'flex size-11 shrink-0 items-center justify-center rounded-md',
-            shownMyScore < 0
-              ? 'text-destructive bg-destructive/12'
-              : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
-          )}
-        >
-          <Minus className='size-4' />
-        </button>
+        {stepButton(-1)}
         <span
           aria-live='polite'
-          aria-label={`Score ${formatSignedScore(shownCount)}`}
-          title={formatSignedScore(shownCount)}
+          aria-label={`Score ${scoreLabel}`}
+          title={scoreLabel}
           className='w-[6ch] shrink-0 text-center font-mono text-sm tabular-nums'
         >
-          {formatCompactScore(shownCount)}
+          {scoreText}
         </span>
-        <button
-          type='button'
-          onClick={event => void cast(event, 1)}
-          disabled={pending}
-          aria-label={`Add one to take ${displayLabel} of ${trackTitle}`}
-          className={cn(
-            'flex size-11 shrink-0 items-center justify-center rounded-md',
-            shownMyScore > 0
-              ? 'text-primary bg-primary/12'
-              : 'text-muted-foreground hover:text-foreground hover:bg-white/8'
-          )}
-        >
-          <Plus className='size-4' />
-        </button>
+        {stepButton(1)}
       </div>
       {error ? (
         <span
