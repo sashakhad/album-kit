@@ -458,9 +458,11 @@ describe('AlbumPlayer', () => {
     expect(screen.getByText('OpenAI · model-x')).toBeInTheDocument();
     expect(screen.getByText('Cut when next pass starts')).toBeInTheDocument();
     expect(document.querySelector('[data-active-vote]')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Add one to take A/ })).toHaveLength(1);
-    await user.click(screen.getByRole('button', { name: 'Take B' }));
+    expect(screen.getAllByRole('button', { name: /Add one to take A/ })).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /Add one to take B/ })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Take B' }));
+    expect(screen.getAllByRole('button', { name: /Add one to take B/ })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /Add one to take A/ })).toHaveLength(1);
     expect(screen.queryByText('OpenAI · model-x')).not.toBeInTheDocument();
   });
 
@@ -693,7 +695,7 @@ describe('AlbumPlayer', () => {
     expect(within(row).queryByRole('button', { name: /follow scores/i })).not.toBeInTheDocument();
     expect(within(row).queryByRole('button', { name: /save take/i })).not.toBeInTheDocument();
     expect(within(row).getByText('0 of 2 scored')).toBeInTheDocument();
-    expect(within(row).getByText('Listeners 0')).toBeInTheDocument();
+    expect(within(row).queryByText('Listeners 0')).not.toBeInTheDocument();
     expect(within(row).getByText('Listeners +1')).toBeInTheDocument();
     expect(within(row).queryByText(/^listeners$/i)).not.toBeInTheDocument();
   });
@@ -745,15 +747,11 @@ describe('AlbumPlayer', () => {
 
     expect(screen.getByText('Score take A')).toBeInTheDocument();
     expect(screen.getByText(/Vote here while you listen\. Score \+2/)).toBeInTheDocument();
-    expect(screen.getByText('Listeners 0')).toBeInTheDocument();
+    expect(screen.queryByText('Listeners 0')).not.toBeInTheDocument();
     expect(screen.getByText('Listeners +4')).toBeInTheDocument();
-    const showScore = screen.getByRole('button', { name: /Show score controls for take A/i });
-    expect(showScore).toHaveClass('min-h-11', 'min-w-11');
-    expect(screen.getAllByRole('button', { name: /Add one to take A of Track One/i })).toHaveLength(
-      1
-    );
-
-    await user.click(showScore);
+    expect(screen.queryByRole('button', { name: /Show score controls/i })).not.toBeInTheDocument();
+    const chip = document.querySelector('[data-take-chip]');
+    expect(chip).toHaveClass('overflow-hidden', 'rounded-lg');
     const add = screen.getAllByRole('button', { name: /Add one to take A of Track One/i });
     expect(add).toHaveLength(2);
     expect(add[0]).toHaveClass('size-11');
@@ -766,7 +764,7 @@ describe('AlbumPlayer', () => {
 
     expect(screen.getByText(/Vote here while you listen\. Score \+3/)).toBeInTheDocument();
     expect(screen.getAllByText('+3').length).toBeGreaterThan(1);
-    expect(screen.getByText('Listeners 0')).toBeInTheDocument();
+    expect(screen.queryByText('Listeners 0')).not.toBeInTheDocument();
 
     const subtract = screen.getAllByRole('button', {
       name: /Subtract one from take A of Track One/i,
@@ -778,9 +776,10 @@ describe('AlbumPlayer', () => {
     await user.click(panelSubtract);
 
     expect(screen.getByText(/Vote here while you listen\. Score \+2/)).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /Hide score controls for take A, score \+2/i })
-    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Hide score controls/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Add one to take A of Track One/i })).toHaveLength(
+      2
+    );
   });
 
   it('lets a listener score on a chip without owner listener totals', () => {
@@ -802,9 +801,79 @@ describe('AlbumPlayer', () => {
 
     expect(screen.queryByText(/Listeners/)).not.toBeInTheDocument();
     expect(screen.getByText('Score take A')).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /Show score controls for take A/i })
-    ).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Add one to take A of Track One/i })).toHaveLength(
+      2
+    );
+    expect(screen.queryByRole('button', { name: /Show score controls/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps take chips in A–J order while Listen still starts on the highest score', async () => {
+    const user = userEvent.setup();
+    const labels = ['J', 'C', 'A', 'B'] as const;
+    const track = {
+      number: 1,
+      title: 'Track One',
+      kind: 'album' as const,
+      filename: 'v1-01-track-one-p1-takej.mp3',
+      audioUrl: '/j.mp3',
+      takes: labels.map(label => ({
+        label,
+        filename: `v1-01-track-one-p1-take${label.toLowerCase()}.mp3`,
+        audioUrl: `/${label.toLowerCase()}.mp3`,
+        versionSlug: 'v1',
+        voteLabel: label,
+      })),
+      prompt: null,
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          downloads: {},
+          versionTotals: { v1: 11 },
+          currentRound: 1,
+          tallies: { 1: { v1: { A: 10, B: 0, C: 0, J: 9 } } },
+          mine: { 1: [{ versionSlug: 'v1', takeLabel: 'A', value: 1, round: 1 }] },
+        }),
+      })
+    );
+    render(
+      <AlbumPlayer
+        version={{ ...sampleVersion, tracks: [track] }}
+        listenChoices={{ 1: { manual: false, token: null, hasBonus: false } }}
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: 1, B: 0, C: 0, J: 9 } } },
+        }}
+      />
+    );
+
+    const row = document.querySelector('[data-track-row]');
+    if (!(row instanceof HTMLElement)) {
+      throw new Error('expected a track card');
+    }
+    const card: HTMLElement = row;
+    function chipLabels(): string[] {
+      return within(card)
+        .getAllByRole('button', { name: /^Take [A-Z]$/ })
+        .map(button => button.textContent ?? '');
+    }
+
+    expect(chipLabels()).toEqual(['A', 'B', 'C', 'J']);
+    expect(within(card).getByRole('button', { name: 'Take J' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByText('Score take J')).toBeInTheDocument();
+
+    await user.click(within(card).getByRole('button', { name: /Add one to take A of Track One/i }));
+
+    expect(chipLabels()).toEqual(['A', 'B', 'C', 'J']);
+    expect(within(card).getByRole('button', { name: 'Take J' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
   });
 });
 
