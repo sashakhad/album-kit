@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import { ListenerOwnerClaim } from '@/components/album/ListenerOwnerClaim';
+import { MergeBallotPrompt } from '@/components/album/MergeBallotOffer';
 import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
 import { TakeAvailability } from '@/components/album/TakeAvailability';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
@@ -20,6 +22,7 @@ import { loadSettings } from '@/lib/settings/store';
 import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
+import { countBrowserListenerVotes } from '@/lib/votes/merge-ballot';
 import { loadAlbumProgress } from '@/lib/rounds/load-progress';
 import { emptyTakeMessage, pendingTakeLabel, progressBannerLine } from '@/lib/rounds/progress';
 import type { AlbumProgress } from '@/lib/rounds/progress';
@@ -68,6 +71,7 @@ export default async function VotePage({ params }: VotePageProps) {
       versionSlug,
       takeSlug,
       signInHref: `/key?next=${encodeURIComponent(votePath(parts))}`,
+      returnPath: votePath(parts),
       visibility: settings.visibility,
       listeningDetails: settings.listeningDetails,
       maskPromptModels: settings.maskPromptModels,
@@ -75,8 +79,11 @@ export default async function VotePage({ params }: VotePageProps) {
       progress,
     });
   }
-  const [config, { version, originalVersion, votes, blind, awaitingReveal, passSummary }] =
-    await Promise.all([getListenConfig(), ownerJudgingView()]);
+  const [
+    config,
+    { version, originalVersion, votes, blind, awaitingReveal, passSummary },
+    listenerVotesOnBrowser,
+  ] = await Promise.all([getListenConfig(), ownerJudgingView(), countBrowserListenerVotes()]);
   const listenChoices: Record<number, ListenChoice> = Object.fromEntries(
     config.tracks.map(item => {
       const original = trackByNumber(originalVersion, item.number);
@@ -135,7 +142,8 @@ export default async function VotePage({ params }: VotePageProps) {
       awaitingReveal={awaitingReveal}
       track={track}
       initialTake={initialTake}
-      showListenerScores={settings.listenerVoting}
+      showListenerScores
+      listenerVotesOnBrowser={listenerVotesOnBrowser}
       listenChoices={listenChoices}
       passSummary={passSummary}
       canRequestVariations
@@ -151,6 +159,7 @@ async function listenerVotePage(args: {
   versionSlug: string | undefined;
   takeSlug: string | undefined;
   signInHref: string;
+  returnPath: string;
   visibility: 'unset' | 'public' | 'private';
   listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
   maskPromptModels: boolean;
@@ -183,6 +192,8 @@ async function listenerVotePage(args: {
       track={track}
       initialTake={initialTake}
       signInHref={args.signInHref}
+      returnPath={args.returnPath}
+      privateAlbum={args.visibility === 'private'}
       bannerLine={args.bannerLine}
       progress={args.progress}
     />
@@ -197,6 +208,9 @@ function VoteMain({
   track,
   initialTake,
   signInHref,
+  returnPath,
+  privateAlbum = false,
+  listenerVotesOnBrowser = 0,
   showListenerScores = false,
   listenChoices,
   passSummary,
@@ -212,6 +226,9 @@ function VoteMain({
   track: AlbumTrack | null;
   initialTake: { label: string } | null;
   signInHref?: string;
+  returnPath?: string;
+  privateAlbum?: boolean;
+  listenerVotesOnBrowser?: number;
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
@@ -244,6 +261,12 @@ function VoteMain({
           {voter === 'owner' ? 'Open Listen' : 'Sign in as owner'}
         </Link>
       </div>
+      {voter === 'listener' && privateAlbum && returnPath !== undefined ? (
+        <ListenerOwnerClaim next={returnPath} />
+      ) : null}
+      {voter === 'owner' && listenerVotesOnBrowser > 0 ? (
+        <MergeBallotPrompt votes={listenerVotesOnBrowser} />
+      ) : null}
       {!playable && version.tracks.length === 0 ? (
         <TakeAvailability
           message={notice ?? pending}

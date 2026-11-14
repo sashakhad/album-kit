@@ -2,6 +2,11 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 
+import {
+  clearMergeOfferDismissal,
+  dismissMergeOffer,
+  MergeBallotOffer,
+} from '@/components/album/MergeBallotOffer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -9,6 +14,7 @@ export function KeyForm({ next }: { next: string }) {
   const [ownerLink, setOwnerLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [mergeVotes, setMergeVotes] = useState<number | null>(null);
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.hash.slice(1)).get('owner');
@@ -33,6 +39,11 @@ export function KeyForm({ next }: { next: string }) {
         body: JSON.stringify(credentials),
       });
       if (response.ok) {
+        const votes = await listenerVotesOnThisBrowser();
+        if (votes > 0) {
+          setMergeVotes(votes);
+          return;
+        }
         window.location.replace(next);
         return;
       }
@@ -55,6 +66,22 @@ export function KeyForm({ next }: { next: string }) {
     event.preventDefault();
     const key = new FormData(event.currentTarget).get('key');
     if (typeof key === 'string') void signIn({ key: key.trim() });
+  }
+
+  if (mergeVotes !== null) {
+    return (
+      <MergeBallotOffer
+        votes={mergeVotes}
+        onDone={() => {
+          clearMergeOfferDismissal();
+          window.location.replace(next);
+        }}
+        onSkip={() => {
+          dismissMergeOffer();
+          window.location.replace(next);
+        }}
+      />
+    );
   }
 
   return (
@@ -108,5 +135,32 @@ export function KeyForm({ next }: { next: string }) {
         </p>
       )}
     </div>
+  );
+}
+
+async function listenerVotesOnThisBrowser(): Promise<number> {
+  try {
+    const response = await fetch('/api/owner/merge-ballot');
+    if (!response.ok) {
+      return 0;
+    }
+    const body: unknown = await response.json();
+    if (!isVoteCount(body)) {
+      return 0;
+    }
+    return body.votes;
+  } catch {
+    return 0;
+  }
+}
+
+function isVoteCount(body: unknown): body is { votes: number } {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'votes' in body &&
+    typeof body.votes === 'number' &&
+    Number.isFinite(body.votes) &&
+    body.votes > 0
   );
 }
