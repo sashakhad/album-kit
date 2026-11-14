@@ -27,6 +27,12 @@ pnpm setup:site --name my-album
 
 An existing **public** Blob store cannot protect already uploaded objects by changing a site setting. Migrate takes into a private Blob store and retire the old public objects before selecting Private; Settings requires a verified private store and `PRIVATE_BLOB_AUDITED=true` after that audit. New setup sets this flag because it creates no earlier public take store. Private listening invites are one-use links that expire after 15 minutes. The link secret is in the URL fragment, removed on opening, and exchanged for a revocable viewer cookie. Viewers can hear final picks. With listener voting on, they can also hear previews and score takes, and those scores stay separate from the owner's. They cannot change Settings. Test access on a second browser before sharing.
 
+## Kit updates
+
+`albums.json` lists album repositories. A merge to this repo's `main` branch copies the kit into each one and pushes. It does not change `album/BRIEF.md`, `album/album.json`, or `album/tracks/`. The album's Vercel project is connected to that repository, so the push deploys production. `ALBUM_SYNC_TOKEN` in this repo's GitHub secrets must be able to push to those repositories. See `grokbot/BOT.md` for the registration steps.
+
+`vercel.json` keeps production deploys of this kit's `main` branch off. Connect this GitHub repository in Vercel to get a preview deployment for each pull request.
+
 ## Settings and rounds
 
 Open **Settings** in the album’s header, edit a choice, and select **Save changes**. Sharing and listening changes take effect on the site when saved. Music settings apply to new rounds. Use **Sharing** to copy the live listener link or invite someone to a private album.

@@ -37,6 +37,7 @@
     "takes:refresh": "node scripts/refresh-streams.mjs",
     "takes:verify": "node scripts/verify-streams.mjs",
     "publish:album": "node scripts/publish-album.mjs",
+    "sync:albums": "node scripts/sync-albums.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky"
   },

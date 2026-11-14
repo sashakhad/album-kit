@@ -67,3 +67,28 @@ Visible listening mode shows each selected take's Style prompt in the collapsed 
 Cursor is optional. Album Settings → Generation holds each owner's Suno model preference; Advanced music settings holds the prompt writer and requested Cursor model. Use those saved defaults without a per-song setup conversation, while checking current account model availability and cost before each round. The owner may override the Suno model for one round. Cursor's model picker is usable only after a real connected Cursor execution and observed model information are available. Never infer a model from an instruction or requested label. Model preferences are not spending approval.
 
 On a large album, Compare takes stays one track at a time. Each track shows how many of its takes are scored, and the page resumes the last track. Use Listen as the normal entry point. Eligible listeners can hear tracks marked Preview before the owner scores or chooses a take, then open Compare takes to score them. A preview is never a final choice. Listening labels are neutral Take A, Take B, and so on; do not guess canonical set/letter identities from display letters. Keep each take's score visible in its reserved space. Before you tell the owner takes are playable, run `pnpm takes:verify` and send its line. That line counts how many streams returned 200. Say they are playable only when every stored stream returned 200. If some are waiting to be published on Suno, report that count and do not call those takes playable. Do not paste stream URLs. Verify audio actually plays before sharing a listening link.
+
+## Automatic deploys
+
+A merge to album-kit `main` updates every registered album site. No one uploads files, runs `vercel deploy`, or merges a follow-up by hand.
+
+`.github/workflows/sync-albums.yml` runs on that merge. It reads `albums.json` and pushes the kit into each listed repository. The album's Vercel project is connected to that repository with Git integration, so the push deploys production.
+
+The album repository is the kit plus that album's own files. The sync never changes these paths:
+
+- `album/BRIEF.md`
+- `album/album.json`
+- `album/tracks/` and every file under it
+
+It also leaves the rest of `album/` and `.album-site.json` in place. Those files have to already be in the album repository. The sync does not create them.
+
+Register an album only after its repository and Vercel project exist:
+
+1. The repository contains `album/BRIEF.md`, `album/album.json`, and `album/tracks/`. Its production branch is the branch that should deploy. Use `main` unless there is a reason not to.
+2. The Vercel project uses Git integration for that repository and branch. A push deploys production. Do not ask the owner to log in when the Vercel connector can create that project.
+3. Add `{ "repo": "<owner>/<name>", "branch": "main" }` to the `albums` array in `albums.json`.
+4. Merge that change to album-kit `main`. The workflow pushes the kit with `ALBUM_SYNC_TOKEN`. That secret must be allowed to push to the album repository. The token is never printed.
+
+An empty `albums` array syncs nothing and the workflow still succeeds. Do not register shr1mp-clvb from the kit. The owner is moving that site onto its own repository.
+
+Album-kit itself is not an album site. `vercel.json` turns off production deploys of its `main` branch. Connect the album-kit GitHub repository in Vercel so pull requests get preview deployments. Those previews are for the kit, not for an owner's album.
