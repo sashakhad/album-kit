@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { getListenConfig } from '@/lib/album/listen-store';
+import { formatSignedScore } from '@/lib/formatters';
 import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 import { getConsolidatedPass } from '@/lib/votes/pass-store';
 import { countForTake } from '@/lib/votes/tally';
+import { EMPTY_VOTE_SNAPSHOT, type TrackTallies } from '@/lib/votes/types';
 import {
   promptModelLabel,
   summarizeModels,
@@ -104,6 +106,7 @@ export default async function StatsPage() {
           in each category.
         </p>
       </header>
+      <ListenerVoteList takes={source} tallies={view.votes.listenerTallies} />
       {hidden ? (
         <div className='rounded-2xl border border-white/12 bg-white/4 p-6'>
           <h2 className='font-semibold'>Model assignments are hidden</h2>
@@ -253,6 +256,76 @@ export default async function StatsPage() {
         </>
       )}
     </main>
+  );
+}
+
+function ListenerVoteList({
+  takes,
+  tallies,
+}: {
+  takes: readonly {
+    filename: string;
+    trackNumber: number;
+    trackTitle: string;
+    versionSlug: string;
+    voteLabel: string;
+  }[];
+  tallies: TrackTallies | undefined;
+}) {
+  const snapshot = { ...EMPTY_VOTE_SNAPSHOT, tallies: tallies ?? {} };
+  const rows: {
+    filename: string;
+    trackNumber: number;
+    trackTitle: string;
+    versionSlug: string;
+    voteLabel: string;
+    score: number;
+  }[] = [];
+  for (const take of takes) {
+    const score = countForTake(snapshot, take.trackNumber, take.versionSlug, take.voteLabel);
+    if (score === 0) {
+      continue;
+    }
+    rows.push({ ...take, score });
+  }
+
+  return (
+    <section className='space-y-3' aria-labelledby='listener-votes-heading'>
+      <h2 id='listener-votes-heading' className='text-xl font-semibold'>
+        Listener votes
+      </h2>
+      <p className='text-muted-foreground text-xs'>
+        Listener ballots stay listed here whether or not listeners can vote.
+      </p>
+      {rows.length === 0 ? (
+        <p className='text-muted-foreground text-sm'>No listener votes yet.</p>
+      ) : (
+        <div className='overflow-x-auto rounded-2xl border border-white/12'>
+          <table className='w-full min-w-[28rem] text-left text-sm'>
+            <thead className='bg-white/5 text-xs'>
+              <tr>
+                <th className='p-3'>Track</th>
+                <th className='p-3'>Take</th>
+                <th className='p-3'>Listener score</th>
+              </tr>
+            </thead>
+            <tbody className='divide-y divide-white/8'>
+              {rows.map(row => (
+                <tr key={row.filename}>
+                  <th scope='row' className='p-3 font-medium'>
+                    {String(row.trackNumber).padStart(2, '0')} · {row.trackTitle}
+                  </th>
+                  <td className='p-3 font-mono text-xs'>
+                    {row.versionSlug} · {row.voteLabel}
+                  </td>
+                  <td className='p-3 font-mono tabular-nums'>{formatSignedScore(row.score)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

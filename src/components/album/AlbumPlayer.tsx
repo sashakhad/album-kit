@@ -166,11 +166,11 @@ export function AlbumPlayer({
   const [volume, setVolume] = useState(0.85);
   const [voteSnapshot, setVoteSnapshot] = useState(votes);
   const displayedVotes = useMemo(() => {
-    if (showListenerScores) return voteSnapshot;
+    if (voter === 'owner' || showListenerScores) return voteSnapshot;
     const visible = { ...voteSnapshot };
     delete visible.listenerTallies;
     return visible;
-  }, [showListenerScores, voteSnapshot]);
+  }, [showListenerScores, voteSnapshot, voter]);
 
   useEffect(() => {
     if (!awaitingReveal || revealRefreshRequested.current) return;
