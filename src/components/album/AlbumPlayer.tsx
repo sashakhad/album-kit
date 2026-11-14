@@ -40,7 +40,6 @@ import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
 import { isVideoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
-import { DownloadButton } from '@/components/album/DownloadButton';
 import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
 import { MoreLikeThis } from '@/components/album/MoreLikeThis';
@@ -907,7 +906,6 @@ export function AlbumPlayer({
                   pendingLabel={pendingLabel}
                   {...(scoreLabel === undefined ? {} : { scoreLabel })}
                   voter={voter}
-                  onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
                     const selected = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
                     playIndex(
@@ -929,7 +927,6 @@ export function AlbumPlayer({
             isPlaying={isPlaying}
             votes={displayedVotes}
             voter={voter}
-            onVoteSnapshot={setVoteSnapshot}
             onPlay={(index, label) => playIndex(index, label)}
           />
         ) : null}
@@ -1132,7 +1129,6 @@ function PossibleRenames({
   isPlaying,
   votes,
   voter,
-  onVoteSnapshot,
   onPlay,
 }: {
   tracks: AlbumTrack[];
@@ -1141,7 +1137,6 @@ function PossibleRenames({
   isPlaying: boolean;
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
-  onVoteSnapshot: (snapshot: VoteSnapshot) => void;
   onPlay: (index: number, label: string) => void;
 }) {
   const entries: { track: AlbumTrack; index: number; take: AlbumTake }[] = [];
@@ -1183,7 +1178,6 @@ function PossibleRenames({
                 isPlaying={isPlaying && isCurrent}
                 votes={votes}
                 voter={voter}
-                onVoteSnapshot={onVoteSnapshot}
                 onPlay={() => onPlay(entry.index, entry.take.label)}
               />
             </li>
@@ -1201,7 +1195,6 @@ function ParkedTakeRow({
   isPlaying,
   votes,
   voter,
-  onVoteSnapshot,
   onPlay,
 }: {
   track: AlbumTrack;
@@ -1210,7 +1203,6 @@ function ParkedTakeRow({
   isPlaying: boolean;
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
-  onVoteSnapshot: (snapshot: VoteSnapshot) => void;
   onPlay: () => void;
 }) {
   return (
@@ -1239,19 +1231,6 @@ function ParkedTakeRow({
         </span>
       </button>
       <div className='flex shrink-0 items-center gap-1'>
-        {voter === 'owner' ? (
-          <DownloadButton
-            key={`save-parked-${track.number}-${take.versionSlug}-${take.voteLabel}`}
-            trackNumber={track.number}
-            versionSlug={take.versionSlug}
-            takeLabel={take.voteLabel}
-            displayLabel={take.label}
-            trackTitle={track.title}
-            audioUrl={take.audioUrl}
-            votes={votes}
-            onSnapshot={onVoteSnapshot}
-          />
-        ) : null}
         <ListenerScore
           votes={votes}
           voter={voter}
@@ -1331,7 +1310,6 @@ function TrackRow({
   voter,
   onSelect,
   onSelectTake,
-  onVoteSnapshot,
 }: {
   track: AlbumTrack;
   isCurrent: boolean;
@@ -1348,7 +1326,6 @@ function TrackRow({
   voter: 'owner' | 'listener';
   onSelect: () => void;
   onSelectTake: (label: string) => void;
-  onVoteSnapshot: (snapshot: VoteSnapshot) => void;
 }) {
   const ready = track.audioUrl !== null;
   const takeLabel = selectedTake?.voteLabel ?? track.takes[0]?.voteLabel ?? 'A';
@@ -1417,19 +1394,6 @@ function TrackRow({
           ) : null}
           {canVote && selectedTake !== null ? (
             <div className='flex shrink-0 items-end gap-1 self-end'>
-              {voter === 'owner' ? (
-                <DownloadButton
-                  key={`save-${track.number}-${voteVersionSlug}-${takeLabel}`}
-                  trackNumber={track.number}
-                  versionSlug={voteVersionSlug}
-                  takeLabel={takeLabel}
-                  displayLabel={selectedTake.label}
-                  trackTitle={track.title}
-                  audioUrl={selectedTake.audioUrl}
-                  votes={votes}
-                  onSnapshot={onVoteSnapshot}
-                />
-              ) : null}
               <ListenerScore
                 votes={votes}
                 voter={voter}
