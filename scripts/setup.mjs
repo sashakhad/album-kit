@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// pnpm setup:site [--name <project>] [--dry-run]
-// Links this album to a Vercel project, provisions Blob, Neon and ALBUM_KEY,
-// deploys, and prints {"siteUrl", "albumKey", "project"} as the last line.
+// pnpm setup:site [--name <project>] [--password-stdin] [--dry-run]
+// Links this album to a Vercel project, provisions Blob, Neon and ALBUM_KEY.
+// ALBUM_KEY is the owner password. Setup never generates one. Pass it on stdin
+// with --password-stdin, or reuse ignored .album-key. The last line is
+// {"siteUrl", "project", "ownerPassword"} and does not contain the password.
 // Exit codes: 0 done, 1 failed, 2 not signed in to Vercel, 3 the Neon step
 // needs the browser, 4 the Vercel account's email can't be read, 5 the site
-// exists but no private GitHub repo could be created.
+// exists but no private GitHub repo could be created, 6 the owner password
+// is missing. A push deploys. This command does not run vercel deploy.
 import { spawnSync } from 'node:child_process';
-import { randomInt } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,23 +22,11 @@ export const EXIT = {
   neonNeedsBrowser: 3,
   noAccountEmail: 4,
   noGitHub: 5,
+  passwordNeeded: 6,
 };
 
-const KEY_WORDS =
-  `acorn amber anchor apple apron arrow aspen atlas attic autumn badge bagel bamboo banjo
-barley basil beacon beetle berry bison blanket bonnet bramble brass breeze brick bridge brook bubble
-bucket butter button cabin cactus candle canoe canyon carrot cashew castle cedar cello chalk cherry
-chess cider cinder citrus clay clover cobalt cocoa comet copper coral cotton cradle crane crayon
-creek cricket crystal cumin dahlia daisy denim desert dingo dolphin domino dragon drum dune eagle
-ember emerald falcon fable feather fennel fern fiddle fig finch fjord flint flute forest fossil fox
-frost garnet gecko ginger glacier globe gopher granite grape gravel guitar harbor hazel heron honey
-hornet husky iris island ivory jade jasmine jelly juniper kayak kettle kiwi koala ladder lagoon
-lantern lava lemon lilac linen lotus lunar maple marble meadow melon mesa mint mitten moss nectar
-nickel nutmeg oak oasis ocean olive onyx orbit orchid otter owl paddle panda papaya parsley pebble
-pecan pepper piano pickle pine plum pollen poppy prairie puffin quartz quill quince rabbit radish
-raven reef ribbon river robin rocket saffron sage salmon satin sequoia shadow shell sierra silver
-sparrow spruce squash stone sunny swan tango thistle thunder tiger timber topaz tulip tundra velvet
-violet walnut willow`.split(/\s+/);
+export const PASSWORD_NEEDED =
+  'Ask the owner to pick an owner password in a secret card. Then run pnpm setup:site --password-stdin with that password on stdin. Do not generate a password, do not pass it as an argument, and do not paste it into chat.';
 
 export class ExitError extends Error {
   constructor(code, message) {
@@ -83,35 +73,6 @@ export function createRunner({ dryRun }) {
   }
 
   return { dryRun, run, vercel, must };
-}
-
-export function isTransientDeployError(text) {
-  return /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|UND_ERR|network timeout|\b502\b|\b503\b|\b504\b/i.test(
-    text
-  );
-}
-
-/** Retry a production deploy when the Vercel CLI loses the network. */
-export function deployProduction(runner, args = ['deploy', '--prod', '--yes']) {
-  if (runner.dryRun) {
-    return runner.must(runner.vercel(args));
-  }
-  const attempts = 3;
-  let last = null;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    last = runner.vercel(args);
-    if (last.status === 0) {
-      return last;
-    }
-    const text = `${last.stderr}\n${last.stdout}`;
-    if (!isTransientDeployError(text) || attempt === attempts) {
-      throw new ExitError(EXIT.failed, `Failed: ${last.shown}\n${last.stderr.trim()}`);
-    }
-    const detail = /fetch failed/i.test(text) ? 'fetch failed' : 'a network error';
-    console.log(`Vercel deploy failed (${detail}). Retrying (${attempt + 1} of ${attempts}).`);
-    runner.run('sleep', [String(attempt * 2)]);
-  }
-  throw new ExitError(EXIT.failed, 'Vercel deploy failed.');
 }
 
 const GITHUB_SIGNED_OUT =
@@ -214,50 +175,6 @@ function firstLine(text) {
   return line ?? '';
 }
 
-// Vercel's free plan blocks a deploy whose HEAD commit author isn't the account owner,
-// and the CLI sends `git log -1`'s author with every deploy.
-export function deployAsAccountOwner(runner, { checkSignIn = true } = {}) {
-  const noEmail = new ExitError(
-    EXIT.noAccountEmail,
-    "Couldn't read the email of the signed-in Vercel account, and Vercel only deploys commits made by the account owner. Run: npx vercel login\nThen run this command again."
-  );
-  // Logged out, `vercel api` starts a device login and waits, so check the sign-in first.
-  if (checkSignIn && runner.vercel(['whoami']).status !== 0) {
-    throw noEmail;
-  }
-  const userResult = runner.vercel(['api', '/v2/user', '--raw'], { timeoutMs: 60_000 });
-  if (runner.dryRun) {
-    runner.run('git', ['log', '-1', '--format=%ae']);
-    const when = 'if the last commit author is not the Vercel account email';
-    runner.run('git', ['config', 'user.name', '<account name>'], { when });
-    runner.run('git', ['config', 'user.email', '<account email>'], { when });
-    runner.run('git', ['commit', '--allow-empty', '-m', 'album: deploy as <username>'], { when });
-    return;
-  }
-
-  const user = parseJson(userResult.stdout)?.user;
-  const email = typeof user?.email === 'string' ? user.email.trim() : '';
-  if (userResult.status !== 0 || email.length === 0) {
-    throw noEmail;
-  }
-
-  const insideRepo = runner.run('git', ['rev-parse', '--is-inside-work-tree']);
-  const head = insideRepo.status === 0 ? runner.run('git', ['log', '-1', '--format=%ae']) : null;
-  if (head === null || head.status !== 0) {
-    return;
-  }
-  if (head.stdout.trim().toLowerCase() === email.toLowerCase()) {
-    return;
-  }
-
-  const username =
-    typeof user.username === 'string' && user.username.length > 0 ? user.username : email;
-  const name = typeof user.name === 'string' && user.name.length > 0 ? user.name : username;
-  runner.must(runner.run('git', ['config', 'user.name', name]));
-  runner.must(runner.run('git', ['config', 'user.email', email]));
-  runner.must(runner.run('git', ['commit', '--allow-empty', '-m', `album: deploy as ${username}`]));
-}
-
 // A project that `vercel link` creates gets connected to the folder's git remote, and on a fresh
 // copy that remote is the public kit. Left connected, every push to the kit would redeploy this
 // album's site from the kit's empty album.json.
@@ -302,23 +219,55 @@ export function slugify(value) {
     .replace(/^-+|-+$/g, '');
 }
 
-export function generateAlbumKey() {
-  const words = [];
-  while (words.length < 3) {
-    const word = KEY_WORDS[randomInt(KEY_WORDS.length)];
-    if (!words.includes(word)) {
-      words.push(word);
-    }
-  }
-  return `${words.join('-')}-${String(randomInt(100)).padStart(2, '0')}`;
-}
-
 // vercel env pull can't read a Secret back, and writes this placeholder in its place.
 const SENSITIVE_PLACEHOLDER = '[SENSITIVE]';
 
 export function usableAlbumKey(value) {
   const key = value?.trim() ?? '';
   return key.length > 0 && key !== SENSITIVE_PLACEHOLDER ? key : null;
+}
+
+/** A password the owner is setting now. Existing ALBUM_KEY values skip this check. */
+export function usableOwnerPassword(value) {
+  const password = value?.trim() ?? '';
+  if (password.length < 4 || password.length > 200) return null;
+  if (/[\r\n]/.test(password) || password === SENSITIVE_PLACEHOLDER) return null;
+  return password;
+}
+
+/**
+ * Replace ALBUM_KEY on the linked Vercel project. The previous password is not required.
+ * @param {ReturnType<typeof createRunner>} runner
+ * @param {string} password
+ */
+export function rotateAlbumKey(runner, password) {
+  const targets = ['production', 'preview', 'development'];
+  if (runner.dryRun) {
+    for (const target of targets) {
+      runner.vercel(['env', 'rm', 'ALBUM_KEY', target, '--yes'], {
+        when: 'replace ALBUM_KEY; the old password is not required',
+      });
+      runner.vercel(['env', 'add', 'ALBUM_KEY', target, '--value', '<owner password>', '--yes'], {
+        secretAfter: '--value',
+      });
+    }
+    return { updated: targets, cli: true };
+  }
+  if (runner.vercel(['whoami']).status !== 0) {
+    return { updated: [], cli: false };
+  }
+  const updated = [];
+  for (const target of targets) {
+    runner.vercel(['env', 'rm', 'ALBUM_KEY', target, '--yes']);
+    const added = runner.vercel(['env', 'add', 'ALBUM_KEY', target, '--value', password, '--yes'], {
+      secretAfter: '--value',
+    });
+    if (added.status === 0) updated.push(target);
+  }
+  if (!updated.includes('production')) {
+    throw new ExitError(EXIT.failed, 'Could not set ALBUM_KEY on production.');
+  }
+  return { updated, cli: true };
 }
 
 export function readEnvFile(filePath) {
@@ -342,23 +291,28 @@ export function readEnvFile(filePath) {
 }
 
 function parseArgs(argv) {
-  const options = { name: undefined, dryRun: false };
+  const options = { name: undefined, dryRun: false, passwordStdin: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--dry-run') {
       options.dryRun = true;
+    } else if (arg === '--password-stdin') {
+      options.passwordStdin = true;
     } else if (arg === '--name') {
       options.name = argv[index + 1];
       index += 1;
       if (options.name === undefined || options.name.length === 0) {
-        throw new ExitError(EXIT.failed, 'Usage: pnpm setup:site [--name <project>] [--dry-run]');
+        throw new ExitError(
+          EXIT.failed,
+          'Usage: pnpm setup:site [--name <project>] [--password-stdin] [--dry-run]'
+        );
       }
     } else if (arg.startsWith('--name=')) {
       options.name = arg.slice('--name='.length);
     } else {
       throw new ExitError(
         EXIT.failed,
-        `Unknown option ${arg}. Usage: pnpm setup:site [--name <project>] [--dry-run]`
+        `Unknown option ${arg}. Usage: pnpm setup:site [--name <project>] [--password-stdin] [--dry-run]`
       );
     }
   }
@@ -390,37 +344,18 @@ function productionEnvKeys(runner) {
   return keys;
 }
 
-function productionUrl(runner, deploy) {
-  const output = parseJson(deploy.stdout);
-  const fromJson = output?.productionUrl ?? output?.deployment?.productionUrl;
-  if (typeof fromJson === 'string' && fromJson.startsWith('https://')) {
-    return fromJson;
+function linkedProductionUrl(runner, root) {
+  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
+  if (typeof projectId !== 'string' || runner.dryRun) {
+    return null;
   }
-
-  const aliased = /Aliased:?\s+(https:\/\/\S+)/.exec(
-    stripAnsi(`${deploy.stdout}\n${deploy.stderr}`)
-  );
-  if (aliased?.[1] !== undefined) {
-    return aliased[1];
+  const project = runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']);
+  const aliases = parseJson(project.stdout)?.targets?.production?.alias;
+  const domain = Array.isArray(aliases) ? aliases.find(item => typeof item === 'string') : null;
+  if (typeof domain !== 'string' || domain.length === 0) {
+    return null;
   }
-
-  const deploymentUrl = output?.url ?? output?.deployment?.url;
-  if (typeof deploymentUrl === 'string') {
-    const inspect = runner.vercel(['inspect', deploymentUrl, '--json']);
-    const aliases = parseJson(inspect.stdout)?.aliases;
-    const domains = (Array.isArray(aliases) ? aliases : [])
-      .map(alias => (typeof alias === 'string' ? alias : (alias?.alias ?? alias?.domain)))
-      .filter(domain => typeof domain === 'string' && domain.length > 0)
-      .sort((left, right) => left.length - right.length);
-    if (domains[0] !== undefined) {
-      return domains[0].startsWith('https://') ? domains[0] : `https://${domains[0]}`;
-    }
-  }
-
-  throw new ExitError(
-    EXIT.failed,
-    `Failed: ${deploy.shown}\nThe deploy finished, but its production domain wasn't in the output. Check the project's Domains page on vercel.com.`
-  );
+  return domain.startsWith('https://') ? domain : `https://${domain}`;
 }
 
 function setup(options) {
@@ -507,16 +442,27 @@ function setup(options) {
   const keyFile = path.join(root, '.album-key');
   let albumKey = usableAlbumKey(readText(keyFile));
   if (!keys.has('ALBUM_KEY')) {
-    const generated = options.dryRun ? '<new album key>' : generateAlbumKey();
+    if (albumKey === null && options.passwordStdin && !options.dryRun) {
+      albumKey = usableOwnerPassword(readFileSync(0, 'utf8'));
+      if (albumKey === null) {
+        throw new ExitError(
+          EXIT.failed,
+          'The owner password must be one line of 4 to 200 characters. Ask again with a secret card. Do not paste it into chat.'
+        );
+      }
+    }
+    if (albumKey === null && !options.dryRun) {
+      throw new ExitError(EXIT.passwordNeeded, PASSWORD_NEEDED);
+    }
+    const value = options.dryRun ? '<owner password>' : albumKey;
     runner.must(
-      runner.vercel(['env', 'add', 'ALBUM_KEY', 'production', '--value', generated, '--yes'], {
-        when: 'if ALBUM_KEY is missing; also writes the key to .album-key',
+      runner.vercel(['env', 'add', 'ALBUM_KEY', 'production', '--value', value, '--yes'], {
+        when: 'if ALBUM_KEY is missing; the owner password is read from stdin and written to .album-key',
         secretAfter: '--value',
       })
     );
-    if (!options.dryRun) {
-      writeFileSync(keyFile, `${generated}\n`);
-      albumKey = generated;
+    if (!options.dryRun && albumKey !== null) {
+      writeFileSync(keyFile, `${albumKey}\n`, { mode: 0o600 });
     }
   }
 
@@ -525,22 +471,23 @@ function setup(options) {
     albumKey = usableAlbumKey(readEnvFile(path.join(root, '.env.local')).ALBUM_KEY);
     if (albumKey === null) {
       console.log(
-        "Vercel keeps ALBUM_KEY secret, so setup can't read it back. Ask the owner for the album key, then save it: printf '%s\\n' '<album key>' > .album-key"
+        "Vercel keeps ALBUM_KEY secret, so setup can't read it back. The owner password is already on the project. Save the same password with: pnpm owner:password"
       );
     } else {
       writeFileSync(keyFile, `${albumKey}\n`);
     }
   }
 
-  deployAsAccountOwner(runner, { checkSignIn: false });
-  const deploy = deployProduction(runner, ['deploy', '--prod', '--yes', '--json']);
-  const siteUrl = options.dryRun ? null : productionUrl(runner, deploy);
-
   const existing = readAlbumSite(root);
+  const linkedUrl = linkedProductionUrl(runner, root);
+  const siteUrl =
+    typeof existing?.siteUrl === 'string' && existing.siteUrl.startsWith('https://')
+      ? existing.siteUrl
+      : linkedUrl;
   const site = {
     siteUrl,
     project: name,
-    deploy: existing?.deploy === 'git' || existing?.deploy === 'cli' ? existing.deploy : 'cli',
+    deploy: 'git',
     kitSource: 'https://github.com/sashakhad/album-kit',
     kitRevision: existing?.kitRevision ?? kitRevision,
   };
@@ -550,8 +497,18 @@ function setup(options) {
 
   if (typeof siteUrl === 'string' && siteUrl.startsWith('https://')) {
     console.log(`Milestone: Site created. ${siteUrl}`);
+  } else if (!options.dryRun) {
+    console.log(
+      'No production URL yet. Push to the album repo after it is linked in Vercel with Git integration. Do not run vercel deploy and do not upload project files one by one.'
+    );
   }
-  console.log(JSON.stringify({ siteUrl, albumKey, project: name }));
+  console.log(
+    JSON.stringify({
+      siteUrl,
+      project: name,
+      ownerPassword: albumKey === null ? 'missing' : 'set',
+    })
+  );
   const github = ensureGitHubRepo(runner, { project: name });
   if (!github.ok) {
     throw new ExitError(EXIT.noGitHub, `BLOCKER: ${github.blocker}`);
@@ -573,10 +530,6 @@ function quote(value) {
 function repoPath(url) {
   const match = /[/:]([^/:]+)\/([^/]+?)(?:\.git)?\/*$/.exec(url.trim());
   return match === null ? null : `${match[1]}/${match[2]}`.toLowerCase();
-}
-
-function stripAnsi(value) {
-  return value.replace(/\u001b\[[0-9;]*m/g, '');
 }
 
 function parseJson(text) {

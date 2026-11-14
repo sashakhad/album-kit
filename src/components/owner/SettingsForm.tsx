@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, ChevronDown, Circle, Upload } from 'lucide-react';
 
+import { ChangePasswordForm } from '@/components/owner/ChangePasswordForm';
 import { InviteControls } from '@/components/owner/InviteControls';
 import { OwnerKeyControls } from '@/components/owner/OwnerKeyControls';
 import { ShareControls } from '@/components/owner/ShareControls';
@@ -81,7 +82,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
       if (!response.ok) {
         throw new Error(
           response.status === 401
-            ? 'Your owner session ended. Open a fresh owner link from Grok Bot and try again.'
+            ? 'Your owner session ended. Enter your owner password and try again.'
             : typeof result?.error === 'string'
               ? result.error
               : 'Couldn’t save changes. Check your choices and try again.'
@@ -566,7 +567,11 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
         </fieldset>
       </form>
 
-      <Disclosure title='Owner access' description='Sign in on another device or view your key'>
+      <Disclosure
+        title='Owner access'
+        description='Change your password or sign in on another device'
+      >
+        <ChangePasswordForm />
         <OwnerKeyControls />
       </Disclosure>
     </div>

@@ -25,7 +25,7 @@ export async function resolveVoter(
   if (albumKey() === null) {
     return { error: Response.json({ error: 'ALBUM_KEY is not set' }, { status: 503 }) };
   }
-  if (isOwnerRequest(request)) {
+  if (await isOwnerRequest(request)) {
     return { voter: { kind: 'owner' } };
   }
 
@@ -40,7 +40,7 @@ export async function resolveVoter(
       viewer: inviteId !== null,
     })
   ) {
-    return { error: Response.json({ error: 'Owner key required' }, { status: 401 }) };
+    return { error: Response.json({ error: 'Owner password required' }, { status: 401 }) };
   }
 
   if (inviteId !== null) {
@@ -89,7 +89,7 @@ export async function canPlayBlindTake(request: Request): Promise<boolean> {
   if (albumKey() === null) {
     return false;
   }
-  if (isOwnerRequest(request)) {
+  if (await isOwnerRequest(request)) {
     return true;
   }
   const settings = await loadSettings();

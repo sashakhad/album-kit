@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 export const runtime = 'nodejs';
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const { id } = await context.params;
   const result = await prisma.accessInvite.updateMany({

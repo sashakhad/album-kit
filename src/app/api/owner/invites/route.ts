@@ -9,7 +9,7 @@ import { privateStoreReady } from '@/lib/album/blob-audio';
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const rows = await prisma.accessInvite.findMany({
     orderBy: { createdAt: 'desc' },
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const settings = await loadSettings();
   if (settings.visibility !== 'private' || !(await privateStoreReady())) {

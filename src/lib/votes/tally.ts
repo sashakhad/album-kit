@@ -45,21 +45,6 @@ export function countForTrackVersion(
   return total;
 }
 
-export function isDownloaded(
-  snapshot: VoteSnapshot,
-  trackNumber: number,
-  versionSlug: string,
-  takeLabel: string
-): boolean {
-  const downloads = snapshot.downloads[trackNumber] ?? [];
-  for (const item of downloads) {
-    if (item.versionSlug === versionSlug && item.takeLabel === takeLabel) {
-      return true;
-    }
-  }
-  return false;
-}
-
 export function choiceForTake(
   snapshot: VoteSnapshot,
   trackNumber: number,

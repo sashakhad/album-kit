@@ -43,7 +43,7 @@ const bodySchema = z.object({
 });
 
 export async function GET(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const rounds = await prisma.generationRound.findMany({
     orderBy: { createdAt: 'desc' },
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const raw: unknown = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(raw);

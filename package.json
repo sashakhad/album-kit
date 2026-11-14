@@ -29,6 +29,7 @@
     "setup:site": "node scripts/setup.mjs",
     "onboarding": "node scripts/onboarding.mjs",
     "owner:link": "node scripts/album-owner.mjs link",
+    "owner:password": "node scripts/owner-password.mjs",
     "album:settings": "node scripts/album-owner.mjs settings",
     "album:progress": "node scripts/album-owner.mjs progress",
     "album:github": "node scripts/album-github.mjs",
@@ -37,6 +38,7 @@
     "takes:refresh": "node scripts/refresh-streams.mjs",
     "takes:verify": "node scripts/verify-streams.mjs",
     "publish:album": "node scripts/publish-album.mjs",
+    "sync:albums": "node scripts/sync-albums.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky"
   },

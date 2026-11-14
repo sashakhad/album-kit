@@ -255,7 +255,7 @@ describe('GET /api/audio/[set]/[file]', () => {
 
     const blocked = await get('v1', UNPINNED);
     expect(blocked.status).toBe(401);
-    expect(await blocked.json()).toEqual({ error: 'Owner key required' });
+    expect(await blocked.json()).toEqual({ error: 'Owner password required' });
 
     const request = new Request(
       'http://localhost/api/blind-audio/1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

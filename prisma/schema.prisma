@@ -174,6 +174,16 @@ model OwnerSignInLink {
   expiresAt DateTime
 }
 
+// The owner password is still ALBUM_KEY. This row only replaces it after a
+// signed-in change. A redeploy whose ALBUM_KEY differs drops the row, so a
+// reset does not need the previous password.
+model OwnerPassword {
+  id          String   @id @default("owner")
+  password    String
+  envAtChange String
+  updatedAt   DateTime @updatedAt
+}
+
 model VoteAttempt {
   id        String   @id @default(cuid())
   bucket    String

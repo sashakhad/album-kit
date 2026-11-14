@@ -5,7 +5,6 @@ import {
   countForTake,
   scoredTakesOnTrack,
   countForTrackVersion,
-  isDownloaded,
   leadingTakes,
 } from '@/lib/votes/tally';
 import type { VoteSnapshot } from '@/lib/votes/types';
@@ -27,12 +26,6 @@ describe('vote tally helpers', () => {
     expect(countForTake(snapshot, 1, 'v2', 'B')).toBe(1);
     expect(countForTake(snapshot, 1, 'v1', 'A')).toBe(0);
     expect(countForTake(snapshot, 9, 'v2', 'A')).toBe(0);
-  });
-
-  it('knows which takes this visitor already saved', () => {
-    expect(isDownloaded(snapshot, 1, 'v2', 'B')).toBe(true);
-    expect(isDownloaded(snapshot, 1, 'v2', 'A')).toBe(false);
-    expect(isDownloaded(snapshot, 2, 'v1', 'C')).toBe(false);
   });
 
   it('counts scored takes on one track', () => {

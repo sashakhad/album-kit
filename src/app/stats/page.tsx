@@ -4,11 +4,12 @@ import { redirect } from 'next/navigation';
 import { ModelStatsDashboard } from '@/components/stats/ModelStatsDashboard';
 import { getListenConfig } from '@/lib/album/listen-store';
 import { formatDate, formatDateRange, isAfter, isBefore } from '@/lib/date';
-import { formatNumber } from '@/lib/formatters';
+import { formatNumber, formatSignedScore } from '@/lib/formatters';
 import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 import { getConsolidatedPass } from '@/lib/votes/pass-store';
 import { countForTake } from '@/lib/votes/tally';
+import { EMPTY_VOTE_SNAPSHOT, type TrackTallies } from '@/lib/votes/types';
 import {
   albumHeadline,
   chartRows,
@@ -117,6 +118,7 @@ export default async function StatsPage() {
           Compare takes
         </Link>
       </header>
+      <ListenerVoteList takes={source} tallies={view.votes.listenerTallies} />
       {takes.length === 0 ? (
         <p className='text-muted-foreground rounded-2xl border border-dashed border-white/15 p-5 text-sm'>
           No uploaded takes yet.
@@ -162,4 +164,73 @@ function takeSpan(dates: readonly Date[]): string | null {
     return formatDate(earliest);
   }
   return formatDateRange(earliest.toISOString(), latest.toISOString());
+}
+
+function ListenerVoteList({
+  takes,
+  tallies,
+}: {
+  takes: readonly {
+    filename: string;
+    trackNumber: number;
+    trackTitle: string;
+    versionSlug: string;
+    voteLabel: string;
+  }[];
+  tallies: TrackTallies | undefined;
+}) {
+  const snapshot = { ...EMPTY_VOTE_SNAPSHOT, tallies: tallies ?? {} };
+  const rows: {
+    filename: string;
+    trackNumber: number;
+    trackTitle: string;
+    versionSlug: string;
+    voteLabel: string;
+    score: number;
+  }[] = [];
+  for (const take of takes) {
+    const score = countForTake(snapshot, take.trackNumber, take.versionSlug, take.voteLabel);
+    if (score === 0) {
+      continue;
+    }
+    rows.push({ ...take, score });
+  }
+
+  return (
+    <section className='space-y-3' aria-labelledby='listener-votes-heading'>
+      <h2 id='listener-votes-heading' className='text-sm font-semibold tracking-tight'>
+        Listener votes
+      </h2>
+      <p className='text-muted-foreground text-xs'>
+        Listener ballots stay listed here whether or not listeners can vote.
+      </p>
+      {rows.length === 0 ? (
+        <p className='text-muted-foreground text-sm'>No listener votes yet.</p>
+      ) : (
+        <ul className='bg-card/60 divide-y divide-white/8 overflow-hidden rounded-2xl border border-white/10'>
+          {rows.map(function listenerRow(row) {
+            return (
+              <li
+                key={row.filename}
+                className='flex items-center justify-between gap-3 px-3 py-2 text-sm'
+              >
+                <span className='min-w-0 truncate'>
+                  <span className='text-muted-foreground mr-2 font-mono text-xs'>
+                    {String(row.trackNumber).padStart(2, '0')}
+                  </span>
+                  {row.trackTitle}
+                  <span className='text-muted-foreground ml-2 font-mono text-xs'>
+                    {row.versionSlug} · {row.voteLabel}
+                  </span>
+                </span>
+                <span className='shrink-0 font-mono tabular-nums'>
+                  {formatSignedScore(row.score)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }

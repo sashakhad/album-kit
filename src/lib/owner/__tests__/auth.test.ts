@@ -52,35 +52,35 @@ describe('ownerCookieValue', () => {
 });
 
 describe('isOwnerRequest', () => {
-  it('accepts the owner cookie', () => {
+  it('accepts the owner cookie', async () => {
     const cookie = `theme=dark; ${OWNER_COOKIE}=${ownerCookieValue('dev')}`;
 
-    expect(isOwnerRequest(requestWith({ cookie }))).toBe(true);
+    expect(await isOwnerRequest(requestWith({ cookie }))).toBe(true);
   });
 
-  it('accepts the bearer header', () => {
-    expect(isOwnerRequest(requestWith({ authorization: 'Bearer dev' }))).toBe(true);
+  it('accepts the bearer header', async () => {
+    expect(await isOwnerRequest(requestWith({ authorization: 'Bearer dev' }))).toBe(true);
   });
 
-  it('rejects a wrong key in the header or the cookie', () => {
-    expect(isOwnerRequest(requestWith({ authorization: 'Bearer nope' }))).toBe(false);
-    expect(isOwnerRequest(requestWith({ authorization: 'Bearer de' }))).toBe(false);
-    expect(isOwnerRequest(requestWith({ authorization: 'Basic dev' }))).toBe(false);
+  it('rejects a wrong password in the header or the cookie', async () => {
+    expect(await isOwnerRequest(requestWith({ authorization: 'Bearer nope' }))).toBe(false);
+    expect(await isOwnerRequest(requestWith({ authorization: 'Bearer de' }))).toBe(false);
+    expect(await isOwnerRequest(requestWith({ authorization: 'Basic dev' }))).toBe(false);
     expect(
-      isOwnerRequest(requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('other')}` }))
+      await isOwnerRequest(requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('other')}` }))
     ).toBe(false);
-    expect(isOwnerRequest(requestWith({ cookie: `${OWNER_COOKIE}=dev` }))).toBe(false);
-    expect(isOwnerRequest(requestWith({}))).toBe(false);
+    expect(await isOwnerRequest(requestWith({ cookie: `${OWNER_COOKIE}=dev` }))).toBe(false);
+    expect(await isOwnerRequest(requestWith({}))).toBe(false);
   });
 
-  it('rejects everyone when ALBUM_KEY is missing', () => {
+  it('rejects everyone when ALBUM_KEY is missing', async () => {
     vi.stubEnv('ALBUM_KEY', '');
 
-    expect(isOwnerRequest(requestWith({ authorization: 'Bearer ' }))).toBe(false);
-    expect(isOwnerRequest(requestWith({ authorization: 'Bearer dev' }))).toBe(false);
-    expect(isOwnerRequest(requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('')}` }))).toBe(
-      false
-    );
+    expect(await isOwnerRequest(requestWith({ authorization: 'Bearer ' }))).toBe(false);
+    expect(await isOwnerRequest(requestWith({ authorization: 'Bearer dev' }))).toBe(false);
+    expect(
+      await isOwnerRequest(requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('')}` }))
+    ).toBe(false);
   });
 });
 
@@ -88,23 +88,23 @@ describe('requireOwner', () => {
   it('returns 503 when ALBUM_KEY is missing', async () => {
     vi.stubEnv('ALBUM_KEY', '');
 
-    const response = requireOwner(requestWith({ authorization: 'Bearer dev' }));
+    const response = await requireOwner(requestWith({ authorization: 'Bearer dev' }));
 
     expect(response?.status).toBe(503);
     expect(await response?.json()).toEqual({ error: 'ALBUM_KEY is not set' });
   });
 
-  it('returns 401 for a wrong key', async () => {
-    const response = requireOwner(requestWith({ authorization: 'Bearer nope' }));
+  it('returns 401 for a wrong password', async () => {
+    const response = await requireOwner(requestWith({ authorization: 'Bearer nope' }));
 
     expect(response?.status).toBe(401);
-    expect(await response?.json()).toEqual({ error: 'Owner key required' });
+    expect(await response?.json()).toEqual({ error: 'Owner password required' });
   });
 
-  it('lets the owner through', () => {
-    expect(requireOwner(requestWith({ authorization: 'Bearer dev' }))).toBeNull();
+  it('lets the owner through', async () => {
+    expect(await requireOwner(requestWith({ authorization: 'Bearer dev' }))).toBeNull();
     expect(
-      requireOwner(requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('dev')}` }))
+      await requireOwner(requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('dev')}` }))
     ).toBeNull();
   });
 });

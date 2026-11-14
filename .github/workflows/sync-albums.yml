@@ -1,0 +1,21 @@
+name: Sync albums
+on:
+  push:
+    branches: [main]
+concurrency:
+  group: sync-albums
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository == 'sashakhad/album-kit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Sync registered album repositories
+        env:
+          ALBUM_SYNC_TOKEN: ${{ secrets.ALBUM_SYNC_TOKEN }}
+          KIT_SHA: ${{ github.sha }}
+        run: node scripts/sync-albums.mjs

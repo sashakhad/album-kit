@@ -8,7 +8,7 @@ import { loadSettings } from '@/lib/settings/store';
 export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
-  const denied = requireOwner(request);
+  const denied = await requireOwner(request);
   if (denied !== null) return denied;
   const [album, settings, rounds] = await Promise.all([
     loadAlbumConfig(),

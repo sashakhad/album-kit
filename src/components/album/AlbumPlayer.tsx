@@ -40,8 +40,7 @@ import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
 import { isVideoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
-import { DownloadButton } from '@/components/album/DownloadButton';
-import { ListenChoiceControls, type ListenChoice } from '@/components/album/ListenChoiceControls';
+import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
 import { MoreLikeThis } from '@/components/album/MoreLikeThis';
 import { VoteButton } from '@/components/album/VoteButton';
@@ -166,11 +165,11 @@ export function AlbumPlayer({
   const [volume, setVolume] = useState(0.85);
   const [voteSnapshot, setVoteSnapshot] = useState(votes);
   const displayedVotes = useMemo(() => {
-    if (showListenerScores) return voteSnapshot;
+    if (voter === 'owner' || showListenerScores) return voteSnapshot;
     const visible = { ...voteSnapshot };
     delete visible.listenerTallies;
     return visible;
-  }, [showListenerScores, voteSnapshot]);
+  }, [showListenerScores, voteSnapshot, voter]);
 
   useEffect(() => {
     if (!awaitingReveal || revealRefreshRequested.current) return;
@@ -897,7 +896,6 @@ export function AlbumPlayer({
                   selectedTake={isParkedTake(track, selectedTake) ? null : selectedTake}
                   takeCounts={takeCountsForTrack(voteSnapshot, track)}
                   votes={displayedVotes}
-                  versionSlug={version.slug}
                   showVotes={playerSurface !== 'listen'}
                   showTakes={
                     playerSurface !== 'listen' &&
@@ -929,7 +927,6 @@ export function AlbumPlayer({
             isPlaying={isPlaying}
             votes={displayedVotes}
             voter={voter}
-            onVoteSnapshot={setVoteSnapshot}
             onPlay={(index, label) => playIndex(index, label)}
           />
         ) : null}
@@ -1132,7 +1129,6 @@ function PossibleRenames({
   isPlaying,
   votes,
   voter,
-  onVoteSnapshot,
   onPlay,
 }: {
   tracks: AlbumTrack[];
@@ -1141,7 +1137,6 @@ function PossibleRenames({
   isPlaying: boolean;
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
-  onVoteSnapshot: (snapshot: VoteSnapshot) => void;
   onPlay: (index: number, label: string) => void;
 }) {
   const entries: { track: AlbumTrack; index: number; take: AlbumTake }[] = [];
@@ -1183,7 +1178,6 @@ function PossibleRenames({
                 isPlaying={isPlaying && isCurrent}
                 votes={votes}
                 voter={voter}
-                onVoteSnapshot={onVoteSnapshot}
                 onPlay={() => onPlay(entry.index, entry.take.label)}
               />
             </li>
@@ -1201,7 +1195,6 @@ function ParkedTakeRow({
   isPlaying,
   votes,
   voter,
-  onVoteSnapshot,
   onPlay,
 }: {
   track: AlbumTrack;
@@ -1210,7 +1203,6 @@ function ParkedTakeRow({
   isPlaying: boolean;
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
-  onVoteSnapshot: (snapshot: VoteSnapshot) => void;
   onPlay: () => void;
 }) {
   return (
@@ -1239,25 +1231,13 @@ function ParkedTakeRow({
         </span>
       </button>
       <div className='flex shrink-0 items-center gap-1'>
-        {voter === 'owner' ? (
-          <DownloadButton
-            key={`save-parked-${track.number}-${take.versionSlug}-${take.voteLabel}`}
-            trackNumber={track.number}
-            versionSlug={take.versionSlug}
-            takeLabel={take.voteLabel}
-            displayLabel={take.label}
-            trackTitle={track.title}
-            audioUrl={take.audioUrl}
-            votes={votes}
-            onSnapshot={onVoteSnapshot}
-          />
-        ) : null}
         <ListenerScore
           votes={votes}
           voter={voter}
           trackNumber={track.number}
           versionSlug={take.versionSlug}
           takeLabel={take.voteLabel}
+          displayLabel={take.label}
         />
         <span
           className='font-mono text-xs tabular-nums'
@@ -1276,26 +1256,27 @@ function ListenerScore({
   trackNumber,
   versionSlug,
   takeLabel,
+  displayLabel = takeLabel,
 }: {
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
   trackNumber: number;
   versionSlug: string;
   takeLabel: string;
+  displayLabel?: string;
 }) {
   if (voter !== 'owner' || votes.listenerTallies === undefined) {
     return null;
   }
-  const count = votes.listenerTallies[trackNumber]?.[versionSlug]?.[takeLabel] ?? 0;
-  const label = formatSignedScore(count);
+  const score = formatSignedScore(
+    votes.listenerTallies[trackNumber]?.[versionSlug]?.[takeLabel] ?? 0
+  );
   return (
     <span
-      className='text-muted-foreground w-12 shrink-0 text-right text-[10px] leading-tight tabular-nums'
-      aria-label={`Listener score ${label}, separate from your score`}
+      className='text-muted-foreground text-xs leading-snug tabular-nums'
+      aria-label={`Listener votes ${score} for take ${displayLabel}`}
     >
-      listeners
-      <br />
-      {formatCompactScore(count)}
+      Listeners {score}
     </span>
   );
 }
@@ -1322,7 +1303,6 @@ function TrackRow({
   selectedTake,
   takeCounts,
   votes,
-  versionSlug,
   showVotes,
   showTakes,
   listenChoice,
@@ -1339,7 +1319,6 @@ function TrackRow({
   selectedTake: AlbumTake | null;
   takeCounts: Record<string, number>;
   votes: VoteSnapshot;
-  versionSlug: string;
   showVotes: boolean;
   showTakes: boolean;
   listenChoice: ListenChoice | undefined;
@@ -1351,11 +1330,9 @@ function TrackRow({
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
 }) {
   const ready = track.audioUrl !== null;
-  const takeLabel = selectedTake?.voteLabel ?? track.takes[0]?.voteLabel ?? 'A';
-  const voteVersionSlug = selectedTake?.versionSlug ?? versionSlug;
-  const canVote = showVotes && ready && track.kind === 'album' && selectedTake !== null;
   const showTakePills = showTakes && track.takes.length > 0;
-  const ranking = listenChoice === undefined ? null : rankListenTakes(track.takes, takeCounts);
+  const takes =
+    listenChoice === undefined ? track.takes : rankListenTakes(track.takes, takeCounts).ordered;
 
   return (
     <div data-track-row className={cn('@container min-w-0 px-4 py-4', isCurrent && 'bg-white/6')}>
@@ -1404,117 +1381,132 @@ function TrackRow({
           </Link>
         )}
       </div>
-      {showTakePills || canVote ? (
-        <div className='mt-2 flex flex-col items-start gap-3 @min-[26rem]:flex-row @min-[26rem]:items-end @min-[26rem]:justify-between'>
-          {showTakePills ? (
-            <TakeSwitcher
-              labels={(ranking?.ordered ?? track.takes).map(take => take.label)}
-              selectedLabel={selectedTake?.label ?? null}
-              counts={takeCounts}
-              onSelect={onSelectTake}
-              compact
-            />
-          ) : null}
-          {canVote && selectedTake !== null ? (
-            <div className='flex shrink-0 items-end gap-1 self-end'>
-              {voter === 'owner' ? (
-                <DownloadButton
-                  key={`save-${track.number}-${voteVersionSlug}-${takeLabel}`}
-                  trackNumber={track.number}
-                  versionSlug={voteVersionSlug}
-                  takeLabel={takeLabel}
-                  displayLabel={selectedTake.label}
-                  trackTitle={track.title}
-                  audioUrl={selectedTake.audioUrl}
-                  votes={votes}
-                  onSnapshot={onVoteSnapshot}
-                />
-              ) : null}
-              <ListenerScore
-                votes={votes}
-                voter={voter}
-                trackNumber={track.number}
-                versionSlug={voteVersionSlug}
-                takeLabel={takeLabel}
-              />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {listenChoice !== undefined &&
-      ranking !== null &&
-      (ready || listenChoice.manual || listenChoice.hasBonus) ? (
-        <ListenChoiceControls
-          key={track.takes[0]?.filename ?? track.title}
+      {showTakePills ? (
+        <TakeScoreChips
           track={track}
-          selectedTake={selectedTake}
-          winners={ranking.winners}
-          initialChoice={listenChoice}
-          round={votes.currentRound}
+          takes={takes}
+          selectedLabel={selectedTake?.label ?? null}
+          counts={takeCounts}
+          votes={votes}
+          voter={voter}
+          voting={showVotes && track.kind === 'album'}
+          onSelect={onSelectTake}
+          onVoteSnapshot={onVoteSnapshot}
         />
       ) : null}
     </div>
   );
 }
 
-function TakeSwitcher({
-  labels,
+function TakeScoreChips({
+  track,
+  takes,
   selectedLabel,
-  onSelect,
-  compact = false,
-  legend,
   counts,
+  votes,
+  voter,
+  voting,
+  onSelect,
+  onVoteSnapshot,
 }: {
-  labels: string[];
+  track: AlbumTrack;
+  takes: readonly AlbumTake[];
   selectedLabel: string | null;
+  counts: Record<string, number>;
+  votes: VoteSnapshot;
+  voter: 'owner' | 'listener';
+  voting: boolean;
   onSelect: (label: string) => void;
-  compact?: boolean;
-  legend?: string;
-  counts?: Record<string, number>;
+  onVoteSnapshot: (snapshot: VoteSnapshot) => void;
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
   return (
-    <div className={cn('flex min-w-0 flex-wrap items-center gap-2', compact ? '' : 'pt-1')}>
-      {legend === undefined ? null : (
-        <p className='text-muted-foreground w-full text-xs'>{legend}</p>
-      )}
-      {labels.map(label => {
-        const selected = label === selectedLabel;
-        const count = counts?.[label] ?? 0;
+    <div className='mt-2 flex min-w-0 flex-wrap items-start gap-2'>
+      {takes.map(take => {
+        const id = `${take.versionSlug}:${take.voteLabel}`;
+        const selected = take.label === selectedLabel;
+        const count = counts[take.label] ?? 0;
+        const open = openId === id;
         return (
-          <button
-            key={label}
-            type='button'
-            onClick={() => onSelect(label)}
-            aria-pressed={selected}
-            aria-label={legend === undefined ? `Take ${label}` : `${legend} ${label}`}
-            title={
-              counts === undefined
-                ? `Take ${label}`
-                : `Take ${label}, score ${formatSignedScore(count)}`
-            }
-            data-take-button
-            className={cn(
-              'grid h-11 shrink-0 items-center rounded-lg border text-sm transition-colors',
-              counts === undefined ? 'w-11 grid-cols-1' : 'w-24 grid-cols-[2rem_1fr]',
-              selected
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground border-white/15 hover:border-white/35'
-            )}
+          <div
+            key={id}
+            data-take-chip
+            className='flex max-w-full min-w-0 flex-col items-start gap-1'
           >
-            <span className='font-medium'>{label}</span>
-            {counts === undefined ? null : (
-              <span
-                aria-label={`Score ${formatSignedScore(count)}`}
+            <div
+              className={cn(
+                'flex w-fit max-w-full flex-wrap items-stretch rounded-lg border',
+                selected ? 'border-primary' : 'border-white/15'
+              )}
+            >
+              <button
+                type='button'
+                onClick={() => onSelect(take.label)}
+                aria-pressed={selected}
+                aria-label={`Take ${take.label}`}
+                data-take-button
                 className={cn(
-                  'border-l px-1 font-mono text-xs tabular-nums',
-                  selected ? 'border-black/15' : 'border-white/15',
-                  count === 0 && 'opacity-50'
+                  'min-h-11 min-w-11 shrink-0 px-2 text-sm font-medium',
+                  selected
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {formatCompactScore(count)}
-              </span>
-            )}
-          </button>
+                {take.label}
+              </button>
+              {open && voting ? (
+                <VoteButton
+                  variant='inline'
+                  trackNumber={track.number}
+                  versionSlug={take.versionSlug}
+                  takeLabel={take.voteLabel}
+                  displayLabel={take.label}
+                  trackTitle={track.title}
+                  initialCount={count}
+                  initialValue={choiceForTake(
+                    votes,
+                    track.number,
+                    take.versionSlug,
+                    take.voteLabel
+                  )}
+                  onSnapshot={onVoteSnapshot}
+                  onScoreClick={() => setOpenId(current => (current === id ? null : id))}
+                />
+              ) : voting ? (
+                <button
+                  type='button'
+                  aria-expanded={false}
+                  aria-label={`Show score controls for take ${take.label}, score ${formatSignedScore(count)}`}
+                  onClick={() => setOpenId(id)}
+                  className={cn(
+                    'min-h-11 min-w-11 shrink-0 border-l border-white/15 px-2 font-mono text-sm tabular-nums',
+                    count === 0 && 'opacity-50'
+                  )}
+                >
+                  {formatCompactScore(count)}
+                </button>
+              ) : (
+                <span
+                  aria-label={`Score ${formatSignedScore(count)}`}
+                  className={cn(
+                    'flex min-h-11 min-w-11 items-center justify-center border-l border-white/15 px-2 font-mono text-sm tabular-nums',
+                    count === 0 && 'opacity-50'
+                  )}
+                >
+                  {formatCompactScore(count)}
+                </span>
+              )}
+            </div>
+            <ListenerScore
+              votes={votes}
+              voter={voter}
+              trackNumber={track.number}
+              versionSlug={take.versionSlug}
+              takeLabel={take.voteLabel}
+              displayLabel={take.label}
+            />
+          </div>
         );
       })}
     </div>
