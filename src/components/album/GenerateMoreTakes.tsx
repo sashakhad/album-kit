@@ -147,7 +147,9 @@ export function GenerateMoreTakes({
             setMessage(
               row.status === 'ready'
                 ? 'More takes are ready on this track.'
-                : 'More takes are generating.'
+                : row.dispatchError
+                  ? 'Generation receipt is uncertain. Checking this request; no duplicate will be sent.'
+                  : 'More takes are generating.'
             );
             router.refresh();
             return;
@@ -232,8 +234,12 @@ export function GenerateMoreTakes({
           confirmExtraCost: confirm,
         }),
       });
-      const body: { error?: string; quote?: VariationQuote; status?: string } =
-        await response.json();
+      const body: {
+        error?: string;
+        quote?: VariationQuote;
+        status?: string;
+        dispatchUncertain?: boolean;
+      } = await response.json();
       if (body.quote) {
         setQuote(body.quote);
         setConfirm(false);
@@ -247,7 +253,9 @@ export function GenerateMoreTakes({
       setMessage(
         body.status === 'ready'
           ? 'More takes are ready on this track.'
-          : 'More takes are generating on this track.'
+          : body.dispatchUncertain
+            ? 'Generation receipt is uncertain. Checking this request; no duplicate will be sent.'
+            : 'More takes are generating on this track.'
       );
       router.refresh();
     } catch (error) {

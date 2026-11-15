@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { DEFAULT_SETTINGS, settingsPatchSchema, settingsSchema } from '@/lib/settings/schema';
 import { isBlindForSnapshot } from '@/lib/votes/exposure';
 import { getVoteSnapshot } from '@/lib/votes/board';
+import type { VariationQuote } from '@/lib/variations/quote';
 import { loadVariationQuote } from '@/lib/variations/service';
 import { callVariationWebhook, VariationWebhookError } from '@/lib/variations/webhook';
 
@@ -19,7 +20,14 @@ const inputSchema = z.object({
 });
 const acceptedSchema = z.object({ operationId: z.uuid(), status: z.literal('accepted') });
 
-class DispatchConflict extends Error {}
+class DispatchConflict extends Error {
+  constructor(
+    message: string,
+    public readonly quote?: VariationQuote
+  ) {
+    super(message);
+  }
+}
 
 export async function POST(request: Request) {
   const denied = await requireOwner(request);
@@ -30,7 +38,11 @@ export async function POST(request: Request) {
   const row = await prisma.variationRequest.findUnique({ where: { id: parsed.data.id } });
   if (row === null) return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
   if (row.status === 'generating' || row.status === 'ready')
-    return NextResponse.json({ status: row.status, requestId: row.id });
+    return NextResponse.json({
+      status: row.status,
+      requestId: row.id,
+      dispatchUncertain: row.status === 'generating' && row.dispatchError !== null,
+    });
   if (row.status !== 'requested' || row.roundId !== null)
     return NextResponse.json(
       { error: row.dispatchError ?? 'This request cannot be started again.' },
@@ -109,7 +121,11 @@ export async function POST(request: Request) {
                 quote.externalSpendEstimateUsd + quote.hostingChargeEstimateUsd > 0) &&
               !parsed.data.confirmExtraCost
             )
-              throw new DispatchConflict('Confirm the additional cost in the form.');
+              throw new DispatchConflict('Confirm the additional cost in the form.', {
+                ...quote,
+                remainingAllowance: remaining,
+                requiresConfirmation: true,
+              });
             const changed = await tx.variationRequest.updateMany({
               where: { id: row.id, status: 'requested', roundId: null },
               data: {
@@ -143,7 +159,10 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Could not reserve this request.' },
+      {
+        error: error instanceof Error ? error.message : 'Could not reserve this request.',
+        ...(error instanceof DispatchConflict && error.quote ? { quote: error.quote } : {}),
+      },
       { status: 409 }
     );
   }
@@ -160,19 +179,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: 'generating', requestId: row.id }, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Generation was not confirmed.';
+    const definitelyNotCharged =
+      error instanceof VariationWebhookError && error.definitelyNotCharged;
     await prisma.variationRequest.updateMany({
       where: { id: row.id, status: 'generating' },
       data: {
-        status: 'failed',
+        // An unacknowledged dispatch may still be running. Keep its ID and reservation
+        // live so late worker progress can reconcile without a second paid call.
+        status: definitelyNotCharged ? 'failed' : 'generating',
         dispatchError: message,
-        ...(error instanceof VariationWebhookError && error.definitelyNotCharged
-          ? { creditsReserved: 0 }
-          : {}),
+        ...(definitelyNotCharged ? { creditsReserved: 0 } : {}),
       },
     });
     return NextResponse.json(
-      { error: message, status: 'failed', requestId: row.id },
-      { status: 502 }
+      {
+        error: message,
+        status: definitelyNotCharged ? 'failed' : 'generating',
+        dispatchUncertain: !definitelyNotCharged,
+        requestId: row.id,
+      },
+      { status: definitelyNotCharged ? 502 : 202 }
     );
   }
 }

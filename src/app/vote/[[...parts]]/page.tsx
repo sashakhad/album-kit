@@ -101,7 +101,7 @@ export default async function VotePage({ params }: VotePageProps) {
     if (row.status === 'generating' || row.status === 'ready' || row.status === 'failed')
       variationStatusByTrack[row.trackNumber] = {
         status: row.status,
-        ...(row.status === 'failed' && row.dispatchError ? { reason: row.dispatchError } : {}),
+        ...(row.status !== 'ready' && row.dispatchError ? { reason: row.dispatchError } : {}),
       };
   }
   const listenChoices: Record<number, ListenChoice> = Object.fromEntries(

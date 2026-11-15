@@ -73,6 +73,7 @@ vi.mock('@/lib/prisma', () => {
 });
 
 import { POST } from '@/app/api/owner/variations/generate/route';
+import { POST as callback } from '@/app/api/owner/variations/callback/route';
 import { VariationWebhookError } from '@/lib/variations/webhook';
 
 function request(confirmExtraCost = false) {
@@ -138,13 +139,13 @@ describe('site generation dispatch', () => {
 
   it('keeps ambiguous charges reserved but releases a verified no-charge failure', async () => {
     state.webhook.mockRejectedValueOnce(new Error('Connection lost'));
-    expect((await POST(request())).status).toBe(502);
+    expect((await POST(request())).status).toBe(202);
     expect(state.row).toMatchObject({
-      status: 'failed',
+      status: 'generating',
       creditsReserved: 10,
       dispatchError: 'Connection lost',
     });
-    expect((await POST(request())).status).toBe(409);
+    expect((await POST(request())).status).toBe(200);
     expect(state.webhook).toHaveBeenCalledTimes(1);
 
     state.row.status = 'requested';
@@ -152,5 +153,49 @@ describe('site generation dispatch', () => {
     state.webhook.mockRejectedValueOnce(new VariationWebhookError('No job started', true));
     expect((await POST(request())).status).toBe(502);
     expect(state.row).toMatchObject({ status: 'failed', creditsReserved: 0 });
+  });
+  it('reconciles a late no-charge callback after uncertain dispatch without dispatching twice', async () => {
+    state.webhook.mockRejectedValueOnce(new Error('Connection lost'));
+    const response = await POST(request());
+    expect(await response.json()).toMatchObject({ status: 'generating', dispatchUncertain: true });
+    expect((await POST(request())).status).toBe(200);
+    expect(state.webhook).toHaveBeenCalledTimes(1);
+    const oldSecret = process.env.ALBUM_VARIATION_WEBHOOK_SECRET;
+    process.env.ALBUM_VARIATION_WEBHOOK_SECRET = 'test-secret';
+    try {
+      const result = await callback(
+        new Request('http://localhost/api/owner/variations/callback', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer test-secret' },
+          body: JSON.stringify({
+            requestId: id,
+            operationId: id,
+            status: 'failed',
+            reason: 'No job started',
+            chargeApplied: false,
+          }),
+        })
+      );
+      expect(result.status).toBe(200);
+      expect(state.row).toMatchObject({
+        status: 'failed',
+        creditsReserved: 0,
+        dispatchError: 'No job started',
+      });
+    } finally {
+      if (oldSecret === undefined) delete process.env.ALBUM_VARIATION_WEBHOOK_SECRET;
+      else process.env.ALBUM_VARIATION_WEBHOOK_SECRET = oldSecret;
+    }
+  });
+
+  it('returns a fresh confirmation quote when another request consumes the allowance', async () => {
+    state.reserved = 20;
+    const response = await POST(request());
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      quote: { remainingAllowance: 0, requiresConfirmation: true },
+    });
+    expect(state.webhook).not.toHaveBeenCalled();
+    expect((await POST(request(true))).status).toBe(202);
   });
 });

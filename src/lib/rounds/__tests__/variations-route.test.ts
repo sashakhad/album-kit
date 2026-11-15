@@ -448,4 +448,27 @@ describe('single-track variation handoff', () => {
     ).toBe(409);
     expect(state.rounds).toHaveLength(1);
   });
+  it('lets a delayed worker plan the reserved round after an uncertain dispatch', async () => {
+    state.requests.set(id, {
+      id,
+      trackNumber: 1,
+      parentTakeFilename,
+      requestedTakes: 3,
+      instructions: 'More bass',
+      status: 'generating',
+      roundId: null,
+      dispatchError: 'Receipt uncertain',
+      creditsReserved: 20,
+      quotedModel: 'v6',
+      quotedExpectedOutputs: 4,
+      quotedDownloadCredits: 0,
+      quotedExternalSpendUsd: 0,
+      quotedHostingChargeUsd: 0,
+    });
+    const response = await planRound(post('/api/owner/rounds', roundBody()));
+    expect(response.status).toBe(201);
+    expect(state.requests.get(id)).toMatchObject({ status: 'generating', roundId: 'round-1' });
+    expect((await planRound(post('/api/owner/rounds', roundBody()))).status).toBe(200);
+    expect(state.rounds).toHaveLength(1);
+  });
 });
