@@ -250,6 +250,37 @@ describe('single-track variation handoff', () => {
     expect(state.requests.get(id)).toMatchObject({ status: 'planned', roundId: 'round-1' });
   });
 
+  it('plans a site-dispatched request only against the exact reserved quote', async () => {
+    await requestVariation(
+      post('/api/owner/variations', {
+        id,
+        trackNumber: 1,
+        parentTakeFilename,
+        requestedTakes: 3,
+        instructions: '',
+      })
+    );
+    const row = state.requests.get(id)!;
+    Object.assign(row, {
+      status: 'generating',
+      creditsReserved: 10,
+      quotedModel: 'v6',
+      quotedExpectedOutputs: 4,
+      quotedDownloadCredits: 0,
+      quotedExternalSpendUsd: 0,
+      quotedHostingChargeUsd: 0,
+    });
+    expect((await planRound(post('/api/owner/rounds', roundBody()))).status).toBe(409);
+    expect(state.rounds).toHaveLength(0);
+    row.creditsReserved = 20;
+    expect(
+      (await planRound(post('/api/owner/rounds', { ...roundBody(), hostingChargeEstimateUsd: 5 })))
+        .status
+    ).toBe(409);
+    expect((await planRound(post('/api/owner/rounds', roundBody()))).status).toBe(201);
+    expect(state.requests.get(id)).toMatchObject({ status: 'generating', roundId: 'round-1' });
+  });
+
   it('rejects unknown blind tokens and malformed source rounds before saving', async () => {
     const body = {
       id,

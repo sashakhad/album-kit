@@ -13,7 +13,7 @@ export const metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
   if (!(await isOwner())) redirect('/key?next=%2Fsettings');
-  const [settings, latest, privateStorage, config] = await Promise.all([
+  const [settings, latest, privateStorage, config, variationUsage] = await Promise.all([
     loadSettings(),
     prisma.generationRound.findFirst({
       orderBy: { createdAt: 'desc' },
@@ -21,6 +21,7 @@ export default async function SettingsPage() {
     }),
     privateStoreReady(),
     loadAlbumConfig(),
+    prisma.variationRequest.aggregate({ _sum: { creditsReserved: true } }),
   ]);
   const snapshot = latest?.snapshot as
     { capabilities?: unknown; resolvedSunoModel?: string } | undefined;
@@ -39,6 +40,7 @@ export default async function SettingsPage() {
               }
             : null
         }
+        variationCreditsUsed={variationUsage._sum.creditsReserved ?? 0}
       />
     </main>
   );

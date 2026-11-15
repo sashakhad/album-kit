@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import { AlbumPlayer, type VariationTrackStatus } from '@/components/album/AlbumPlayer';
 import { ListenerOwnerClaim } from '@/components/album/ListenerOwnerClaim';
 import { MergeBallotPrompt } from '@/components/album/MergeBallotOffer';
 import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
@@ -24,6 +24,7 @@ import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
 import { countBrowserListenerVotes } from '@/lib/votes/merge-ballot';
 import { loadAlbumProgress } from '@/lib/rounds/load-progress';
+import { prisma } from '@/lib/prisma';
 import { emptyTakeMessage, pendingTakeLabel, progressBannerLine } from '@/lib/rounds/progress';
 import type { AlbumProgress } from '@/lib/rounds/progress';
 
@@ -83,7 +84,26 @@ export default async function VotePage({ params }: VotePageProps) {
     config,
     { version, originalVersion, votes, blind, awaitingReveal, passSummary },
     listenerVotesOnBrowser,
-  ] = await Promise.all([getListenConfig(), ownerJudgingView(), countBrowserListenerVotes()]);
+    variationRows,
+  ] = await Promise.all([
+    getListenConfig(),
+    ownerJudgingView(),
+    countBrowserListenerVotes(),
+    prisma.variationRequest.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      select: { trackNumber: true, status: true, dispatchError: true },
+    }),
+  ]);
+  const variationStatusByTrack: Record<number, VariationTrackStatus> = {};
+  for (const row of variationRows) {
+    if (variationStatusByTrack[row.trackNumber] !== undefined) continue;
+    if (row.status === 'generating' || row.status === 'ready' || row.status === 'failed')
+      variationStatusByTrack[row.trackNumber] = {
+        status: row.status,
+        ...(row.status === 'failed' && row.dispatchError ? { reason: row.dispatchError } : {}),
+      };
+  }
   const listenChoices: Record<number, ListenChoice> = Object.fromEntries(
     config.tracks.map(item => {
       const original = trackByNumber(originalVersion, item.number);
@@ -147,6 +167,7 @@ export default async function VotePage({ params }: VotePageProps) {
       listenChoices={listenChoices}
       passSummary={passSummary}
       canRequestVariations
+      variationStatusByTrack={variationStatusByTrack}
       {...(blind ? { variationBlindRound: votes.currentRound } : {})}
       bannerLine={bannerLine}
       progress={progress}
@@ -216,6 +237,7 @@ function VoteMain({
   passSummary,
   canRequestVariations = false,
   variationBlindRound,
+  variationStatusByTrack,
   bannerLine = null,
   progress,
 }: {
@@ -234,6 +256,7 @@ function VoteMain({
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
   canRequestVariations?: boolean;
   variationBlindRound?: number;
+  variationStatusByTrack?: Record<number, VariationTrackStatus>;
   bannerLine?: string | null;
   progress: AlbumProgress;
 }) {
@@ -286,6 +309,7 @@ function VoteMain({
           {...(passSummary === undefined ? {} : { passSummary })}
           canRequestVariations={canRequestVariations}
           {...(variationBlindRound === undefined ? {} : { variationBlindRound })}
+          {...(variationStatusByTrack === undefined ? {} : { variationStatusByTrack })}
           {...(notice === undefined ? {} : { emptyNotice: notice, pendingLabel: pending })}
           {...(track === null
             ? {}

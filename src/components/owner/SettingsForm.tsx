@@ -35,9 +35,16 @@ type Props = {
   initial: AlbumSettingsValue;
   privateStorage: boolean;
   lastSunoCheck: { models: string[]; resolvedModel: string | null } | null;
+  variationCreditsUsed?: number;
 };
 
-export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoCheck }: Props) {
+export function SettingsForm({
+  albumTitle,
+  initial,
+  privateStorage,
+  lastSunoCheck,
+  variationCreditsUsed = 0,
+}: Props) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
@@ -503,7 +510,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
             <div className='space-y-3 border-t border-white/10 pt-4'>
               <h3 className='font-medium'>Round limits</h3>
               <p className={muted}>
-                Grok Bot still asks you to approve each round’s cost. Downloading a song from Suno
+                Full album rounds still ask you to approve their cost. Downloading a song from Suno
                 uses Suno download credits, which are limited per month.
                 {draft.reviewTakes === 'private'
                   ? ' This round downloads every review take.'
@@ -527,6 +534,28 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
                   step='any'
                 />
               </div>
+            </div>
+            <div className='space-y-3 border-t border-white/10 pt-4'>
+              <h3 className='font-medium'>More takes allowance</h3>
+              <p className={muted}>
+                Generate on Compare takes starts immediately within this saved credit balance. Above
+                it, the form asks you to confirm the exact cost. Zero requires confirmation every
+                time. Only a connected generation webhook can start the work.
+              </p>
+              <Field label='Credits available for one-click More takes'>
+                <input
+                  type='number'
+                  min={0}
+                  required
+                  value={draft.variationCreditAllowance}
+                  onChange={e => change('variationCreditAllowance', Number(e.target.value))}
+                  className={inputClass}
+                />
+              </Field>
+              <p className={muted}>
+                {Math.max(0, draft.variationCreditAllowance - variationCreditsUsed)} credits
+                remaining; {variationCreditsUsed} already reserved or used.
+              </p>
             </div>
             <div className='space-y-3 border-t border-white/10 pt-4'>
               <h3 className='font-medium'>Portable preset</h3>

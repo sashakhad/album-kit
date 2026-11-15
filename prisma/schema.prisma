@@ -145,17 +145,24 @@ model TakeProvenance {
   createdAt          DateTime @default(now())
 }
 
-// An owner request is a durable handoff, not authorization to spend Suno credits.
+// Requested is a saved handoff; generating has a site-approved, reserved quote.
 model VariationRequest {
-  id                 String   @id
-  trackNumber        Int
-  parentTakeFilename String
-  requestedTakes     Int
-  instructions       String
-  status             String   @default("requested")
-  roundId            String?  @unique
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                     String   @id
+  trackNumber            Int
+  parentTakeFilename     String
+  requestedTakes         Int
+  instructions           String
+  status                 String   @default("requested")
+  roundId                String?  @unique
+  creditsReserved        Int      @default(0)
+  dispatchError          String?
+  quotedModel            String?
+  quotedExpectedOutputs  Int?
+  quotedDownloadCredits  Int?
+  quotedExternalSpendUsd Float?
+  quotedHostingChargeUsd Float?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([trackNumber, createdAt])
 }

@@ -83,6 +83,15 @@ describe('settings and portable presets', () => {
     expect(importPreset(preset)).not.toHaveProperty('reviewTakes');
   });
 
+  it('starts More takes with no standing spending authority and does not export it', () => {
+    expect(DEFAULT_SETTINGS.variationCreditAllowance).toBe(0);
+    expect(settingsPatchSchema.parse({ variationCreditAllowance: 20 })).toEqual({
+      variationCreditAllowance: 20,
+    });
+    const preset = exportPreset({ ...DEFAULT_SETTINGS, variationCreditAllowance: 20 });
+    expect(preset.settings).not.toHaveProperty('variationCreditAllowance');
+  });
+
   it('rejects credentials and unsupported versions', () => {
     const preset = exportPreset(DEFAULT_SETTINGS);
     expect(() => importPreset({ ...preset, token: 'secret' })).toThrow();

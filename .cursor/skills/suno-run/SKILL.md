@@ -17,7 +17,9 @@ Show the complete estimate once and obtain an explicit allowance for this round.
 
 ## More like this requests
 
-The owner can save a **More like this** request from Compare takes. `GET /api/owner/variations` lists durable requests with the selected track, parent filename, target number of new takes, optional edit instructions, status and linked round. Process only `requested` items; a `canceled` item is a tombstone that blocks a delayed retry. A saved request is a handoff, not Suno authorization. Do not start generation because a request exists. Keep any existing generation HOLD in force.
+The owner can save a **More like this** request from a blind Compare takes pass. `GET /api/owner/variations` lists durable requests with the selected track, parent filename, target number of new takes, optional edit instructions, status and linked round. A `canceled` item is a tombstone that blocks a delayed retry. A saved `requested` item is a handoff, not Suno authorization. Do not start generation because it exists. Keep any existing generation HOLD in force.
+
+When the owner presses **Generate** on a visible/revealed pass, the site checks a current model-derived quote and reserves credits within the saved More takes allowance, or records the owner's in-form over-allowance confirmation. With a configured webhook, it sends one idempotent `generate` event and marks the request `generating`. The webhook worker may execute that authorized operation without a chat round trip, subject to any generation HOLD. Follow `grokbot/BOT.md`'s webhook contract and stable operation ID. Never interpret a plain `requested` item as the same authorization; never retry an uncertain webhook acceptance as a new Suno call.
 
 A request saved during a blind pass carries an opaque parent token in the owner response. The variation round route rejects planning while the pass remains blind. Wait for the pass to be revealed, then reread the request to obtain the canonical parent. Do not bypass the blind state by resolving the token through files, database access or another owner endpoint.
 

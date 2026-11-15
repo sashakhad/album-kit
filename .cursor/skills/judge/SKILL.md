@@ -32,7 +32,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
    - Visible mode shows the selected take's Style prompt in the collapsed Prompt section below the playback controls. Blind modes hide it until the selected reveal point.
    - Listen follows the highest positive owner score per track and includes ties. Score a take from its chip or from the player’s Score panel; those stay in sync. Tap a chip’s score for inline −/+. Listener votes, when voting is on, show on each take chip and do not choose what plays. Compare takes does not pin a take.
-   - **More like this** can save a request for the selected take during a blind pass without revealing its identity. The bot waits for the pass to reveal before preparing that take's prompt and cost estimate; the request alone never spends credits.
+   - **More like this** can save a request for the selected take during a blind pass without revealing its identity. After reveal, Generate on Compare takes checks the current cost and starts the configured generation worker. Saving the blind request alone never spends credits.
 
 2. **Read the scores.**
 
