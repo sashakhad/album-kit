@@ -5,7 +5,7 @@ description: Use while the owner votes on /vote, to explain or start rounds, par
 
 # Judge · version 7
 
-The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. When review takes are public, they play from their stored public Suno MP4. Do not download those. When the owner chose to keep review takes private, they play from the uploaded file, and each of those downloads already spent a Suno download credit. Do not mention that unless they ask or cost matters. A take that is private on Suno stops playing from its stream. A take that already has an uploaded file still plays from that file. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
+The owner judges. You explain the rounds, keep the files straight and move takes when the owner asks. You never vote. Review takes are made public on Suno and play from their stored public MP4. Do not download those. Never ask how review takes should play, and never mention a private option. Only a final pick is downloaded, and that download is silent. Follow the saved listening mode: Visible shows provenance; Reveal after voting shows it once all available takes have a vote; Keep hidden does not show it in the listening view.
 
 ## When to use
 

@@ -5,7 +5,7 @@ description: Use after any change under album/, or when the user wants the album
 
 # Publish · version 6
 
-Check the owner's publication choice before sharing album content. A prepared deploy is allowed while visibility is unset because the site gates album pages and audio. Public review takes play from stored Suno MP4 stream URLs. Review takes the owner kept private play from their uploaded files. A private album still gates the take list behind the key. Suno CDN URLs are public, so a private album that streams published clips exposes only unguessable clip URLs to key holders. A clip that is private on Suno stops playing from its stream.
+The site is public. Review takes are made public on Suno automatically and silently and play from stored public MP4 stream URLs. Never ask how review takes should play. Do not download a review take. Only a final pick is downloaded, and that download is silent.
 
 ## When to use
 
