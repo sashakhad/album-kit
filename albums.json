@@ -1,3 +1,8 @@
 {
-  "albums": []
+  "albums": [
+    {
+      "repo": "sashakhad/poop-on-the-sunrise",
+      "branch": "main"
+    }
+  ]
 }
