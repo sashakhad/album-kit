@@ -1,0 +1,257 @@
+// @vitest-environment node
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const previewScript = path.join(kitRoot, 'scripts', 'preview-album.mjs');
+const localName = 'v1-01-porch-light-p1-takea.mp3';
+const streamName = 'v1-01-porch-light-p1-takeb.mp3';
+
+type PreviewReport = {
+  page: string;
+  offline: number;
+  online: number;
+  archive?: string;
+  url?: string;
+};
+
+type Ballot = {
+  selected: string | null;
+  votes: Record<string, number>;
+};
+
+const children: ChildProcess[] = [];
+const roots: string[] = [];
+
+afterEach(async () => {
+  for (const child of children) {
+    child.kill('SIGTERM');
+  }
+  children.length = 0;
+  for (const root of roots) {
+    await rm(root, { recursive: true, force: true });
+  }
+  roots.length = 0;
+});
+
+function takeId(filename: string): string {
+  return createHash('sha256').update(filename).digest('hex').slice(0, 24);
+}
+
+function readReport(stdout: string): PreviewReport {
+  const line = stdout
+    .trim()
+    .split('\n')
+    .find(item => item.startsWith('{'));
+  if (line === undefined) {
+    throw new Error(`preview did not print JSON: ${stdout}`);
+  }
+  const value: unknown = JSON.parse(line);
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('preview JSON was not an object');
+  }
+  if (!('page' in value) || typeof value.page !== 'string') {
+    throw new Error('preview JSON has no page');
+  }
+  if (!('offline' in value) || typeof value.offline !== 'number') {
+    throw new Error('preview JSON has no offline count');
+  }
+  if (!('online' in value) || typeof value.online !== 'number') {
+    throw new Error('preview JSON has no online count');
+  }
+  const report: PreviewReport = {
+    page: value.page,
+    offline: value.offline,
+    online: value.online,
+  };
+  if ('archive' in value && typeof value.archive === 'string') report.archive = value.archive;
+  if ('url' in value && typeof value.url === 'string') report.url = value.url;
+  return report;
+}
+
+function readBallot(value: unknown): Ballot {
+  if (typeof value !== 'object' || value === null || !('votes' in value)) {
+    throw new Error('ballot JSON was not an object');
+  }
+  const votes: Record<string, number> = {};
+  if (typeof value.votes === 'object' && value.votes !== null) {
+    for (const [key, score] of Object.entries(value.votes)) {
+      if (typeof score === 'number') votes[key] = score;
+    }
+  }
+  const selected =
+    'selected' in value && typeof value.selected === 'string' ? value.selected : null;
+  return { selected, votes };
+}
+
+async function writeFixture(): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), 'album-preview-'));
+  roots.push(root);
+  await mkdir(path.join(root, 'album', 'audio'), { recursive: true });
+  await mkdir(path.join(root, '.tmp'), { recursive: true });
+  const album = {
+    title: 'Porch Light',
+    artist: 'Album Bot',
+    genre: 'soul',
+    rule: '',
+    sets: [{ id: 'v1', name: 'First' }],
+    tracks: [
+      { number: 1, title: 'Porch Light', slug: 'porch-light' },
+      { number: 2, title: 'Parked', slug: 'parked', parked: true },
+    ],
+  };
+  await writeFile(path.join(root, 'album', 'album.json'), JSON.stringify(album));
+  await writeFile(path.join(root, 'album', 'audio', localName), Buffer.from('local-mp3-bytes'));
+  await writeFile(
+    path.join(root, 'album', 'audio', 'v1-02-parked-p1-takea.mp3'),
+    Buffer.from('parked')
+  );
+  await writeFile(
+    path.join(root, 'album', 'audio', 'v1-01-other-song-p1-takea.mp3'),
+    Buffer.from('wrong-slug')
+  );
+  await writeFile(
+    path.join(root, '.tmp', 'album-preview-streams.json'),
+    JSON.stringify([
+      {
+        filename: localName,
+        clipId: 'clipA',
+        streamUrl: 'https://cdn1.suno.ai/clipA.mp4',
+      },
+      {
+        filename: streamName,
+        clipId: 'clipB',
+        streamUrl: 'https://cdn1.suno.ai/clipB.mp4',
+      },
+      {
+        filename: 'v1-01-porch-light-p1-takec.mp3',
+        clipId: 'clipC',
+        streamUrl: 'https://example.com/secret.mp3',
+      },
+    ])
+  );
+  return root;
+}
+
+function runPreview(
+  root: string,
+  args: string[]
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  const serve = args.includes('--serve');
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--experimental-strip-types', previewScript, ...args], {
+      cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    children.push(child);
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    function finish(code: number | null) {
+      if (settled) return;
+      settled = true;
+      resolve({ code, stdout, stderr });
+    }
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+      if (serve && stdout.includes('\n')) finish(null);
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on('error', reject);
+    child.on('close', code => {
+      finish(code);
+    });
+  });
+}
+
+async function putVote(pageUrl: string, take: string, delta: number): Promise<Ballot> {
+  const response = await fetch(new URL('/ballot', pageUrl), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: pageUrl.replace(/\/$/, ''),
+    },
+    body: JSON.stringify({ take, vote: delta }),
+  });
+  expect(response.status).toBe(200);
+  return readBallot(await response.json());
+}
+
+describe('album preview', () => {
+  it('bundles a local MP3, marks a public stream internet-required, and skips private URLs', async () => {
+    const root = await writeFixture();
+    const result = await runPreview(root, ['--zip']);
+    expect(result.code).toBe(0);
+    const report = readReport(result.stdout);
+    expect(report.offline).toBe(1);
+    expect(report.online).toBe(1);
+    expect(report.archive).toBeDefined();
+
+    const unpacked = path.join(root, 'unpacked');
+    await mkdir(unpacked);
+    execFileSync('unzip', ['-q', report.archive ?? '', '-d', unpacked]);
+    const html = await readFile(path.join(unpacked, 'Open Album.html'), 'utf8');
+    const audio = await readFile(path.join(unpacked, 'audio', '1-1.mp3'));
+    expect(audio.toString()).toBe('local-mp3-bytes');
+    expect(html).toContain('audio/1-1.mp3');
+    expect(html).toContain('data-online="false"');
+    expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
+    expect(html).toContain('Internet required');
+    expect(html).toContain('data-online="true"');
+    expect(html).not.toContain('example.com');
+    expect(html).not.toContain('Parked');
+    expect(html).not.toContain('other-song');
+    expect(html).not.toContain('clipA.mp4');
+    expect(html).toContain('oklch(0.145 0 0)');
+  });
+
+  it('keeps cumulative scores across a preview restart', async () => {
+    const root = await writeFixture();
+    const first = readReport((await runPreview(root, ['--serve'])).stdout);
+    expect(first.url).toBeDefined();
+    const pageUrl = first.url ?? '';
+    const localId = takeId(localName);
+    const streamId = takeId(streamName);
+
+    await putVote(pageUrl, localId, 1);
+    await putVote(pageUrl, localId, 1);
+    const afterThird = await putVote(pageUrl, localId, 1);
+    expect(afterThird.votes[localId]).toBe(3);
+    const afterSubtract = await putVote(pageUrl, localId, -1);
+    expect(afterSubtract.votes[localId]).toBe(2);
+    await putVote(pageUrl, streamId, -1);
+    const other = await putVote(pageUrl, streamId, -1);
+    expect(other.votes[localId]).toBe(2);
+    expect(other.votes[streamId]).toBe(-2);
+
+    for (const child of children) child.kill('SIGTERM');
+    children.length = 0;
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, 50);
+    });
+
+    const second = readReport((await runPreview(root, ['--serve'])).stdout);
+    const reloaded = await fetch(new URL('/ballot', second.url ?? ''));
+    expect(reloaded.status).toBe(200);
+    const ballot = readBallot(await reloaded.json());
+    expect(ballot.votes[localId]).toBe(2);
+    expect(ballot.votes[streamId]).toBe(-2);
+  });
+
+  it('rejects unknown arguments', async () => {
+    const root = await writeFixture();
+    const result = await runPreview(root, ['--zip', '--serve']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('Usage: pnpm preview:album');
+  });
+});

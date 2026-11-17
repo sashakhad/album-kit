@@ -1,22 +1,34 @@
 # Album kit
 
-Make an album with Suno, hear every take, and choose the winners on your own site. The album lives in `album/`; changing its title, tracks and sheets does not require changing site code. Adding a track means editing `album/album.json` and redeploying, because a round is rejected when the track is not listed there. Grok Bot can run the basic workflow. Cursor is optional for a project handoff or verified model comparison.
+Make an album with Suno, hear every take, and choose the winners. The album lives in `album/`. Grok Bot can run the basic workflow. Cursor is optional for a project handoff or verified model comparison.
+
+Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. Each owner uses the local preview, or that owner's own accounts.
 
 ## Start
 
-Open [Album Bot](grokbot/BOT.md) and type `/start`, or `/surprise` if you want the bot to pick the album. A small test is one or two tracks, with two prompts and one Suno generation per prompt on each (4 takes, about 20 Suno credits per track). The bot checks that balance silently and does not say the number unless the balance is tight, the plan is Suno Free and the daily cap limits the run, one step is over about 200 Suno credits, or it costs real money. With thousands of Suno credits it says what it is making and leaves the number out. `/cost` and `/settings` still show the numbers. The home page plays every ready take. Compare takes is where you choose.
+Open [Album Bot](grokbot/BOT.md) and type `/start`, or `/surprise` if you want the bot to pick the album. A small test is one or two tracks, with two prompts and one Suno generation per prompt on each (4 takes, about 20 Suno credits per track). The bot checks that balance silently and does not say the number unless the balance is tight, the plan is Suno Free and the daily cap limits the run, one step is over about 200 Suno credits, or it costs real money. With thousands of Suno credits it says what it is making and leaves the number out. `/cost` and `/settings` still show the numbers.
 
-You will need your own Grok Bot on an [X Subscription Premium](https://x.ai/pricing) plan ($30+). Suno can be [Free](https://suno.com/pricing) ($0, 50 Suno credits a day, v6-mini only, non-commercial) or [Suno Pro](https://suno.com/pricing) ($10) or [Suno Premier](https://suno.com/pricing) ($30). [GitHub](https://github.com/pricing) and [Vercel](https://vercel.com/pricing) Hobby are free. You pay for your own Suno. The bot never buys a plan. Review takes are made public on Suno automatically and silently and stream from the public MP4. Never ask how review takes should play. Only a final pick is downloaded, and that download is silent. The site also uses Vercel Blob and a Postgres database through Neon. Vercel Hobby is for eligible [personal, non-commercial use](https://vercel.com/docs/limits/fair-use-guidelines). [Cursor](https://cursor.com/pricing) is optional. Want it private? Change your Vercel/GitHub settings.
+The bot writes the songs, makes the takes on Suno, and opens a local album player. You listen and vote there. No GitHub repo, Vercel project, or database is required.
 
-The home page plays the album. Compare takes shows the latest round. Review takes are made public on Suno. The bot still checks Suno generation credits, plus external prompt models and hosting eligibility. It says those numbers only when cost matters. One approved round covers generation through streaming and voting. A settings limit or imported preset is never spending approval. Voting stays owner-only until the owner turns listener voting on.
+You will need your own Grok Bot on an [X Subscription Premium](https://x.ai/pricing) plan ($30+). Suno can be [Free](https://suno.com/pricing) ($0, 50 Suno credits a day, v6-mini only, non-commercial) or [Suno Pro](https://suno.com/pricing) ($10) or [Suno Premier](https://suno.com/pricing) ($30). You pay for your own Suno. The bot never buys a plan. Review takes are made public on Suno automatically and silently and stream from the public MP4. Never ask how review takes should play. Only a final pick is downloaded, and that download is silent. [Cursor](https://cursor.com/pricing) is optional.
+
+The bot still checks Suno generation credits, plus external prompt models when a hosted site is in play. It says those numbers only when cost matters. One approved round covers generation through streaming and voting. A settings limit or imported preset is never spending approval.
+
+## Preview before sharing
+
+Album Bot opens a local preview as soon as the first take is ready. In a checkout, `pnpm preview:album` refreshes `.tmp/album-preview/Open Album.html`. Double-click it to listen and vote. Votes stay in that browser. For a loopback ballot, run `pnpm preview:album --serve` and open the returned URL. Votes and the selected take are saved in `.tmp/album-preview-ballot.json`. Restart the preview server after adding takes. Existing local MP3s work offline. Public Suno streams are labeled and require internet. The exporter does not spend download credits and does not make a private take public. For a remote session, `pnpm preview:album --zip` packages the page and its local audio. Unzip the archive before opening `Open Album.html`.
+
+## Share
+
+`/share`, or a request to share, send it to friends, or put it online, publishes that same preview as a static site on **your** Vercel account. One tap connects the Grok Bot Vercel connector. The deploy is the preview page plus its audio. There is no database and no GitHub repo. Votes are not stored on that page. Hosted voting is the advanced path below, and only when you ask for it.
 
 ## Skills
 
 The playbook is `.cursor/skills/`. Read a skill's `SKILL.md` before its steps. The skills are `start-here`, `album-track`, `song-prompts`, `suno-run`, `judge`, `finish`, and `publish`.
 
-## Own the project
+## Advanced: hosted voting
 
-The default is a repository in **your** GitHub account, with this kit recorded as its upstream. The bot can use a local or cloud checkout. If you set it up yourself, use Node 24, pnpm, a signed-in `gh` CLI, Vercel CLI and Docker for local Postgres:
+This path is only for an owner who explicitly wants friends to vote on a site. It uses a repository in **your** GitHub account, with this kit recorded as its upstream, plus your own Vercel project and your own Neon database. The bot can use a local or cloud checkout. If you set it up yourself, use Node 24, pnpm, a signed-in `gh` CLI, Vercel CLI and Docker for local Postgres:
 
 ```bash
 git clone https://github.com/sashakhad/album-kit my-album
@@ -29,7 +41,7 @@ pnpm setup:site --name my-album
 
 `setup:site` creates or links your Vercel project, a public Blob store, a Neon database, and a write token. It generates `ALBUM_WRITE_TOKEN`, stores it on the Vercel project and in `.env`, and never prints it. `.album-site.json` holds the site URL. The home page plays the album. Listener voting stays off until you turn it on. Want it private? Change your Vercel/GitHub settings.
 
-Album Bot connects GitHub and Vercel with the Grok Bot connectors and a one-tap card, then runs `pnpm setup:site` in the background. The CLI commands above are the fallback when a connector cannot do a step. Neon is created on the tester's own account, with the Neon connector or Vercel Marketplace Neon, never a shared database.
+On this advanced path, Album Bot connects GitHub and Vercel with the Grok Bot connectors and a one-tap card, then runs `pnpm setup:site`. The CLI commands above are the fallback when a connector cannot do a step. Neon is created on the owner's own account, with the Neon connector or Vercel Marketplace Neon. [GitHub](https://github.com/pricing) and [Vercel](https://vercel.com/pricing) Hobby are free. Vercel Hobby is for eligible [personal, non-commercial use](https://vercel.com/docs/limits/fair-use-guidelines). The hosted site also uses Vercel Blob and Postgres through Neon. Want it private? Change your Vercel/GitHub settings. Listener voting on that site stays off until you turn it on.
 
 An existing **public** Blob store cannot protect already uploaded objects by changing a site setting. Migrate takes into a private Blob store and retire the old public objects before selecting Private; Settings requires a verified private store and `PRIVATE_BLOB_AUDITED=true` after that audit. New setup sets this flag because it creates no earlier public take store. Private listening invites are one-use links that expire after 15 minutes. The link secret is in the URL fragment, removed on opening, and exchanged for a revocable viewer cookie. Viewers can hear final picks. With listener voting on, they can also hear previews and score takes, and those scores stay separate from the owner's. They cannot change Settings. Test access on a second browser before sharing.
 

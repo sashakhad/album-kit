@@ -3,3 +3,4 @@
 .album-key
 .env*
 album/audio/
+.tmp/

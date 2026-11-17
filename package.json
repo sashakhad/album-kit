@@ -36,6 +36,7 @@
     "takes:upload": "node scripts/takes-upload.mjs",
     "takes:refresh": "node scripts/refresh-streams.mjs",
     "takes:verify": "node scripts/verify-streams.mjs",
+    "preview:album": "node --experimental-strip-types scripts/preview-album.mjs",
     "publish:album": "node scripts/publish-album.mjs",
     "sync:albums": "node scripts/sync-albums.mjs",
     "postinstall": "prisma generate",

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; media-src 'self' file: https://*.suno.ai; base-uri 'none'; form-action 'none'"
+    />
+    <title>{{title}}</title>
+    <style>
+      {{theme}}
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--background); color: var(--foreground); font: 1rem Geist, system-ui, sans-serif; }
+      header { border-bottom: 1px solid var(--border); }
+      header > div, main { max-width: 72rem; margin: auto; padding-inline: clamp(1rem, 4vw, 1.5rem); }
+      header > div { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4.25rem; }
+      header strong { font-size: 1.375rem; font-weight: 550; letter-spacing: -.035em; }
+      main { padding-block: 2.5rem; }
+      h1, h2, p { margin: 0; }
+      h1 { font-size: clamp(2rem, 5vw, 2.5rem); font-weight: 600; letter-spacing: -.04em; overflow-wrap: anywhere; }
+      .artist, .muted, small { color: var(--muted-foreground); }
+      .artist { margin-top: .375rem; }
+      .layout { display: grid; align-items: start; gap: 2rem; margin-top: 2rem; }
+      @media (min-width: 64rem) { .layout { grid-template-columns: minmax(0, 21rem) minmax(0, 1fr); } }
+      .eyebrow { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; }
+      .player { display: grid; gap: .75rem; }
+      .player h2 { font-size: clamp(1.875rem, 4vw, 2.25rem); line-height: 1.1; letter-spacing: -.04em; overflow-wrap: anywhere; }
+      .controls { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: .375rem; }
+      button { min-height: 2.75rem; font: inherit; font-size: .875rem; color: inherit; border: 1px solid var(--input); border-radius: .75rem; background: transparent; padding: .5rem .875rem; cursor: pointer; }
+      button:hover { background: var(--accent); }
+      button[disabled] { opacity: .45; cursor: default; }
+      .primary, button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
+      .primary:hover, button[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--primary) 90%, transparent); }
+      :where(button, input):focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+      .seek { display: flex; align-items: center; gap: .75rem; font: .75rem ui-monospace, monospace; color: var(--muted-foreground); }
+      .seek input { width: 100%; accent-color: var(--primary); }
+      .tracks { display: grid; gap: .75rem; }
+      .track { min-width: 0; display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--card); }
+      .track h2 { font-size: 1rem; font-weight: 550; overflow-wrap: anywhere; }
+      .track-number { font: .8rem ui-monospace, monospace; margin-right: .625rem; color: var(--muted-foreground); }
+      .takes { display: flex; flex-wrap: wrap; gap: .5rem; }
+      .takes button { display: inline-flex; align-items: center; gap: .5rem; }
+      #take-score { min-width: 2.5rem; align-self: center; text-align: center; font-variant-numeric: tabular-nums; }
+      .takes button[aria-pressed="true"] small { color: inherit; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div><strong>{{title}}</strong><span class="muted">Listen</span></div>
+    </header>
+    <main>
+      <h1>{{title}}</h1>
+      {{artist}}
+      <div class="layout">
+        <section class="player" aria-label="Album player" hidden>
+          <p class="eyebrow muted">Now playing</p>
+          <h2 id="track-title"></h2>
+          <p class="muted" id="take-label"></p>
+          <div class="controls">
+            <button id="previous" type="button" aria-label="Previous take">◀</button>
+            <button id="play" class="primary" type="button">Play</button>
+            <button id="next" type="button" aria-label="Next take">▶</button>
+          </div>
+          <label class="seek">
+            <span id="elapsed">0:00</span>
+            <input id="seek" type="range" min="0" max="0" value="0" step="0.1" aria-label="Seek" />
+            <span id="duration">0:00</span>
+          </label>
+          <section id="ballot" aria-label="Compare takes" hidden>
+            <p id="vote-progress" class="muted"></p>
+            <div class="controls">
+              <button id="upvote" type="button" aria-label="Add one point">+</button>
+              <output id="take-score" aria-label="Take score">0</output>
+              <button id="downvote" type="button" aria-label="Subtract one point">−</button>
+              <button id="next-unrated" type="button">Next unrated</button>
+            </div>
+            <p id="vote-status" class="muted" role="status"></p>
+          </section>
+          <p id="playback-error" role="status" class="muted"></p>
+          <audio preload="none" hidden></audio>
+          <video preload="none" playsinline hidden></video>
+        </section>
+        <div class="tracks" aria-label="Tracks">{{tracks}}</div>
+      </div>
+    </main>
+    <script>
+      const buttons = Array.from(document.querySelectorAll('.takes button'));
+      if (buttons.length) {
+        const player = document.querySelector('.player');
+        const play = document.querySelector('#play');
+        const previous = document.querySelector('#previous');
+        const next = document.querySelector('#next');
+        const seek = document.querySelector('#seek');
+        const elapsed = document.querySelector('#elapsed');
+        const duration = document.querySelector('#duration');
+        const error = document.querySelector('#playback-error');
+        const audio = player.querySelector('audio');
+        const video = player.querySelector('video');
+        let current = 0;
+        let media = audio;
+        const ballot = document.querySelector('#ballot');
+        const upvote = document.querySelector('#upvote');
+        const downvote = document.querySelector('#downvote');
+        const unrated = document.querySelector('#next-unrated');
+        const voteStatus = document.querySelector('#vote-status');
+        let votes = {};
+        let writes = Promise.resolve();
+        const fromDisk = location.protocol === 'file:';
+        const storageKey = 'album-kit-preview-ballot';
+
+        function showVotes() {
+          const selected = buttons[current];
+          const format = score => (score > 0 ? '+' + score : String(score));
+          document.querySelector('#take-score').textContent = format(
+            votes[selected.dataset.id] ?? 0
+          );
+          for (const button of buttons) {
+            const badge = button.querySelector('[data-score]');
+            if (badge) badge.textContent = format(votes[button.dataset.id] ?? 0);
+          }
+          const trackTakes = buttons.filter(
+            button => button.closest('.track') === selected.closest('.track')
+          );
+          const count = trackTakes.filter(button => Object.hasOwn(votes, button.dataset.id)).length;
+          document.querySelector('#vote-progress').textContent =
+            count + ' of ' + trackTakes.length + ' rated on this track';
+          unrated.disabled = buttons.every(button => Object.hasOwn(votes, button.dataset.id));
+        }
+
+        function saveBallot(vote) {
+          if (ballot.hidden) return;
+          const take = buttons[current].dataset.id;
+          writes = writes
+            .then(async () => {
+              if (fromDisk) {
+                const nextBallot = { selected: take, votes: { ...votes } };
+                if (vote !== undefined) nextBallot.votes[take] = (votes[take] ?? 0) + vote;
+                localStorage.setItem(storageKey, JSON.stringify(nextBallot));
+                votes = nextBallot.votes;
+                voteStatus.textContent = vote === undefined ? '' : 'Score saved in this browser';
+                showVotes();
+                return;
+              }
+              const response = await fetch('/ballot', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ take, vote }),
+              });
+              if (!response.ok) throw new Error('Save failed');
+              votes = (await response.json()).votes;
+              voteStatus.textContent = vote === undefined ? '' : 'Score saved';
+              showVotes();
+            })
+            .catch(() => {
+              voteStatus.textContent = 'Could not save. Try again.';
+            });
+        }
+
+        function formatTime(seconds) {
+          const time = Number.isFinite(seconds) ? Math.floor(seconds) : 0;
+          return Math.floor(time / 60) + ':' + String(time % 60).padStart(2, '0');
+        }
+
+        function sync() {
+          const length = Number.isFinite(media.duration) ? media.duration : 0;
+          play.textContent = media.paused ? 'Play' : 'Pause';
+          elapsed.textContent = formatTime(media.currentTime);
+          duration.textContent = formatTime(length);
+          seek.disabled = length === 0;
+          seek.max = String(length);
+          seek.value = String(media.currentTime);
+        }
+
+        function select(index, remember = true) {
+          media.pause();
+          buttons[current].setAttribute('aria-pressed', 'false');
+          current = index;
+          const { src, title, label, online, kind } = buttons[current].dataset;
+          media = kind === 'video' ? video : audio;
+          media.src = src;
+          document.querySelector('#track-title').textContent = title;
+          document.querySelector('#take-label').textContent =
+            label + (online === 'true' ? ' · Internet required' : '');
+          buttons[current].setAttribute('aria-pressed', 'true');
+          previous.disabled = current === 0;
+          next.disabled = current === buttons.length - 1;
+          error.textContent = '';
+          sync();
+          showVotes();
+          if (remember) saveBallot();
+        }
+
+        for (const item of [audio, video]) {
+          for (const name of ['loadedmetadata', 'timeupdate', 'play', 'pause', 'ended']) {
+            item.addEventListener(name, () => {
+              if (item === media) sync();
+            });
+          }
+        }
+
+        play.addEventListener('click', async () => {
+          error.textContent = '';
+          if (!media.paused) {
+            media.pause();
+            return;
+          }
+          const selected = media;
+          try {
+            await selected.play();
+          } catch {
+            if (selected !== media) return;
+            error.textContent =
+              buttons[current].dataset.online === 'true'
+                ? 'This stream could not play. Check your connection and whether the take is public.'
+                : 'This audio file could not play. Keep the audio folder beside this page.';
+          }
+        });
+        seek.addEventListener('input', () => {
+          media.currentTime = Number(seek.value);
+        });
+        previous.addEventListener('click', () => select(current - 1));
+        next.addEventListener('click', () => select(current + 1));
+        buttons.forEach((button, index) => button.addEventListener('click', () => select(index)));
+        upvote.addEventListener('click', () => saveBallot(1));
+        downvote.addEventListener('click', () => saveBallot(-1));
+        unrated.addEventListener('click', async () => {
+          await writes;
+          const ordered = buttons.slice(current + 1).concat(buttons.slice(0, current + 1));
+          const nextTake = ordered.find(button => !Object.hasOwn(votes, button.dataset.id));
+          if (nextTake) select(buttons.indexOf(nextTake));
+        });
+        player.hidden = false;
+        select(0, false);
+        function restore(saved) {
+          votes = saved.votes;
+          ballot.hidden = false;
+          const index = buttons.findIndex(button => button.dataset.id === saved.selected);
+          if (index >= 0) select(index, false);
+          showVotes();
+        }
+        const loadError = () => {
+          error.textContent = 'Could not load local votes. Reload to retry.';
+        };
+
+        if (fromDisk) {
+          try {
+            const saved = JSON.parse(localStorage.getItem(storageKey));
+            restore(saved ?? { selected: null, votes: {} });
+          } catch {
+            loadError();
+          }
+        } else if (location.hostname === '127.0.0.1' && location.protocol === 'http:') {
+          fetch('/ballot')
+            .then(response => {
+              if (!response.ok) throw new Error('Load failed');
+              return response.json();
+            })
+            .then(restore)
+            .catch(loadError);
+        }
+      }
+    </script>
+  </body>
+</html>

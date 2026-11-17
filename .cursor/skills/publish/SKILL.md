@@ -5,7 +5,9 @@ description: Use after any change under album/, or when the user wants the album
 
 # Publish · version 6
 
-The site is public. Review takes are made public on Suno automatically and silently and play from stored public MP4 stream URLs. Never ask how review takes should play. Do not download a review take. Only a final pick is downloaded, and that download is silent.
+Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. The default album is the local preview. Do not create a GitHub repo, connect Vercel, or run `pnpm setup:site` from a new album. `/share` publishes that preview as a static site on the owner's own Vercel account, with no database. This skill applies when they have the advanced hosted site, or when they ask to back the album up to their own GitHub or Origin.
+
+The hosted site is public. Review takes are made public on Suno automatically and silently and play from stored public MP4 stream URLs. Never ask how review takes should play. Do not download a review take. Only a final pick is downloaded, and that download is silent.
 
 ## When to use
 
@@ -76,7 +78,7 @@ The site is public. Review takes are made public on Suno automatically and silen
 
 ### Give the album a home later
 
-New albums get a user-owned GitHub repository during `start-here`. Use this section only to bring an older local album under the user's account. Use `project` from `.album-site.json` as the repo name. Never push a user's album to the upstream kit.
+An advanced hosted album gets a repository in the owner's own GitHub account when they ask for hosted voting. Use this section for that path, or to bring an older local album under the user's own account. Use `project` from `.album-site.json` as the repo name. Never push a user's album to the upstream kit.
 
 **GitHub.** Make a private repo in the user's own account and push the album to it. Use the Grok Bot GitHub connector first. If it is not connected, show its one-tap card in one sentence: "Tap to connect GitHub so I can save your album." Never ask for an emailed code or a passkey when that connector exists. After the repo exists, run `git remote add origin <repo URL>` and `git push -u origin main`.
 

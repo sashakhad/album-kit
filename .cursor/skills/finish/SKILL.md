@@ -3,14 +3,22 @@ name: finish
 description: Use when the owner reviews which takes play on Listen.
 ---
 
-# Finish · version 8
+# Finish · version 9
 
-Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for someone with comparison access. A specific pick is not chosen on the Compare takes card.
+Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. Do not start `pnpm setup:site` or connect GitHub, Vercel, or Neon from this skill.
+
+## Default
+
+The owner listens and votes in the local preview. Refresh it with `pnpm preview:album --serve` when you can open a browser for them, or send the ZIP from `pnpm preview:album --zip`. Scores stay in that ballot. When they ask to share, follow `/share` in `start-here`. That publishes the same player on their own Vercel account, with no database.
 
 ## When to use
 
 - The owner is done judging a track or the whole album.
-- The owner wants to review the scored versions or choose a different take on `/listen`.
+- The owner wants to review the scored versions or choose a different take.
+
+## Advanced hosted site
+
+These steps apply only after the owner has asked for hosted voting and a site exists. Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for someone with comparison access. A specific pick is not chosen on the Compare takes card.
 
 ## Steps
 

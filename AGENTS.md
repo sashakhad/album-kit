@@ -19,6 +19,7 @@ For any new album, run `start-here` first.
 ## Rules
 
 - Never call full mixes stems. A take is a full mix. Stems are the separate files a split makes, several per song.
+- Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. Each owner uses the local preview, or that owner's own accounts.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
 - Ship completed kit changes to production: merge the upstream PR, update the user-owned album repository without replacing its `album/` content, and verify the linked Vercel production deployment and listening URL. A merged kit PR alone is not done.
