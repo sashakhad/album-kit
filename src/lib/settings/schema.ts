@@ -18,6 +18,8 @@ export const settingsSchema = z.object({
   // Public review takes stream a Suno MP4. Private ones are downloaded.
   reviewTakes: z.enum(['public', 'private']).default('public'),
   generationCreditLimit: z.number().int().min(0).nullable().default(null),
+  // Suno credits Generate can spend before the form asks. 50 is five v6 batches.
+  variationCreditAllowance: z.number().int().min(0).default(50),
   downloadLimit: z.number().int().min(0).nullable().default(null),
   externalSpendLimitUsd: z.number().min(0).nullable().default(null),
 });
@@ -40,6 +42,7 @@ export const settingsPatchSchema = z
     listenerVoting: settingsSchema.shape.listenerVoting.removeDefault(),
     reviewTakes: settingsSchema.shape.reviewTakes.removeDefault(),
     generationCreditLimit: settingsSchema.shape.generationCreditLimit.removeDefault(),
+    variationCreditAllowance: settingsSchema.shape.variationCreditAllowance.removeDefault(),
     downloadLimit: settingsSchema.shape.downloadLimit.removeDefault(),
     externalSpendLimitUsd: settingsSchema.shape.externalSpendLimitUsd.removeDefault(),
   })

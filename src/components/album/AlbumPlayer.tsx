@@ -42,6 +42,7 @@ import { isVideoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
+import { GenerateMoreTakes } from '@/components/album/GenerateMoreTakes';
 import { MoreLikeThis } from '@/components/album/MoreLikeThis';
 import { VoteButton } from '@/components/album/VoteButton';
 import {
@@ -61,6 +62,7 @@ import { cn } from '@/lib/utils';
 
 type PlaybackMode = 'album' | 'variations';
 export type PlayerSurface = 'vote' | 'listen';
+export type VariationTrackStatus = { status: 'generating' | 'ready' | 'failed'; reason?: string };
 
 export function AlbumPlayer({
   version,
@@ -76,6 +78,7 @@ export function AlbumPlayer({
   passSummary,
   canRequestVariations = false,
   variationBlindRound,
+  variationStatusByTrack,
   emptyNotice,
   pendingLabel = 'Coming soon',
 }: {
@@ -92,10 +95,36 @@ export function AlbumPlayer({
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
   canRequestVariations?: boolean;
   variationBlindRound?: number;
+  variationStatusByTrack?: Record<number, VariationTrackStatus>;
   emptyNotice?: string;
   pendingLabel?: string;
 }) {
   const router = useRouter();
+  useEffect(() => {
+    if (
+      !variationStatusByTrack ||
+      !Object.values(variationStatusByTrack).some(item => item.status === 'generating')
+    )
+      return;
+    const timer = setInterval(() => {
+      void (async () => {
+        try {
+          const response = await fetch('/api/owner/variations');
+          if (!response.ok) return;
+          const rows: Array<{ trackNumber: number; status: string }> = await response.json();
+          const finished = Object.entries(variationStatusByTrack).some(([trackNumber, current]) => {
+            if (current.status !== 'generating') return false;
+            const latest = rows.find(row => row.trackNumber === Number(trackNumber));
+            return latest?.status === 'ready' || latest?.status === 'failed';
+          });
+          if (finished) router.refresh();
+        } catch {
+          /* A reload still reads the durable status. */
+        }
+      })();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [variationStatusByTrack, router]);
   const revealRefreshRequested = useRef(false);
   const playerSurface: PlayerSurface = surface ?? 'vote';
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -767,13 +796,23 @@ export function AlbumPlayer({
         canRequestVariations &&
         currentTrack !== null &&
         currentTake !== null ? (
-          <MoreLikeThis
-            key={currentTake.filename}
-            filename={currentTake.filename}
-            trackNumber={currentTrack.number}
-            trackTitle={currentTrack.title}
-            {...(variationBlindRound === undefined ? {} : { blindRound: variationBlindRound })}
-          />
+          variationBlindRound === undefined ? (
+            <GenerateMoreTakes
+              key={currentTake.filename}
+              filename={currentTake.filename}
+              trackNumber={currentTrack.number}
+              trackTitle={currentTrack.title}
+              trackStatus={variationStatusByTrack?.[currentTrack.number]?.status}
+            />
+          ) : (
+            <MoreLikeThis
+              key={currentTake.filename}
+              filename={currentTake.filename}
+              trackNumber={currentTrack.number}
+              trackTitle={currentTrack.title}
+              blindRound={variationBlindRound}
+            />
+          )
         ) : null}
 
         {currentPrompt !== null ? (
@@ -912,6 +951,7 @@ export function AlbumPlayer({
                   }
                   listenChoice={choice}
                   pendingLabel={pendingLabel}
+                  variationStatus={variationStatusByTrack?.[track.number]}
                   {...(scoreLabel === undefined ? {} : { scoreLabel })}
                   voter={voter}
                   onVoteSnapshot={setVoteSnapshot}
@@ -1318,6 +1358,7 @@ function TrackRow({
   showTakes,
   listenChoice,
   pendingLabel,
+  variationStatus,
   scoreLabel,
   voter,
   onSelect,
@@ -1334,6 +1375,7 @@ function TrackRow({
   showTakes: boolean;
   listenChoice: ListenChoice | undefined;
   pendingLabel: string;
+  variationStatus?: VariationTrackStatus | undefined;
   scoreLabel?: string;
   voter: 'owner' | 'listener';
   onSelect: () => void;
@@ -1368,6 +1410,12 @@ function TrackRow({
             {scoreLabel === undefined ? null : (
               <span className='text-muted-foreground block text-xs'>{scoreLabel}</span>
             )}
+            {variationStatus ? (
+              <span className='text-muted-foreground block text-xs' role='status'>
+                More takes {variationStatus.status}
+                {variationStatus.reason ? `: ${variationStatus.reason}` : ''}
+              </span>
+            ) : null}
             {track.status === 'preview' ? (
               <span className='text-muted-foreground text-xs'>Preview</span>
             ) : null}

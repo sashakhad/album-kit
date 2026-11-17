@@ -64,6 +64,14 @@ describe('settings and portable presets', () => {
     expect(settingsPatchSchema.parse({ listenerVoting: true })).toEqual({ listenerVoting: true });
   });
 
+  it('starts More takes with a 50 credit allowance that stays out of a portable preset', () => {
+    expect(DEFAULT_SETTINGS.variationCreditAllowance).toBe(50);
+    expect(exportPreset(DEFAULT_SETTINGS).settings).not.toHaveProperty('variationCreditAllowance');
+    expect(settingsPatchSchema.parse({ variationCreditAllowance: 0 })).toEqual({
+      variationCreditAllowance: 0,
+    });
+  });
+
   it('defaults review takes to public and leaves that choice out of a portable preset', () => {
     expect(DEFAULT_SETTINGS.reviewTakes).toBe('public');
     const legacy: Record<string, unknown> = { ...DEFAULT_SETTINGS };

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
-import { isOwnerRequest, requireOwner, safeEqual } from '../auth';
+import { isOwnerRequest, OWNER_COOKIE, ownerCookieValue, requireOwner, safeEqual } from '../auth';
 
 function requestWith(headers: Record<string, string>): Request {
   return new Request('http://localhost/api/votes', { headers });
@@ -21,6 +21,16 @@ describe('write token', () => {
       false
     );
     expect(await isOwnerRequest(requestWith({}))).toBe(false);
+    expect(
+      await isOwnerRequest(
+        requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('dev-write-token')}` })
+      )
+    ).toBe(true);
+    expect(
+      await isOwnerRequest(
+        requestWith({ cookie: `${OWNER_COOKIE}=${ownerCookieValue('other-secret')}` })
+      )
+    ).toBe(false);
     expect(await requireOwner(requestWith({ authorization: 'Bearer dev-write-token' }))).toBeNull();
 
     vi.unstubAllEnvs();

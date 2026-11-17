@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { AlbumPlayer } from '@/components/album/AlbumPlayer';
+import { AlbumPlayer, type VariationTrackStatus } from '@/components/album/AlbumPlayer';
 import { MergeBallotPrompt } from '@/components/album/MergeBallotOffer';
 import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
 import { TakeAvailability } from '@/components/album/TakeAvailability';
@@ -12,6 +12,8 @@ import { findTakeByVersionAndLabel } from '@/lib/album/playback';
 import { parseTakeSegment, resolveTrack } from '@/lib/album/play-path';
 import type { AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import { type VoteSnapshot } from '@/lib/votes/types';
+import { isOwner } from '@/lib/owner/auth';
+import { loadVariationTrackStatus } from '@/lib/variations/status';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { opaqueAudioId } from '@/lib/votes/blind';
 import { countBrowserListenerVotes } from '@/lib/votes/merge-ballot';
@@ -44,7 +46,15 @@ export default async function VotePage({ params }: VotePageProps) {
     config,
     { version, originalVersion, votes, blind, awaitingReveal, passSummary },
     listenerVotesOnBrowser,
-  ] = await Promise.all([getListenConfig(), ownerJudgingView(), countBrowserListenerVotes()]);
+    owner,
+    variationStatusByTrack,
+  ] = await Promise.all([
+    getListenConfig(),
+    ownerJudgingView(),
+    countBrowserListenerVotes(),
+    isOwner(),
+    loadVariationTrackStatus(),
+  ]);
   const listenChoices: Record<number, ListenChoice> = Object.fromEntries(
     config.tracks.map(item => {
       const original = trackByNumber(originalVersion, item.number);
@@ -107,8 +117,9 @@ export default async function VotePage({ params }: VotePageProps) {
       listenerVotesOnBrowser={listenerVotesOnBrowser}
       listenChoices={listenChoices}
       passSummary={passSummary}
-      canRequestVariations
+      canRequestVariations={owner}
       {...(blind ? { variationBlindRound: votes.currentRound } : {})}
+      variationStatusByTrack={variationStatusByTrack}
       bannerLine={bannerLine}
       progress={progress}
       roundNumber={progress.roundNumber}
@@ -130,6 +141,7 @@ function VoteMain({
   passSummary,
   canRequestVariations = false,
   variationBlindRound,
+  variationStatusByTrack,
   bannerLine = null,
   progress,
   roundNumber = null,
@@ -147,6 +159,7 @@ function VoteMain({
   passSummary?: { total: number; remaining: number; parked: number; dropped: number };
   canRequestVariations?: boolean;
   variationBlindRound?: number;
+  variationStatusByTrack?: Record<number, VariationTrackStatus>;
   bannerLine?: string | null;
   progress: AlbumProgress;
   roundNumber?: number | null;
@@ -197,6 +210,7 @@ function VoteMain({
           {...(passSummary === undefined ? {} : { passSummary })}
           canRequestVariations={canRequestVariations}
           {...(variationBlindRound === undefined ? {} : { variationBlindRound })}
+          {...(variationStatusByTrack === undefined ? {} : { variationStatusByTrack })}
           {...(notice === undefined ? {} : { emptyNotice: notice, pendingLabel: pending })}
           {...(track === null
             ? {}

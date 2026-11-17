@@ -49,7 +49,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   });
   await prisma.variationRequest.updateMany({
     where: { roundId: id },
-    data: { status: 'ready' },
+    data: { status: 'ready', dispatchError: null },
   });
   return NextResponse.json({
     round: updated,

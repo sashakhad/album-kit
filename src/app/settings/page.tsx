@@ -8,13 +8,14 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
-  const [settings, latest, config] = await Promise.all([
+  const [settings, latest, config, reserved] = await Promise.all([
     loadSettings(),
     prisma.generationRound.findFirst({
       orderBy: { createdAt: 'desc' },
       select: { snapshot: true },
     }),
     loadAlbumConfig(),
+    prisma.variationRequest.aggregate({ _sum: { creditsReserved: true } }),
   ]);
   const snapshot = latest?.snapshot as
     { capabilities?: unknown; resolvedSunoModel?: string } | undefined;
@@ -32,6 +33,7 @@ export default async function SettingsPage() {
               }
             : null
         }
+        creditsReserved={reserved._sum.creditsReserved ?? 0}
       />
     </main>
   );

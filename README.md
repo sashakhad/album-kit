@@ -61,7 +61,7 @@ pnpm exec prisma migrate deploy
 pnpm dev
 ```
 
-The local site does not need a password. With no Blob connection, put canonical MP3 files in `album/audio/`. New takes can play from a stored Suno stream URL without a file. The site does not generate music by itself; the official Suno MCP connector or signed-in Suno browser runs the prompts. Use `pnpm takes:upload <files...>` for hosted upload. It uses a Blob token if available, otherwise the site upload API and `ALBUM_WRITE_TOKEN` from `.env`.
+The local site does not need a password. With no Blob connection, put canonical MP3 files in `album/audio/`. New takes can play from a stored Suno stream URL without a file. Generate on Compare takes asks a webhook to make more takes. Album Bot does that Suno work, on the official connector or on suno.com for a Free account. The site does not hold a Suno login. `pnpm owner:link` opens the owner’s browser for that button. Use `pnpm takes:upload <files...>` for hosted upload. It uses a Blob token if available, otherwise the site upload API and `ALBUM_WRITE_TOKEN` from `.env`.
 
 Run `pnpm check` for formatting, lint, types and tests. Run `pnpm publish:album "message"` after a permitted album change. Verify the deployment branch, owner, environment and working URL before sharing.
 

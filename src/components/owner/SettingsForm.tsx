@@ -7,6 +7,7 @@ import { Check, ChevronDown, Circle, Upload } from 'lucide-react';
 
 import { ShareControls } from '@/components/owner/ShareControls';
 import { Button } from '@/components/ui/button';
+import { formatNumber } from '@/lib/formatters';
 import {
   exportPreset,
   importPreset,
@@ -30,9 +31,10 @@ type Props = {
   albumTitle: string;
   initial: AlbumSettingsValue;
   lastSunoCheck: { models: string[]; resolvedModel: string | null } | null;
+  creditsReserved?: number;
 };
 
-export function SettingsForm({ albumTitle, initial, lastSunoCheck }: Props) {
+export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserved = 0 }: Props) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
@@ -76,7 +78,7 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck }: Props) {
       if (!response.ok) {
         throw new Error(
           response.status === 401
-            ? 'Couldn’t save. Album Bot writes settings with its own token.'
+            ? 'Open your owner link to save these.'
             : typeof result?.error === 'string'
               ? result.error
               : 'Couldn’t save changes. Check your choices and try again.'
@@ -457,12 +459,23 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck }: Props) {
             <div className='space-y-3 border-t border-white/10 pt-4'>
               <h3 className='font-medium'>Round limits</h3>
               <p className={muted}>
-                Grok Bot still asks you to approve each round’s cost. Downloading a song from Suno
-                uses Suno download credits, which are limited per month.
-                {draft.reviewTakes === 'private'
-                  ? ' This round downloads every review take.'
-                  : ' Public review takes stream instead, so only a final pick is downloaded.'}
+                Generate on Compare takes starts within the More takes allowance. Over it, the form
+                asks before spending. A v6 batch is 2 takes for 10 Suno credits. Only a final pick
+                is downloaded.
               </p>
+              <Field
+                label='More takes allowance'
+                hint={`${formatNumber(Math.max(0, draft.variationCreditAllowance - creditsReserved))} Suno credits left before Generate asks.`}
+              >
+                <input
+                  type='number'
+                  min='0'
+                  step='1'
+                  value={draft.variationCreditAllowance}
+                  onChange={event => change('variationCreditAllowance', Number(event.target.value))}
+                  className={inputClass}
+                />
+              </Field>
               <div className='grid gap-4 sm:grid-cols-3'>
                 <LimitField
                   label='Generation credits'

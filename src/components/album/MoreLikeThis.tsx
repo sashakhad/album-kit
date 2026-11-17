@@ -121,8 +121,8 @@ async function recoverBlindAttempt(trackNumber: number, filename: string) {
 export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: Props) {
   const savedMessage =
     blindRound === undefined
-      ? 'Request saved. The bot will prepare a cost estimate before generation.'
-      : 'Request saved blind. Reveal this pass before the bot prepares its prompt and cost estimate.';
+      ? 'Request saved. Open this take and press Generate.'
+      : 'Request saved blind. Reveal this pass, then press Generate.';
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(2);
   const [instructions, setInstructions] = useState('');
@@ -354,8 +354,8 @@ export function MoreLikeThis({ filename, trackNumber, trackTitle, blindRound }: 
             />
           </label>
           <p className='text-muted-foreground text-xs'>
-            Saves a request for this track only. Suno may produce takes in batches; the bot will
-            show the exact output and cost estimate for approval before using credits.
+            Saves a blind request for this track only. Reveal this pass, then press Generate. Saving
+            does not spend Suno credits.
           </p>
           <div className='flex flex-wrap gap-2'>
             {!resolvingEarlierBlindAttempt ? (

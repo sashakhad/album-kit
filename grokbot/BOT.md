@@ -104,7 +104,29 @@ Want it private? Change your Vercel/GitHub settings.
 
 ## Writes
 
-`pnpm setup:site` generates `ALBUM_WRITE_TOKEN`, stores it as a Vercel env var and in the local `.env`, and never prints it. Kit scripts send it as `Authorization: Bearer`. No one types it. There is no sign-in page. The album site is public. Listener voting stays off until the owner turns it on.
+`pnpm setup:site` generates `ALBUM_WRITE_TOKEN`, stores it as a Vercel env var and in the local `.env`, and never prints it. Kit scripts send it as `Authorization: Bearer`. No one types it. The album site is public. Listener voting stays off until the owner turns it on.
+
+## Owner link
+
+Generate and saving Settings from the browser need the owner’s browser, not the write token. Run `pnpm owner:link /vote` once the site answers. It prints `Site:` and `Owner:`. Paste both. The owner link works once and stays valid for 7 days. Opening it keeps that browser signed in. The secret is in the link fragment. Never print `ALBUM_WRITE_TOKEN`, and never put it in a page, a cookie, or a URL. There is no password and no extra account.
+
+## Site-driven More takes
+
+On a visible Compare takes pass, **More like this → Generate** is a site action for that signed-in browser. The form shows the live Suno model, the calls, the expected takes, the Suno credit cost, and the remaining More takes allowance. A v6 create is 2 songs for 10 Suno credits. Within the allowance, Generate starts. Over it, or when there is any estimated USD charge, the form asks before spending. The allowance starts at 50 Suno credits. The owner changes it in Settings. Zero means the form asks every time. A blind pass can save a request and cannot generate until that pass is revealed. Saving never spends Suno credits.
+
+The site does not hold a Suno login and does not call Suno itself. Suno’s connector refuses Free accounts, and a paid connector session lives with Album Bot, not on the public site. The site POSTs to `ALBUM_VARIATION_WEBHOOK_URL` with `Authorization: Bearer` set to `ALBUM_VARIATION_WEBHOOK_SECRET`. Set both on the album’s existing Vercel project. Never print the secret. Without them the form says More takes is not connected and sends nothing.
+
+`scripts/variation-worker.mjs` is a reference for that HTTP contract. It never calls Suno. Its quote is marked `fixture: true`, and the site will not start a paid run from a fixture. Do not point the album’s webhook at the reference worker. Album Bot is the worker.
+
+The webhook JSON has `kind: "quote"` or `kind: "generate"`. Both carry the request id, track, parent filename, parent style when one is saved, requested take count, edit instructions, saved Suno model, writer, and public review choice. Quote is side-effect-free. Check the connected account now, on the official connector or on suno.com for Free, and reply with `capabilities` in the shape `/api/owner/rounds` accepts, plus `writerReady`, `hostingEligibilityVerified`, `externalSpendEstimateUsd`, and `hostingChargeEstimateUsd`. Omit `fixture` or send `false`. Do not guess a rate and do not charge during quote.
+
+For `kind: "generate"`, the site has already saved the request and reserved the displayed Suno credits. The payload includes that quote, a stable `operationId` equal to the request id, and `callbackPath` `/api/owner/variations/callback`. Deduplicate that operation ID before any paid call. Return HTTP 200 or 202 `{ "operationId": "<same id>", "status": "accepted" }` promptly. A retry or an uncertain acceptance inspects the existing job and does not create another paid call.
+
+Then follow `song-prompts` for the revised Style prompt and `suno-run` for the round. Create the variation round with `POST /api/owner/rounds` and the same operation’s current capabilities. The site accepts that round only when the model, expected outputs, generation credits, download credits, and USD figures match the reserved quote. Authorize only that already-approved estimate. Record jobs before the Suno calls. Save each clip and its public MP4 stream. Public review takes are published on Suno and stream from `cdnN.suno.ai`. Do not download them. Call `/api/owner/rounds/<id>/ready`, then POST `{ "requestId", "operationId", "status": "ready", "roundId" }` to `/api/owner/variations/callback` with the same Bearer secret.
+
+If the work fails, POST `{ "requestId", "operationId", "status": "failed", "reason" }` to that callback. Add `"chargeApplied": false` only when it is certain no Suno credits were charged. Otherwise the site keeps the reservation and does not retry. An uncertain webhook receipt stays generating. It is not a failure. Reconcile that same operation ID. A late no-charge callback releases the reservation. A late round create is accepted while the request is still generating, if the quote matches. Do not send another paid call.
+
+Compare takes shows generating, ready, or failed with the reason. Tell the owner in chat only so you can watch. Do not ask them to leave the site, and do not say you will prepare an estimate. The form already showed the cost. A live v6 batch of 2 takes costs 10 Suno credits. Do not spend those unless the owner has approved that charge.
 
 ## Connect GitHub, Vercel, and Neon
 

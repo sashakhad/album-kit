@@ -169,6 +169,20 @@ export async function POST(request: Request) {
       revision: prompt.revision,
     }),
   }));
+  if (
+    variation?.status === 'generating' &&
+    (estimate.generationCredits !== variation.creditsReserved ||
+      estimate.sunoModel !== variation.quotedModel ||
+      estimate.expectedOutputs !== variation.quotedExpectedOutputs ||
+      estimate.downloads !== variation.quotedDownloadCredits ||
+      estimate.externalSpendEstimateUsd !== variation.quotedExternalSpendUsd ||
+      estimate.hostingChargeEstimateUsd !== variation.quotedHostingChargeUsd ||
+      estimate.blockers.length > 0)
+  )
+    return NextResponse.json(
+      { error: 'The round differs from the approved site generation quote.' },
+      { status: 409 }
+    );
   const data = {
     snapshot: {
       settings: omitVocals(roundSettings),
@@ -198,11 +212,15 @@ export async function POST(request: Request) {
             const current = await tx.variationRequest.findUnique({ where: { id: variation.id } });
             if (current?.roundId)
               return tx.generationRound.findUnique({ where: { id: current.roundId } });
-            if (current?.status !== 'requested') throw new VariationUnavailableError();
+            if (current?.status !== 'requested' && current?.status !== 'generating')
+              throw new VariationUnavailableError();
             const created = await tx.generationRound.create({ data });
             const linked = await tx.variationRequest.updateMany({
-              where: { id: variation.id, status: 'requested', roundId: null },
-              data: { roundId: created.id, status: 'planned' },
+              where: { id: variation.id, status: current.status, roundId: null },
+              data: {
+                roundId: created.id,
+                ...(current.status === 'requested' ? { status: 'planned' } : {}),
+              },
             });
             if (linked.count === 0) throw new VariationUnavailableError();
             return created;
