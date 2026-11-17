@@ -100,6 +100,37 @@ describe('album content guard', () => {
     expect(readFileSync(path.join(album, '.album-site.json'), 'utf8')).toContain('album.example');
     expect(() => readFileSync(path.join(album, 'old-file.js'), 'utf8')).toThrow();
   });
+
+  it('copies vercel.json without the kit switch that blocks production deploys', () => {
+    const kit = tempDir();
+    const album = tempDir();
+    const kitVercel = `${JSON.stringify(
+      {
+        $schema: 'https://openapi.vercel.sh/vercel.json',
+        framework: 'nextjs',
+        git: { deploymentEnabled: { main: false, preview: true } },
+      },
+      null,
+      2
+    )}\n`;
+    write(kit, 'vercel.json', kitVercel);
+    write(album, 'vercel.json', kitVercel);
+    write(album, 'album/album.json', '{"title":"Shrimp Club"}');
+
+    applySync(kit, album);
+
+    const synced = JSON.parse(readFileSync(path.join(album, 'vercel.json'), 'utf8')) as {
+      framework: string;
+      git?: { deploymentEnabled?: { main?: boolean; preview?: boolean } };
+    };
+    expect(synced.framework).toBe('nextjs');
+    expect(synced.git?.deploymentEnabled?.main).toBeUndefined();
+    expect(synced.git?.deploymentEnabled?.preview).toBe(true);
+    expect(
+      JSON.parse(readFileSync(path.join(kit, 'vercel.json'), 'utf8')).git.deploymentEnabled.main
+    ).toBe(false);
+    expect(readFileSync(path.join(album, 'album/album.json'), 'utf8')).toContain('Shrimp Club');
+  });
 });
 
 describe('albums.json', () => {

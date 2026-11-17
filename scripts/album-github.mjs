@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // pnpm album:github
 // Creates or confirms a private GitHub repo as origin. Exit 5 names the blocker.
+import { enableAlbumProductionDeploys } from './album-vercel.mjs';
 import { createRunner, ensureGitHubRepo, EXIT, ExitError, readAlbumSite } from './setup.mjs';
 
 try {
@@ -12,6 +13,7 @@ try {
       '.album-site.json has no project name. Run pnpm setup:site first.'
     );
   }
+  enableAlbumProductionDeploys();
   const github = ensureGitHubRepo(createRunner({ dryRun: false }), { project });
   if (!github.ok) {
     throw new ExitError(EXIT.noGitHub, `BLOCKER: ${github.blocker}`);

@@ -37,7 +37,7 @@ An existing **public** Blob store cannot protect already uploaded objects by cha
 
 `albums.json` lists album repositories. A merge to this repo's `main` branch copies the kit into each one and pushes. It does not change `album/BRIEF.md`, `album/album.json`, or `album/tracks/`. The album's Vercel project is connected to that repository, so the push deploys production. `ALBUM_SYNC_TOKEN` in this repo's GitHub secrets must be able to push to those repositories. See `grokbot/BOT.md` for the registration steps.
 
-`vercel.json` keeps production deploys of this kit's `main` branch off. Connect this GitHub repository in Vercel to get a preview deployment for each pull request.
+`vercel.json` keeps production deploys of this kit's `main` branch off. Album repositories do not get that switch: `pnpm setup:site`, `pnpm album:github`, and album sync write their `vercel.json` so a push to `main` deploys production. Connect this GitHub repository in Vercel to get a preview deployment for each pull request.
 
 ## Settings and rounds
 

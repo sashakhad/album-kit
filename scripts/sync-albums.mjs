@@ -3,10 +3,12 @@
 // Album content is never overwritten: album/BRIEF.md, album/album.json, album/tracks/.
 // A push to the album repo is what deploys it, through Vercel's Git integration.
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+import { albumVercelText } from './album-vercel.mjs';
 
 const SKIP_DIRECTORIES = new Set(['.git', 'node_modules', '.next', '.vercel', 'coverage']);
 const SKIP_FILES = new Set(['.env', '.env.local', '.album-key', '.album-onboarding.json']);
@@ -63,7 +65,12 @@ export function applySync(kitRoot, albumRoot) {
   for (const file of plan.write) {
     const destination = path.join(albumRoot, file);
     mkdirSync(path.dirname(destination), { recursive: true });
-    cpSync(path.join(kitRoot, file), destination);
+    const source = path.join(kitRoot, file);
+    if (file === 'vercel.json') {
+      writeFileSync(destination, albumVercelText(readFileSync(source, 'utf8')));
+      continue;
+    }
+    cpSync(source, destination);
   }
   return plan;
 }

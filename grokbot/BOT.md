@@ -208,4 +208,4 @@ Register an album only after its repository and Vercel project exist:
 
 An empty `albums` array syncs nothing and the workflow still succeeds. Do not register shr1mp-clvb from the kit. The owner is moving that site onto its own repository.
 
-Album-kit itself is not an album site. `vercel.json` turns off production deploys of its `main` branch. Connect the album-kit GitHub repository in Vercel so pull requests get preview deployments. Those previews are for the kit, not for an owner's album.
+Album-kit itself is not an album site. `vercel.json` turns off production deploys of its `main` branch. That switch stays on this kit repository only. Album sync writes each album's `vercel.json` without it, and `pnpm setup:site` and `pnpm album:github` remove it before an album repository is pushed. A push to an album repository's `main` branch deploys production. Connect the album-kit GitHub repository in Vercel so pull requests get preview deployments. Those previews are for the kit, not for an owner's album.

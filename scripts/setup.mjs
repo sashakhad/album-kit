@@ -12,6 +12,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { enableAlbumProductionDeploys } from './album-vercel.mjs';
+
 export const VERCEL_CLI = 'vercel@65.11.0';
 
 export const EXIT = {
@@ -455,6 +457,13 @@ function setup(options) {
     console.log(
       'No production URL yet. A push deploys after the repository is linked in Vercel. Do not run vercel deploy and do not upload project files one by one.'
     );
+  }
+  if (options.dryRun) {
+    console.log(
+      '# rewrite vercel.json so this album deploys from main, unless this checkout is the kit'
+    );
+  } else {
+    enableAlbumProductionDeploys(root);
   }
   const github = ensureGitHubRepo(runner, { project: name });
   if (!github.ok) {
