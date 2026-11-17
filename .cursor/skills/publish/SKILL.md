@@ -109,7 +109,7 @@ Set `"deploy": "git"`. The push is the deploy. If the install or the sign-in fai
 
 ### Pick up kit updates
 
-On albums that started from the kit (paths (a) and (c) in `start-here`), run `git pull --no-ff kit main`, then publish with the message `kit update`. `--no-ff` makes the newest commit a merge by the user, which Vercel's free plan needs before it deploys. Albums made with the Deploy button don't share the kit's history, so this doesn't apply to them.
+On albums that started from the kit (paths (a) and (c) in `start-here`), run `git pull --no-ff kit main`, then publish with the message `kit update`. `--no-ff` makes the newest commit a merge by the user, which Vercel's free plan needs before it deploys.
 
 ## Check before you say done
 
