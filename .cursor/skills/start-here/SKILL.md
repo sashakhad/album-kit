@@ -34,7 +34,7 @@ Only bring up cost when it matters:
 - One step would spend a lot, for example over 200 Suno credits.
 - It costs real money, such as an upgrade or extra credits.
 
-With plenty of Suno credits, thousands of them, just go. No number. The first time, the game plan is that message. A later round can be as short as "Making two quick tracks, four takes each."
+With plenty of Suno credits, thousands of them, just go. No number. The first time, the game plan is that message, and it includes the 5 to 10 minute timing. A later round can be as short as "Making two quick tracks, four takes each. About 1 to 3 minutes."
 
 `/cost` and `/settings` still show the numbers when asked.
 
@@ -61,9 +61,11 @@ If they type a description, that is their concept. Keep going. Never ask this qu
 
 Then keep going, one question at a time. Skip anything they already answered: mood, two or three songs or artists they love, vocals or instrumental and the language, how many tracks, and any titles. A tap on Surprise me means you invent the concept, genre, album title, and track titles, show them in three lines, and move on. Then a small test of one or two tracks, 4 takes each.
 
-Right before the first generation, say this game plan in two or three short sentences, then do the work. Do not say a cost estimate is ready, and do not wait for a cost OK, unless **When to mention cost** says cost matters.
+Right before the first generation, say this game plan in two or three short sentences, including the time in one friendly clause, then do the work. Do not say a cost estimate is ready, and do not wait for a cost OK, unless **When to mention cost** says cost matters.
 
-> Love it. Here's the plan: I'm writing these two songs and making a few takes of each on Suno, and I'm building your own album page where you can listen to every take, vote takes up or down, and share it with friends. I'll only stop if you need to sign in or enter a card.
+> Love it. Here's the plan: I'm writing these two songs and making a few takes of each on Suno, and I'm building your own album page where you can listen to every take, vote takes up or down, and share it with friends. This first one takes about 5 to 10 minutes while I spin up your page and make the songs. I'll only stop if you need to sign in or enter a card.
+
+First-time site setup plus Suno generation is about 5 to 10 minutes. A later round of takes is about 1 to 3 minutes. Use those timings. For anything over about 2 minutes, keep them posted without being asked. In Grok Bot, create a one-off or short-interval routine, a timer, to check back every 3 to 5 minutes. Post one short, upbeat line at each real milestone: songs written, takes generating, page live, takes ready to hear. Delete the timer when the work is done. If you cannot set a timer, still send a status update at each milestone while you work. Never leave silence for more than about 5 minutes during setup or generation.
 
 Match their track count if it is not two. Stop only for a card or a sign-in only they can do. Never pay. On a paid plan, open Suno's upgrade page in the browser and leave the card form for them. On Free, do not add the Suno connector. Use suno.com in the browser. Sign in to GitHub and Vercel when only they can (`npx vercel login`, `gh auth login`). Run `pnpm setup:site`. When the site goes live, send the link with one line: "Your album page is up. Listen to every take, vote them up or down, and share it with friends."
 
@@ -121,7 +123,7 @@ For Studio, run `pnpm onboarding path studio`. Check Cursor installation and a c
 
 Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Adding a track later means editing that file and redeploying. `POST /api/owner/rounds` rejects a track that is not listed there. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
 
-Run `pnpm setup:site --name <album-slug>`. It creates the Vercel project, a public Blob store, the database, and `ALBUM_WRITE_TOKEN`. It writes the token to `.env` and the Vercel project and never prints it. It may require a browser handoff for the database. As soon as setup prints `Milestone: Site created.` and the site URL, send the link with one line: "Your album page is up. Listen to every take, vote them up or down, and share it with friends." Do not wait for prompts or generation, do not paste the JSON line that follows it, and do not quote the milestone sentence. Every setup and round message includes the site URL. The home page plays the album. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. `pnpm album:settings` uses the write token on `/api/owner/settings`. Set `reviewTakes` from the question widget card, and leave the default `public` if they have not answered. On Suno Free, leave it `public`.
+Run `pnpm setup:site --name <album-slug>`. It creates the Vercel project, a public Blob store, the database, and `ALBUM_WRITE_TOKEN`. It writes the token to `.env` and the Vercel project and never prints it. It may require a browser handoff for the database. As soon as setup prints `Milestone: Site created.` and the site URL, send the link with one line: "Your album page is up. Listen to every take, vote them up or down, and share it with friends." Do not wait for prompts or generation, do not paste the JSON line that follows it, and do not quote the milestone sentence. Every setup and round message includes the site URL. The home page plays the album. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. Never leave silence for more than about 5 minutes. If this step will take over about 2 minutes, the timer from the game plan stays on until the page is live and the takes are ready to hear. Each update is one short, upbeat line. `pnpm album:settings` uses the write token on `/api/owner/settings`. Set `reviewTakes` from the question widget card, and leave the default `public` if they have not answered. On Suno Free, leave it `public`.
 
 ### Vercel and GitHub sign-in
 
