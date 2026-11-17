@@ -8,6 +8,8 @@ import { BlobNotFoundError, head, list, put } from '@vercel/blob';
 import { upload } from '@vercel/blob/client';
 import NodeID3 from 'node-id3';
 
+import { readWriteToken } from './album-owner.mjs';
+
 const CANONICAL_TAKE =
   /^(v\d+)-(\d{2})-([a-z0-9]+(?:-[a-z0-9]+)*)-p(\d{1,2})-take([a-z]{1,2})\.mp3$/;
 
@@ -32,9 +34,7 @@ if (rejects.length > 0) {
 const token = process.env.BLOB_READ_WRITE_TOKEN;
 const remote = token ? null : ownerUploadConnection();
 if (!token && remote === null) {
-  console.error(
-    'No Blob token or owner upload connection. Run pnpm setup:site and keep .album-key, or use /intake.'
-  );
+  console.error('No Blob token or write token. Run pnpm setup:site, or use /intake.');
   process.exit(1);
 }
 
@@ -122,8 +122,8 @@ async function uploadTake(take) {
 function ownerUploadConnection() {
   try {
     const site = JSON.parse(readFileSync(path.join(process.cwd(), '.album-site.json'), 'utf8'));
-    const key = readFileSync(path.join(process.cwd(), '.album-key'), 'utf8').trim();
-    return typeof site.siteUrl === 'string' && site.siteUrl.startsWith('https://') && key.length > 0
+    const key = readWriteToken();
+    return typeof site.siteUrl === 'string' && site.siteUrl.startsWith('https://') && key !== null
       ? { siteUrl: site.siteUrl.replace(/\/$/, ''), key }
       : null;
   } catch {

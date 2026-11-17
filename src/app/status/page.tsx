@@ -1,19 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 
 import { formatNumberExact } from '@/lib/formatters';
-import { isOwner } from '@/lib/owner/auth';
 import { loadAlbumProgress } from '@/lib/rounds/load-progress';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Progress' };
 
 export default async function StatusPage() {
-  if (!(await isOwner())) {
-    redirect('/key?next=/status');
-  }
-
   const progress = await loadAlbumProgress();
 
   return (

@@ -83,7 +83,7 @@ describe('new-owner onboarding across fresh CLI processes', () => {
     await mkdir(path.join(root, '.vercel'));
     await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_fixture"}');
     await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://fixture.example"}');
-    expect(run('status')).toContain('Next: Create a single-use owner link');
+    expect(run('status')).toContain('Next: Open the site URL and confirm the home page plays');
     expect(run('confirm-owner-access')).toContain('Next: Check Cursor installation');
 
     await fakeCommand('cursor', 'console.log("Cursor fixture");');
@@ -97,7 +97,7 @@ describe('new-owner onboarding across fresh CLI processes', () => {
     expect(run('status')).toContain('Next: Run pnpm setup:site');
     await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_fixture"}');
     await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://new.example"}');
-    expect(run('status')).toContain('Next: Create a single-use owner link');
+    expect(run('status')).toContain('Next: Open the site URL and confirm the home page plays');
     expect(run('confirm-owner-access')).toContain('Next: Run the Suno preflight');
 
     const saved = JSON.parse(await readFile(path.join(root, '.album-onboarding.json'), 'utf8'));

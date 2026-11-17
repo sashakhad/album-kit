@@ -1,14 +1,12 @@
 import 'server-only';
 
 import { albumKey, isOwnerRequest } from '@/lib/owner/auth';
-import { isViewerRequest, viewerInviteIdFromRequest } from '@/lib/owner/viewer';
 import { canCastVote } from '@/lib/settings/access';
 import { loadSettings } from '@/lib/settings/store';
 import { LISTENER_IDENTITIES_PER_HOUR, LISTENER_IDENTITIES_WINDOW_MS } from '@/lib/votes/abuse';
 import { takeAttempt } from '@/lib/votes/attempt-log';
 import {
   clientIp,
-  inviteListenerVisitorId,
   ipHash,
   listenerCookieValue,
   listenerIdFromRequest,
@@ -23,34 +21,15 @@ export async function resolveVoter(
   request: Request
 ): Promise<{ voter: ResolvedVoter } | { error: Response }> {
   if (albumKey() === null) {
-    return { error: Response.json({ error: 'ALBUM_KEY is not set' }, { status: 503 }) };
+    return { error: Response.json({ error: 'ALBUM_WRITE_TOKEN is not set' }, { status: 503 }) };
   }
   if (await isOwnerRequest(request)) {
     return { voter: { kind: 'owner' } };
   }
 
   const settings = await loadSettings();
-  const inviteId =
-    settings.visibility === 'private' ? await viewerInviteIdFromRequest(request) : null;
-  if (
-    !canCastVote({
-      visibility: settings.visibility,
-      listenerVoting: settings.listenerVoting,
-      owner: false,
-      viewer: inviteId !== null,
-    })
-  ) {
-    return { error: Response.json({ error: 'Owner password required' }, { status: 401 }) };
-  }
-
-  if (inviteId !== null) {
-    return {
-      voter: {
-        kind: 'listener',
-        visitorId: inviteListenerVisitorId(inviteId),
-        issuedCookie: null,
-      },
-    };
+  if (!canCastVote({ listenerVoting: settings.listenerVoting, owner: false })) {
+    return { error: Response.json({ error: 'Write token required' }, { status: 401 }) };
   }
 
   const existing = listenerIdFromRequest(request);
@@ -93,11 +72,8 @@ export async function canPlayBlindTake(request: Request): Promise<boolean> {
     return true;
   }
   const settings = await loadSettings();
-  const viewer = settings.visibility === 'private' ? await isViewerRequest(request) : false;
   return canCastVote({
-    visibility: settings.visibility,
     listenerVoting: settings.listenerVoting,
     owner: false,
-    viewer,
   });
 }

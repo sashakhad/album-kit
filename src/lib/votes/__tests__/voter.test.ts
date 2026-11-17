@@ -28,29 +28,17 @@ beforeEach(() =>
     listenerVoting: true,
   })
 );
-describe('opaque listener audio access', () => {
-  it('allows public listener audio without a ballot or blind session', async () => {
+describe('listener audio access', () => {
+  it('allows listener audio when listener voting is on', async () => {
     expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(true);
   });
-  it('requires an invitation for private audio', async () => {
-    state.visibility = 'private';
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
-    state.viewer = true;
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(true);
-  });
-  it('blocks previews when listener voting is disabled, including invite holders', async () => {
+  it('blocks playback when listener voting is off unless the write token is present', async () => {
     state.listenerVoting = false;
     expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
-    state.visibility = 'private';
-    state.viewer = true;
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
     state.owner = true;
     expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(true);
   });
-  it('blocks unset albums and missing credentials', async () => {
-    state.visibility = 'unset';
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
-    state.owner = true;
+  it('blocks playback when the signing key is missing', async () => {
     state.key = null;
     expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
   });

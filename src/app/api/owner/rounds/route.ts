@@ -171,7 +171,7 @@ export async function POST(request: Request) {
   }));
   const data = {
     snapshot: {
-      settings: roundSettings,
+      settings: omitVocals(roundSettings),
       capabilities: parsed.data.capabilities,
       resolvedSunoModel: estimate.sunoModel,
       prompts,
@@ -222,4 +222,10 @@ export async function POST(request: Request) {
     throw error;
   }
   return NextResponse.json({ round, estimate }, { status: 201 });
+}
+
+function omitVocals<T extends { vocals?: unknown }>(settings: T): Omit<T, 'vocals'> {
+  const rest = { ...settings };
+  delete rest.vocals;
+  return rest;
 }

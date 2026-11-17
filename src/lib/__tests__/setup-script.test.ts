@@ -8,10 +8,9 @@ import {
   EXIT,
   ExitError,
   readEnvFile,
-  rotateAlbumKey,
   slugify,
-  usableAlbumKey,
-  usableOwnerPassword,
+  usableWriteToken,
+  generateWriteToken,
 } from '../../../scripts/setup.mjs';
 
 type Result = { status: number; stdout: string; stderr: string; shown: string };
@@ -71,7 +70,7 @@ describe('ensureGitHubRepo', () => {
     expect(calls.some(call => call.startsWith('gh '))).toBe(false);
   });
 
-  it('creates a private repo when gh is signed in and origin is missing', () => {
+  it('creates a public repo when gh is signed in and origin is missing', () => {
     const { runner, calls } = fakeRunner({
       'git remote get-url kit': { stdout: `${kit}\n` },
       'git remote get-url origin': { status: 2 },
@@ -89,7 +88,7 @@ describe('ensureGitHubRepo', () => {
     const result = ensureGitHubRepo(runner, { project: 'my-album' });
 
     expect(result).toEqual({ ok: true, blocker: null, url: 'https://github.com/me/my-album' });
-    expect(calls.some(call => call.includes('--private'))).toBe(true);
+    expect(calls.some(call => call.includes('--public'))).toBe(true);
   });
 });
 
@@ -168,24 +167,12 @@ describe('disconnectKitRepo', () => {
 });
 
 describe('setup helpers', () => {
-  it('accepts an owner-chosen password and rejects a generated-looking placeholder', () => {
-    expect(usableOwnerPassword('shrimp-club')).toBe('shrimp-club');
-    expect(usableOwnerPassword('  correct horse  ')).toBe('correct horse');
-    expect(usableOwnerPassword('no')).toBeNull();
-    expect(usableOwnerPassword('[SENSITIVE]')).toBeNull();
-    expect(usableOwnerPassword('line\nbreak')).toBeNull();
-    expect(usableAlbumKey('dev')).toBe('dev');
-  });
-
-  it('replaces ALBUM_KEY without reading the old password', () => {
-    const { runner, calls } = fakeRunner({}, true);
-    expect(rotateAlbumKey(runner, 'shrimp-club')).toEqual({
-      updated: ['production', 'preview', 'development'],
-      cli: true,
-    });
-    expect(calls.some(call => call.includes('shrimp-club'))).toBe(false);
-    expect(calls.filter(call => call.includes('env rm ALBUM_KEY'))).toHaveLength(3);
-    expect(calls.filter(call => call.includes('--value <owner password>'))).toHaveLength(3);
+  it('accepts a generated write token and rejects a placeholder', () => {
+    expect(usableWriteToken(generateWriteToken())).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(usableWriteToken('[SENSITIVE]')).toBeNull();
+    expect(usableWriteToken('short')).toBeNull();
+    expect(usableWriteToken('line\nbreak-and-more-than-thirty-two')).toBeNull();
+    expect(usableWriteToken(undefined)).toBeNull();
   });
 
   it('slugifies album titles into project names', () => {
@@ -200,10 +187,13 @@ describe('setup helpers', () => {
     const path = await import('node:path');
     const dir = await mkdtemp(path.join(os.tmpdir(), 'env-file-'));
     const file = path.join(dir, '.env.local');
-    await writeFile(file, '# pulled\nALBUM_KEY="plum-river-quiet-42"\nEMPTY=""\nBARE=value\n');
+    await writeFile(
+      file,
+      '# pulled\nALBUM_WRITE_TOKEN="plum-river-quiet-42-extra-token-value"\nEMPTY=""\nBARE=value\n'
+    );
 
     expect(readEnvFile(file)).toEqual({
-      ALBUM_KEY: 'plum-river-quiet-42',
+      ALBUM_WRITE_TOKEN: 'plum-river-quiet-42-extra-token-value',
       EMPTY: '',
       BARE: 'value',
     });
@@ -212,12 +202,14 @@ describe('setup helpers', () => {
   });
 
   it("never takes vercel env pull's placeholder for a Secret as the album key", () => {
-    expect(usableAlbumKey('plum-river-quiet-42\n')).toBe('plum-river-quiet-42');
-    expect(usableAlbumKey('[SENSITIVE]')).toBeNull();
-    expect(usableAlbumKey('[SENSITIVE]\n')).toBeNull();
-    expect(usableAlbumKey('  ')).toBeNull();
-    expect(usableAlbumKey(undefined)).toBeNull();
-    expect(usableAlbumKey(null)).toBeNull();
+    expect(usableWriteToken('plum-river-quiet-42-extra-token-value\n')).toBe(
+      'plum-river-quiet-42-extra-token-value'
+    );
+    expect(usableWriteToken('[SENSITIVE]')).toBeNull();
+    expect(usableWriteToken('[SENSITIVE]\n')).toBeNull();
+    expect(usableWriteToken('  ')).toBeNull();
+    expect(usableWriteToken(undefined)).toBeNull();
+    expect(usableWriteToken(null)).toBeNull();
   });
 });
 

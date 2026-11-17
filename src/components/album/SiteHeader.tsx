@@ -7,14 +7,15 @@ import { cn } from '@/lib/utils';
 
 export function SiteHeader({
   albumTitle,
-  isOwner,
-  showVote = isOwner,
+  showVote = true,
   showListen = true,
+  showSettings = false,
 }: {
   albumTitle: string;
-  isOwner: boolean;
   showVote?: boolean;
   showListen?: boolean;
+  showSettings?: boolean;
+  listenerVoting?: boolean;
 }) {
   const pathname = usePathname();
 
@@ -22,33 +23,23 @@ export function SiteHeader({
     <header className='border-b border-white/8'>
       <div className='mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6'>
         <Link
-          href={showListen ? '/' : '/key'}
+          href='/'
           className='text-foreground hover:text-primary inline-flex min-h-11 min-w-0 items-center text-xl tracking-tight sm:text-2xl'
         >
           {albumTitle}
         </Link>
-        <nav
-          aria-label='Album'
-          className={cn(
-            'max-w-full items-center gap-1',
-            isOwner ? 'grid w-full grid-cols-3 sm:flex sm:w-auto' : 'flex flex-wrap'
-          )}
-        >
+        <nav aria-label='Album' className='flex max-w-full flex-wrap items-center gap-1'>
           {showListen ? (
             <NavPill href='/listen' active={isSection(pathname, '/listen')}>
               Listen
             </NavPill>
-          ) : (
-            <NavPill href='/key' active={isSection(pathname, '/key')}>
-              Owner password
-            </NavPill>
-          )}
+          ) : null}
           {showVote ? (
             <NavPill href='/vote' active={isSection(pathname, '/vote')}>
               Compare takes
             </NavPill>
           ) : null}
-          {isOwner ? (
+          {showSettings ? (
             <NavPill href='/settings' active={isSection(pathname, '/settings')}>
               Settings
             </NavPill>

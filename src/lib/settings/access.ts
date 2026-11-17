@@ -1,55 +1,25 @@
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
 
-export function canViewAlbum(
-  visibility: AlbumSettingsValue['visibility'],
-  owner: boolean,
-  viewer = false
-): boolean {
-  return owner || visibility === 'public' || (visibility === 'private' && viewer);
-}
-
-/** The site link should explain itself while the owner has not chosen public or private. */
-export function awaitingPublication(
-  visibility: AlbumSettingsValue['visibility'],
-  owner: boolean,
-  viewer = false
-): boolean {
-  return visibility === 'unset' && !canViewAlbum(visibility, owner, viewer);
+export function canViewAlbum(): boolean {
+  return true;
 }
 
 export function canCastVote(args: {
-  visibility: AlbumSettingsValue['visibility'];
-  listenerVoting: boolean;
+  listenerVoting: AlbumSettingsValue['listenerVoting'];
   owner: boolean;
-  viewer: boolean;
 }): boolean {
-  if (args.owner) {
-    return true;
-  }
-  if (!args.listenerVoting || args.visibility === 'unset') {
-    return false;
-  }
-  if (args.visibility === 'public') {
-    return true;
-  }
-  return args.viewer;
+  return args.owner || args.listenerVoting;
 }
 
 export type ShareTarget = {
-  grant: 'unavailable' | 'listen' | 'listen-and-vote';
-  path: '/listen' | '/vote' | null;
-  invite: boolean;
+  grant: 'listen' | 'listen-and-vote';
+  path: '/listen';
+  invite: false;
 };
 
-export function shareTarget(
-  visibility: AlbumSettingsValue['visibility'],
-  listenerVoting: boolean
-): ShareTarget {
-  if (visibility === 'unset') {
-    return { grant: 'unavailable', path: null, invite: false };
-  }
+export function shareTarget(listenerVoting: boolean): ShareTarget {
   if (listenerVoting) {
-    return { grant: 'listen-and-vote', path: '/listen', invite: visibility === 'private' };
+    return { grant: 'listen-and-vote', path: '/listen', invite: false };
   }
-  return { grant: 'listen', path: '/listen', invite: visibility === 'private' };
+  return { grant: 'listen', path: '/listen', invite: false };
 }

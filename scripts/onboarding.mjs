@@ -166,7 +166,7 @@ export function nextStep(status) {
     return 'Run pnpm setup:site in the album checkout; resume after any Neon browser handoff.';
   }
   if (!status.ownerAccessConfirmed) {
-    return 'Create a single-use owner link to /settings and confirm the owner reached Settings.';
+    return 'Open the site URL and confirm the home page plays. Then run pnpm onboarding confirm-owner-access.';
   }
   if (status.path === 'studio' && !status.cursor.modelExecutionVerified) {
     return 'Check Cursor installation and connected Project execution; record only an observed model, or use Quick start.';

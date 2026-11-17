@@ -98,9 +98,10 @@ afterEach(() => {
 });
 
 describe('owner model stats page', () => {
-  it('keeps nonowners outside stats', async () => {
+  it('shows stats without a sign-in page', async () => {
     state.owner = false;
-    await expect(StatsPage()).rejects.toThrow('redirect:/key?next=%2Fstats');
+    render(await StatsPage());
+    expect(screen.getByRole('region', { name: 'Album totals' })).toBeInTheDocument();
   });
 
   it('renders saved provenance, active scores, cuts, picks and track breakdown', async () => {

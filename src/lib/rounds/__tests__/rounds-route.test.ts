@@ -127,6 +127,7 @@ describe('round creation', () => {
     );
     const result = await response.json();
     expect(result.round.snapshot.settings.sunoModel).toBe('v6-mini');
+    expect(result.round.snapshot.settings).not.toHaveProperty('vocals');
     expect(result.round.snapshot.resolvedSunoModel).toBe('v6-mini');
     expect(result.estimate.generationCredits).toBe(10);
     expect((await POST(request({ sunoModelOverride: 'retired-model' }))).status).toBe(409);

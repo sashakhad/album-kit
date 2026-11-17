@@ -15,7 +15,7 @@ The owner judges. You explain the rounds, keep the files straight and move takes
 
 ## You need
 
-- `~/album` with `.album-site.json` and `.album-key`.
+- `~/album` with `.album-site.json` and `ALBUM_WRITE_TOKEN` in `.env`.
 - The track sheets in `album/tracks/`, which hold every take's filename.
 
 ## Steps
@@ -23,8 +23,8 @@ The owner judges. You explain the rounds, keep the files straight and move takes
 Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.json").siteUrl')`.
 
 1. **Know how rounds work,** and explain it this way when the owner asks:
-   - Compare takes is one track at a time. Each row shows how many of that track's takes are scored. Previous and Next move through the album, and the page resumes the last track on the next visit. Use `/vote` to compare takes. Give the owner a private **Compare takes as owner** link from `pnpm owner:link /vote`. Paste both the `Site:` line and the `Owner:` line. It works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Every message includes the site URL. The owner signs in with their password. A one-tap link is only a fallback. Never paste the owner password into chat, a query string, or a URL except for the owner link's fragment. If Vote or Listen has nothing to play, the page says why: takes are being generated, with the count, or takes are waiting to be published on Suno. Do not tell the owner the round is ready while that page is empty. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode, it shows recorded prompt details and verified model labels.
-   - Listener voting is off until the owner turns it on. When it is on, people who can already hear the album score takes on their own ballots. Those scores arrive on the owner `/api/votes` response as `listenerTallies`. They are not in `tallies` or `mine`. They do not drop takes, carry into the next round, or choose a pin. Listeners cannot start a round, park, move, download through the owner API, or open Studio or Settings. On a public album start listeners at `/listen`. On a private album, send an invitation whose secret is in the URL fragment after `#`.
+   - Compare takes is one track at a time. Each row shows how many of that track's takes are scored. Previous and Next move through the album, and the page resumes the last track on the next visit. Use `/vote` to compare takes. Send the site URL. Never print `ALBUM_WRITE_TOKEN`. If Vote or Listen has nothing to play, the page says why: takes are being generated, with the count, or takes are waiting to be published on Suno. Do not tell the owner the round is ready while that page is empty. In a blind mode the page saves a shuffled order and uses neutral labels and opaque audio URLs. In Visible mode it shows recorded prompt details and verified model labels. The Style prompt stays collapsed under the player.
+   - Listener voting is off until the owner turns it on. When it is on, people who can already hear the album score takes on their own ballots. Those scores arrive on the owner `/api/votes` response as `listenerTallies`. They are not in `tallies` or `mine`. They do not drop takes, carry into the next round, or choose a pin. Listeners cannot start a round, park, move, download through the owner API, or open Studio or Settings. The site is public. Start listeners at `/listen`.
    - Round 1 shows every take.
    - A vote adds +1 or -1 to the take's score for the current round, starting from whatever score carried over.
    - From round 2 on, a take is out if it ended an earlier round with a negative score, and a parked take moves under Possible renames.
@@ -37,7 +37,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 2. **Read the scores.**
 
    ```bash
-   curl -sS -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/votes"
+   curl -sS -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" "$SITE/api/votes"
    ```
 
    The answer has `currentRound`, and `tallies`: track number, then set id, then displayed take label, then the owner's score this round. `listenerTallies`, when present, is the separate listener total and is not the owner's score. In a blind mode, the letter is an alias, not the canonical sheet letter.
@@ -45,7 +45,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 3. **Start the next round,** only when the owner says so. Read the scores first, so you can say how many takes the new round drops.
 
    ```bash
-   curl -sS -X POST -H "Authorization: Bearer $(cat .album-key)" -H 'Content-Type: application/json' -d '{"action":"next"}' "$SITE/api/pass"
+   curl -sS -X POST -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" -H 'Content-Type: application/json' -d '{"action":"next"}' "$SITE/api/pass"
    ```
 
    It answers with `currentRound` and the new scores.
@@ -55,7 +55,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 5. **Park or unpark a take.**
 
    ```bash
-   curl -sS -X POST -H "Authorization: Bearer $(cat .album-key)" -H 'Content-Type: application/json' -d '{"file":"<file>","parked":true}' "$SITE/api/owner/takes/park"
+   curl -sS -X POST -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" -H 'Content-Type: application/json' -d '{"file":"<file>","parked":true}' "$SITE/api/owner/takes/park"
    ```
 
    It answers `{ "file": "<file>", "parked": true }`. From round 2 on, a parked take leaves the main list and sits under Possible renames, where the owner can still play it. Send `"parked": false` to bring it back.
@@ -71,7 +71,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    3. Move the take. The new name keeps the set and the prompt, and takes the new track's next free letter, starting at A. Move several takes one at a time, in letter order:
 
       ```bash
-      curl -sS -X POST -H "Authorization: Bearer $(cat .album-key)" -H 'Content-Type: application/json' -d '{"from":"v1-03-old-title-p2-takec.mp3","to":"v1-24-new-title-p2-takea.mp3"}' "$SITE/api/owner/takes/move"
+      curl -sS -X POST -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" -H 'Content-Type: application/json' -d '{"from":"v1-03-old-title-p2-takec.mp3","to":"v1-24-new-title-p2-takea.mp3"}' "$SITE/api/owner/takes/move"
       ```
 
       It answers with `votesMoved`, `downloadsMoved`, `sightingsMoved` and `parkedMoved`, so the take keeps its votes. Add `"keepSource": true` only if the owner wants the take to stay on its old track too. Its votes still move, so the copy on the old track starts again with no votes.
@@ -86,7 +86,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    4. Move each take from its old name to its new name with a plain move. Never add `replace` or `keepSource` to a rename. The route refuses `keepSource` on a rename with 400, because a rename always moves the file:
 
       ```bash
-      curl -sS -X POST -H "Authorization: Bearer $(cat .album-key)" -H 'Content-Type: application/json' -d '{"from":"v1-08-old-title-p1-takea.mp3","to":"v1-08-new-title-p1-takea.mp3"}' "$SITE/api/owner/takes/move"
+      curl -sS -X POST -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" -H 'Content-Type: application/json' -d '{"from":"v1-08-old-title-p1-takea.mp3","to":"v1-08-new-title-p1-takea.mp3"}' "$SITE/api/owner/takes/move"
       ```
 
       It answers with `votesMoved: 0`. That's expected: votes belong to the set, number and letter, which don't change, so every vote stays with its take.
@@ -156,8 +156,8 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 - After a move, the new file plays for the owner and the old name is gone, unless you kept the source:
 
   ```bash
-  curl -sSL -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/audio/<set>/<new file>"
-  curl -sSL -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $(cat .album-key)" "$SITE/api/audio/<set>/<old file>"
+  curl -sSL -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" "$SITE/api/audio/<set>/<new file>"
+  curl -sSL -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $ALBUM_WRITE_TOKEN" "$SITE/api/audio/<set>/<old file>"
   ```
 
   You want `200`, then `404`. That check is for an uploaded file. A streamed take has no `/api/audio/` object; confirm it plays on Compare takes instead.

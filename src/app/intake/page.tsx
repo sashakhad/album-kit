@@ -1,17 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 
 import { IntakeDropzone } from '@/components/intake/IntakeDropzone';
 import { canUseBlob } from '@/lib/album/blob-audio';
-import { isOwner } from '@/lib/owner/auth';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Upload takes' };
 
 export default async function IntakePage() {
-  if (!(await isOwner())) redirect('/key?next=%2Fintake');
-
   return (
     <main className='mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 sm:py-12'>
       <header className='space-y-2'>

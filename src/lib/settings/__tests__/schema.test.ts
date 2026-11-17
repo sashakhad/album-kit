@@ -41,16 +41,12 @@ describe('settings and portable presets', () => {
     expect(resolveSettings(stored).promptVariations).toBe(2);
   });
 
-  it('omits publication and approvals from a preset and resets publication on import', () => {
+  it('omits listener voting from a portable preset', () => {
     const preset = exportPreset({
       ...DEFAULT_SETTINGS,
-      visibility: 'private',
       generationCreditLimit: 100,
     });
-    expect(preset).not.toHaveProperty('visibility');
-    expect(JSON.stringify(preset)).not.toContain('private');
     expect(importPreset(preset)).toMatchObject({
-      visibility: 'unset',
       listenerVoting: false,
       preset: 'imported',
       generationCreditLimit: 100,
@@ -59,7 +55,6 @@ describe('settings and portable presets', () => {
     const exported = exportPreset({
       ...DEFAULT_SETTINGS,
       listenerVoting: true,
-      visibility: 'public',
     });
     expect(JSON.stringify(exported)).not.toContain('listenerVoting');
     expect(exported.settings).not.toHaveProperty('listenerVoting');
@@ -67,7 +62,6 @@ describe('settings and portable presets', () => {
 
   it('keeps omitted fields out of a partial patch', () => {
     expect(settingsPatchSchema.parse({ listenerVoting: true })).toEqual({ listenerVoting: true });
-    expect(settingsPatchSchema.parse({ visibility: 'public' })).toEqual({ visibility: 'public' });
   });
 
   it('defaults review takes to public and leaves that choice out of a portable preset', () => {

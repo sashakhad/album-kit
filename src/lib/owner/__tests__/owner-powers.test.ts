@@ -8,9 +8,9 @@ import { POST as postPass } from '@/app/api/pass/route';
 import { PATCH as patchSettings } from '@/app/api/owner/settings/route';
 import { POST as postMove } from '@/app/api/owner/takes/move/route';
 
-describe('owner powers stay behind the album key', () => {
-  it('rejects a listener on pass, downloads, settings, and moves', async () => {
-    vi.stubEnv('ALBUM_KEY', 'dev-owner-key');
+describe('write actions stay behind the write token', () => {
+  it('rejects a request without the token on pass, downloads, settings, and moves', async () => {
+    vi.stubEnv('ALBUM_WRITE_TOKEN', 'dev-write-token');
     const headers = { 'Content-Type': 'application/json' };
     expect(
       (

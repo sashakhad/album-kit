@@ -78,4 +78,39 @@ describe('variation provenance', () => {
       sunoModel: 'v6',
     });
   });
+
+  it('stores a browser path and the clip tags beside the typed Style', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/owner/provenance', {
+        method: 'POST',
+        body: JSON.stringify({
+          filename: 'v1-01-track-one-p2-takec.mp3',
+          promptId: 'revision-2',
+          style: 'Warm bass and crisp drums.',
+          writerHost: 'grok-bot',
+          writerProvider: null,
+          requestedModel: null,
+          observedModel: null,
+          executionId: null,
+          promptRevision: 2,
+          sunoModel: 'v6',
+          generationId: 'clip-1',
+          generationSettings: { model: 'v6-mini' },
+          generationPath: 'browser',
+          clipTags: 'indie folk, acoustic guitar',
+          outputId: 'clip-1',
+          roundId: 'round-1',
+        }),
+      })
+    );
+    expect(response.status).toBe(201);
+    expect(state.saved).toMatchObject({
+      style: 'Warm bass and crisp drums.',
+      generationSettings: {
+        model: 'v6-mini',
+        path: 'browser',
+        clipTags: 'indie folk, acoustic guitar',
+      },
+    });
+  });
 });

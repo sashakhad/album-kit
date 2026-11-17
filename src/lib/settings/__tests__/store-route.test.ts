@@ -80,13 +80,12 @@ describe('shared settings storage', () => {
     const response = await PATCH(
       new Request('http://localhost/api/owner/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ patch: { listenerVoting: true, visibility: 'public' } }),
+        body: JSON.stringify({ patch: { listenerVoting: true } }),
       })
     );
     expect(response.status).toBe(200);
     expect((await response.json()).resolved.listenerVoting).toBe(true);
     expect((await loadSettings()).listenerVoting).toBe(true);
-    expect((await loadSettings()).visibility).toBe('public');
     const followUp = await PATCH(
       new Request('http://localhost/api/owner/settings', {
         method: 'PATCH',
@@ -96,7 +95,6 @@ describe('shared settings storage', () => {
     expect(followUp.status).toBe(200);
     const followed = await followUp.json();
     expect(followed.resolved.listenerVoting).toBe(true);
-    expect(followed.resolved.visibility).toBe('public');
     expect(followed.resolved.promptVariations).toBe(4);
   });
 
@@ -116,11 +114,10 @@ describe('shared settings storage', () => {
   it('uses built-in defaults when no database url is configured', async () => {
     state.row = {
       version: 1,
-      defaults: { promptVariations: 9, visibility: 'public' },
+      defaults: { promptVariations: 9 },
       overrides: {},
     };
     delete process.env.DATABASE_URL;
-    expect((await loadSettings()).visibility).toBe('unset');
     process.env.DATABASE_URL = '';
     expect((await loadSettings()).promptVariations).toBe(5);
   });

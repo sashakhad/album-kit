@@ -5,9 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, ChevronDown, Circle, Upload } from 'lucide-react';
 
-import { ChangePasswordForm } from '@/components/owner/ChangePasswordForm';
-import { InviteControls } from '@/components/owner/InviteControls';
-import { OwnerKeyControls } from '@/components/owner/OwnerKeyControls';
 import { ShareControls } from '@/components/owner/ShareControls';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +19,6 @@ import {
 const inputClass =
   'min-h-11 w-full rounded-lg border border-white/15 bg-background px-3 py-2 text-base sm:text-sm';
 const muted = 'text-muted-foreground text-sm leading-relaxed';
-const visibilityLabels = { unset: 'Only you', public: 'Public', private: 'Private' };
 const presetLabels = {
   'quick-start': 'Quick start',
   'small-test': 'Small test',
@@ -33,11 +29,10 @@ const presetLabels = {
 type Props = {
   albumTitle: string;
   initial: AlbumSettingsValue;
-  privateStorage: boolean;
   lastSunoCheck: { models: string[]; resolvedModel: string | null } | null;
 };
 
-export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoCheck }: Props) {
+export function SettingsForm({ albumTitle, initial, lastSunoCheck }: Props) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [draft, setDraft] = useState(initial);
@@ -47,7 +42,6 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
   const [customSunoModel, setCustomSunoModel] = useState(false);
   const patch = settingsChanges(saved, draft);
   const dirty = Object.keys(patch).length > 0;
-  const sharingDirty = patch.visibility !== undefined || patch.listenerVoting !== undefined;
   const models = [...new Set([...(lastSunoCheck?.models ?? []), draft.sunoModel])].filter(
     model => model !== 'auto' && model.trim().length > 0
   );
@@ -82,7 +76,7 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
       if (!response.ok) {
         throw new Error(
           response.status === 401
-            ? 'Your owner session ended. Enter your owner password and try again.'
+            ? 'Couldn’t save. Album Bot writes settings with its own token.'
             : typeof result?.error === 'string'
               ? result.error
               : 'Couldn’t save changes. Check your choices and try again.'
@@ -111,7 +105,6 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
       setDraft(previous => ({
         ...previous,
         ...imported,
-        visibility: previous.visibility,
         listenerVoting: previous.listenerVoting,
       }));
       setPresetNotice('Preset loaded. Save changes to apply it.');
@@ -191,61 +184,22 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
         <fieldset disabled={saving} className='min-w-0 space-y-5'>
           <Section
             title='Sharing'
-            description='Choose who can open the album and compare takes.'
-            badge={visibilityLabels[saved.visibility]}
+            description='The album site is public. Listeners can score only if you turn that on.'
           >
-            <div className='grid gap-4 sm:grid-cols-2'>
-              <Field
-                label='Album access'
-                hint={
-                  privateStorage
-                    ? 'Private albums require a listener invitation.'
-                    : 'Ask Grok Bot to connect private audio storage to enable invitations.'
-                }
+            <Field
+              label='Who can vote'
+              hint='Listener scores stay on a separate ballot. They do not change your picks.'
+            >
+              <select
+                value={draft.listenerVoting ? 'listeners' : 'owner'}
+                onChange={e => change('listenerVoting', e.target.value === 'listeners')}
+                className={inputClass}
               >
-                <select
-                  value={draft.visibility}
-                  onChange={e =>
-                    change('visibility', e.target.value as AlbumSettingsValue['visibility'])
-                  }
-                  className={inputClass}
-                >
-                  <option value='unset'>Only you</option>
-                  <option value='public'>Public · anyone can listen</option>
-                  <option value='private' disabled={!privateStorage}>
-                    Private · by invitation
-                  </option>
-                </select>
-              </Field>
-              <Field
-                label='Who can vote'
-                hint='Allow listeners to preview current takes and score them on a separate ballot.'
-              >
-                <select
-                  value={draft.listenerVoting ? 'listeners' : 'owner'}
-                  onChange={e => change('listenerVoting', e.target.value === 'listeners')}
-                  className={inputClass}
-                >
-                  <option value='owner'>Only you</option>
-                  <option value='listeners'>You and listeners</option>
-                </select>
-              </Field>
-            </div>
-            {sharingDirty ? (
-              <p className='rounded-xl border border-white/8 bg-white/3 p-4 text-sm'>
-                Save your sharing changes to get the right listener link.
-              </p>
-            ) : saved.visibility === 'public' ? (
-              <ShareControls listenerVoting={saved.listenerVoting} />
-            ) : saved.visibility === 'private' && privateStorage ? (
-              <InviteControls listenerVoting={saved.listenerVoting} />
-            ) : (
-              <p className={muted}>
-                {saved.visibility === 'unset'
-                  ? 'The album is visible to you. Choose Public or Private and save to share it.'
-                  : 'Connect private audio storage before creating invitations.'}
-              </p>
-            )}
+                <option value='owner'>Only Album Bot records picks</option>
+                <option value='listeners'>Listeners can score too</option>
+              </select>
+            </Field>
+            <ShareControls listenerVoting={saved.listenerVoting} />
           </Section>
 
           <Section
@@ -566,14 +520,6 @@ export function SettingsForm({ albumTitle, initial, privateStorage, lastSunoChec
           </Disclosure>
         </fieldset>
       </form>
-
-      <Disclosure
-        title='Owner access'
-        description='Change your password or sign in on another device'
-      >
-        <ChangePasswordForm />
-        <OwnerKeyControls />
-      </Disclosure>
     </div>
   );
 }

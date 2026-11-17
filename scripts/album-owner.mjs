@@ -77,16 +77,16 @@ async function main() {
   let key;
   try {
     site = new URL(JSON.parse(readFileSync('.album-site.json', 'utf8')).siteUrl);
-    key = readFileSync('.album-key', 'utf8').trim();
+    key = readWriteToken();
     if (
-      !key ||
+      key === null ||
       (site.protocol !== 'https:' && !(site.protocol === 'http:' && site.hostname === 'localhost'))
     ) {
       throw new Error();
     }
   } catch {
     throw new Error(
-      'Open the album checkout with its .album-site.json and .album-key, or run pnpm setup:site first.'
+      'Open the album checkout with its .album-site.json and ALBUM_WRITE_TOKEN in .env, or run pnpm setup:site first.'
     );
   }
 
@@ -156,6 +156,20 @@ async function main() {
 }
 
 class OwnerAuthError extends Error {}
+
+export function readWriteToken() {
+  const fromProcess = process.env.ALBUM_WRITE_TOKEN?.trim();
+  if (fromProcess && fromProcess !== '[SENSITIVE]') return fromProcess;
+  for (const file of ['.env', '.env.local']) {
+    try {
+      const match = readFileSync(file, 'utf8').match(/^ALBUM_WRITE_TOKEN="?([^"\n]+)"?/m);
+      if (match?.[1] && match[1] !== '[SENSITIVE]') return match[1];
+    } catch {
+      // The next file may have it.
+    }
+  }
+  return null;
+}
 
 async function readProgress(site, key) {
   let fallback = null;

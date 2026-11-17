@@ -1,11 +1,10 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 
 import { ModelStatsDashboard } from '@/components/stats/ModelStatsDashboard';
 import { getListenConfig } from '@/lib/album/listen-store';
 import { formatDate, formatDateRange, isAfter, isBefore } from '@/lib/date';
 import { formatNumber, formatSignedScore } from '@/lib/formatters';
-import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
+import { OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 import { getConsolidatedPass } from '@/lib/votes/pass-store';
 import { countForTake } from '@/lib/votes/tally';
@@ -23,7 +22,6 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Model stats' };
 
 export default async function StatsPage() {
-  if (!(await isOwner())) redirect('/key?next=%2Fstats');
   const [view, pass, config, provenance] = await Promise.all([
     ownerJudgingView(),
     getConsolidatedPass(OWNER_VISITOR_ID),

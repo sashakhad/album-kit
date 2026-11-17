@@ -5,9 +5,11 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { readWriteToken } from './album-owner.mjs';
+
 const connection = ownerConnection();
 if (connection === null) {
-  console.error('Need .album-site.json and .album-key. Run pnpm setup:site first.');
+  console.error('Need .album-site.json and ALBUM_WRITE_TOKEN in .env. Run pnpm setup:site first.');
   process.exit(1);
 }
 
@@ -37,8 +39,8 @@ if (total > 0 && ok !== total) {
 function ownerConnection() {
   try {
     const site = JSON.parse(readFileSync(path.join(process.cwd(), '.album-site.json'), 'utf8'));
-    const key = readFileSync(path.join(process.cwd(), '.album-key'), 'utf8').trim();
-    return typeof site.siteUrl === 'string' && site.siteUrl.startsWith('https://') && key.length > 0
+    const key = readWriteToken();
+    return typeof site.siteUrl === 'string' && site.siteUrl.startsWith('https://') && key !== null
       ? { siteUrl: site.siteUrl.replace(/\/$/, ''), key }
       : null;
   } catch {

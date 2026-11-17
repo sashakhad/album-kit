@@ -8,6 +8,51 @@ import type { TakeTallies } from '@/lib/votes/types';
 
 export const LISTEN_SLUG = 'listen';
 
+/** Every ready take from one round, still grouped under its track. */
+export function groupedReadyTakes(args: {
+  config: AlbumConfig;
+  version: AlbumVersion;
+  filenames?: ReadonlySet<string>;
+}): AlbumVersion {
+  const tracks: AlbumTrack[] = [];
+  for (const item of args.config.tracks) {
+    if (item.parked === true) continue;
+    const source = args.version.tracks.find(
+      track => track.kind === 'album' && track.number === item.number
+    );
+    const ready = (source?.takes ?? []).filter(take => {
+      if (take.audioUrl.length === 0) return false;
+      return (
+        args.filenames === undefined ||
+        args.filenames.size === 0 ||
+        args.filenames.has(take.filename)
+      );
+    });
+    const first = ready[0];
+    if (first === undefined) continue;
+    tracks.push({
+      number: item.number,
+      title: item.title,
+      kind: 'album',
+      filename: first.filename,
+      audioUrl: first.audioUrl,
+      takes: ready,
+      parkedTakes: [],
+      prompt: null,
+      listenSlug: item.slug,
+      status: 'preview',
+    });
+  }
+  return {
+    slug: LISTEN_SLUG,
+    folder: LISTEN_SLUG,
+    title: args.config.title,
+    author: args.config.artist,
+    blurb: '',
+    tracks,
+  };
+}
+
 type Pin = {
   set: string;
   take: string;
@@ -50,7 +95,9 @@ export function rankListenTakes(takes: readonly AlbumTake[], scores: TakeTallies
   const ordered = [...takes].sort((a, b) => score(b) - score(a));
   const highest = ordered[0] === undefined ? 0 : score(ordered[0]);
   const winners = highest > 0 ? ordered.filter(take => score(take) === highest) : [];
-  return { ordered, winners };
+  // No positive score yet: every ready take plays, in Compare takes order.
+  const playback = winners.length > 0 ? winners : ordered;
+  return { ordered, winners, playback };
 }
 
 export function buildListenVersion(args: {

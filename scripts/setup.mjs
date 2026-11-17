@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-// pnpm setup:site [--name <project>] [--password-stdin] [--dry-run]
-// Links this album to a Vercel project, provisions Blob, Neon and ALBUM_KEY.
-// ALBUM_KEY is the owner password. Setup never generates one. Pass it on stdin
-// with --password-stdin, or reuse ignored .album-key. The last line is
-// {"siteUrl", "project", "ownerPassword"} and does not contain the password.
+// pnpm setup:site [--name <project>] [--dry-run]
+// Links this album to a Vercel project, provisions a public Blob store, Neon,
+// and ALBUM_WRITE_TOKEN. Setup generates the token. It never prints it.
 // Exit codes: 0 done, 1 failed, 2 not signed in to Vercel, 3 the Neon step
 // needs the browser, 4 the Vercel account's email can't be read, 5 the site
-// exists but no private GitHub repo could be created, 6 the owner password
-// is missing. A push deploys. This command does not run vercel deploy.
+// exists but no GitHub repo could be created. A push deploys. This command
+// does not run vercel deploy.
+import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -22,11 +21,7 @@ export const EXIT = {
   neonNeedsBrowser: 3,
   noAccountEmail: 4,
   noGitHub: 5,
-  passwordNeeded: 6,
 };
-
-export const PASSWORD_NEEDED =
-  'Ask the owner to pick an owner password in a secret card. Then run pnpm setup:site --password-stdin with that password on stdin. Do not generate a password, do not pass it as an argument, and do not paste it into chat.';
 
 export class ExitError extends Error {
   constructor(code, message) {
@@ -89,7 +84,7 @@ export function ensureGitHubRepo(runner, { project }) {
     runner.run('gh', ['auth', 'status'], { when: 'if origin is missing' });
     runner.run(
       'gh',
-      ['repo', 'create', project, '--private', '--source', '.', '--remote', 'origin', '--push'],
+      ['repo', 'create', project, '--public', '--source', '.', '--remote', 'origin', '--push'],
       { when: 'if gh is signed in and origin is missing' }
     );
     return { ok: true, blocker: null, url: null };
@@ -114,7 +109,7 @@ export function ensureGitHubRepo(runner, { project }) {
     'repo',
     'create',
     project,
-    '--private',
+    '--public',
     '--source',
     '.',
     '--remote',
@@ -145,10 +140,10 @@ function confirmPrivateRepo(runner, originUrl) {
   }
   const info = parseJson(view.stdout);
   const name = typeof info?.nameWithOwner === 'string' ? info.nameWithOwner : 'the repo';
-  if (info?.isPrivate !== true) {
+  if (info?.isPrivate !== true && info?.isPrivate !== false) {
     return {
       ok: false,
-      blocker: `GitHub repo ${name} is not private. Album repos must be private.`,
+      blocker: `GitHub could not confirm ${name}.`.trim(),
       url: null,
     };
   }
@@ -252,52 +247,14 @@ export function slugify(value) {
 // vercel env pull can't read a Secret back, and writes this placeholder in its place.
 const SENSITIVE_PLACEHOLDER = '[SENSITIVE]';
 
-export function usableAlbumKey(value) {
-  const key = value?.trim() ?? '';
-  return key.length > 0 && key !== SENSITIVE_PLACEHOLDER ? key : null;
+export function generateWriteToken() {
+  return randomBytes(32).toString('base64url');
 }
 
-/** A password the owner is setting now. Existing ALBUM_KEY values skip this check. */
-export function usableOwnerPassword(value) {
-  const password = value?.trim() ?? '';
-  if (password.length < 4 || password.length > 200) return null;
-  if (/[\r\n]/.test(password) || password === SENSITIVE_PLACEHOLDER) return null;
-  return password;
-}
-
-/**
- * Replace ALBUM_KEY on the linked Vercel project. The previous password is not required.
- * @param {ReturnType<typeof createRunner>} runner
- * @param {string} password
- */
-export function rotateAlbumKey(runner, password) {
-  const targets = ['production', 'preview', 'development'];
-  if (runner.dryRun) {
-    for (const target of targets) {
-      runner.vercel(['env', 'rm', 'ALBUM_KEY', target, '--yes'], {
-        when: 'replace ALBUM_KEY; the old password is not required',
-      });
-      runner.vercel(['env', 'add', 'ALBUM_KEY', target, '--value', '<owner password>', '--yes'], {
-        secretAfter: '--value',
-      });
-    }
-    return { updated: targets, cli: true };
-  }
-  if (runner.vercel(['whoami']).status !== 0) {
-    return { updated: [], cli: false };
-  }
-  const updated = [];
-  for (const target of targets) {
-    runner.vercel(['env', 'rm', 'ALBUM_KEY', target, '--yes']);
-    const added = runner.vercel(['env', 'add', 'ALBUM_KEY', target, '--value', password, '--yes'], {
-      secretAfter: '--value',
-    });
-    if (added.status === 0) updated.push(target);
-  }
-  if (!updated.includes('production')) {
-    throw new ExitError(EXIT.failed, 'Could not set ALBUM_KEY on production.');
-  }
-  return { updated, cli: true };
+export function usableWriteToken(value) {
+  const token = typeof value === 'string' ? value.trim() : '';
+  if (token.length < 32 || /\s/.test(token) || token === SENSITIVE_PLACEHOLDER) return null;
+  return token;
 }
 
 export function readEnvFile(filePath) {
@@ -423,22 +380,9 @@ function setup(options) {
 
   if (!keys.has('BLOB_READ_WRITE_TOKEN') && !keys.has('BLOB_STORE_ID')) {
     runner.must(
-      runner.vercel(['blob', 'create-store', `${name}-audio`, '--access', 'private', '--yes'], {
+      runner.vercel(['blob', 'create-store', `${name}-audio`, '--access', 'public', '--yes'], {
         when: 'if neither a Blob token nor store ID is configured',
       })
-    );
-    runner.must(
-      runner.vercel(['env', 'add', 'BLOB_ACCESS', 'production', '--value', 'private', '--yes'], {
-        when: 'only for a newly created private Blob store',
-      })
-    );
-    runner.must(
-      runner.vercel(
-        ['env', 'add', 'PRIVATE_BLOB_AUDITED', 'production', '--value', 'true', '--yes'],
-        {
-          when: 'new projects have no earlier public take store',
-        }
-      )
     );
   }
 
@@ -469,44 +413,24 @@ function setup(options) {
     );
   }
 
-  const keyFile = path.join(root, '.album-key');
-  let albumKey = usableAlbumKey(readText(keyFile));
-  if (!keys.has('ALBUM_KEY')) {
-    if (albumKey === null && options.passwordStdin && !options.dryRun) {
-      albumKey = usableOwnerPassword(readFileSync(0, 'utf8'));
-      if (albumKey === null) {
-        throw new ExitError(
-          EXIT.failed,
-          'The owner password must be one line of 4 to 200 characters. Ask again with a secret card. Do not paste it into chat.'
-        );
-      }
-    }
-    if (albumKey === null && !options.dryRun) {
-      throw new ExitError(EXIT.passwordNeeded, PASSWORD_NEEDED);
-    }
-    const value = options.dryRun ? '<owner password>' : albumKey;
+  const envPath = path.join(root, '.env');
+  let writeToken =
+    usableWriteToken(readEnvFile(envPath).ALBUM_WRITE_TOKEN) ??
+    usableWriteToken(readEnvFile(path.join(root, '.env.local')).ALBUM_WRITE_TOKEN);
+  if (!keys.has('ALBUM_WRITE_TOKEN')) {
+    if (writeToken === null && !options.dryRun) writeToken = generateWriteToken();
+    const value = options.dryRun ? '<write token>' : writeToken;
     runner.must(
-      runner.vercel(['env', 'add', 'ALBUM_KEY', 'production', '--value', value, '--yes'], {
-        when: 'if ALBUM_KEY is missing; the owner password is read from stdin and written to .album-key',
+      runner.vercel(['env', 'add', 'ALBUM_WRITE_TOKEN', 'production', '--value', value, '--yes'], {
+        when: 'if ALBUM_WRITE_TOKEN is missing; generated locally and never printed',
         secretAfter: '--value',
       })
     );
-    if (!options.dryRun && albumKey !== null) {
-      writeFileSync(keyFile, `${albumKey}\n`, { mode: 0o600 });
-    }
+    if (!options.dryRun && writeToken !== null)
+      writeEnvKey(envPath, 'ALBUM_WRITE_TOKEN', writeToken);
   }
 
   runner.must(runner.vercel(['env', 'pull', '.env.local', '--environment', 'production', '--yes']));
-  if (!options.dryRun && albumKey === null) {
-    albumKey = usableAlbumKey(readEnvFile(path.join(root, '.env.local')).ALBUM_KEY);
-    if (albumKey === null) {
-      console.log(
-        "Vercel keeps ALBUM_KEY secret, so setup can't read it back. The owner password is already on the project. Save the same password with: pnpm owner:password"
-      );
-    } else {
-      writeFileSync(keyFile, `${albumKey}\n`);
-    }
-  }
 
   const existing = readAlbumSite(root);
   const linkedUrl = linkedProductionUrl(runner, root);
@@ -543,9 +467,19 @@ function setup(options) {
       project: name,
       deploy: 'git',
       gitLinked: gitLink.connected,
-      ownerPassword: albumKey === null ? 'missing' : 'set',
+      writeToken: writeToken === null && options.dryRun ? 'generated' : 'set',
     })
   );
+}
+
+function writeEnvKey(filePath, key, value) {
+  const current = readText(filePath) ?? '';
+  const line = `${key}="${value}"`;
+  const pattern = new RegExp(`^${key}=.*$`, 'm');
+  const next = pattern.test(current)
+    ? current.replace(pattern, line)
+    : `${current.trimEnd()}${current.length > 0 ? '\n' : ''}${line}\n`;
+  writeFileSync(filePath, next.endsWith('\n') ? next : `${next}\n`, { mode: 0o600 });
 }
 
 function maskArg(args, index, arg, options) {

@@ -1,9 +1,6 @@
 import { serveAudio } from '@/app/api/audio/[set]/[file]/route';
 import { getListenVersion, listenAudioToken } from '@/lib/album/listen-store';
-import { albumKey, isOwnerRequest } from '@/lib/owner/auth';
-import { isViewerRequest } from '@/lib/owner/viewer';
-import { canViewAlbum } from '@/lib/settings/access';
-import { loadSettings } from '@/lib/settings/store';
+import { albumKey } from '@/lib/owner/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,11 +9,6 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   const { token } = await context.params;
   const key = albumKey();
   if (key === null || !/^[0-9a-f]{32}$/.test(token)) return notFound();
-
-  const settings = await loadSettings();
-  const owner = await isOwnerRequest(request);
-  const viewer = settings.visibility === 'private' && !owner && (await isViewerRequest(request));
-  if (!canViewAlbum(settings.visibility, owner, viewer)) return notFound();
 
   const version = await getListenVersion();
   const take = version.tracks

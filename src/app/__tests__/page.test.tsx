@@ -1,29 +1,20 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { UNPUBLISHED_ALBUM_MESSAGE } from '@/components/album/UnpublishedAlbum';
-
 const state = vi.hoisted(() => ({
-  owner: false,
-  viewer: false,
-  visibility: 'unset' as 'unset' | 'public' | 'private',
+  tracks: [{ number: 1, title: 'Screen Door', parked: false, slug: 'screen-door' }] as Array<{
+    number: number;
+    title: string;
+    parked: boolean;
+    slug: string;
+  }>,
 }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('next/navigation', () => ({
-  notFound: () => {
-    throw new Error('notFound');
-  },
-}));
-vi.mock('@/lib/owner/auth', () => ({
-  isOwner: async () => state.owner,
-}));
-vi.mock('@/lib/owner/viewer', () => ({
-  isViewer: async () => state.viewer,
-}));
 vi.mock('@/lib/settings/store', () => ({
   loadSettings: async () => ({
-    visibility: state.visibility,
+    listeningDetails: 'visible',
+    maskPromptModels: false,
     listenerVoting: false,
   }),
 }));
@@ -31,50 +22,64 @@ vi.mock('@/lib/album/album-config', () => ({
   loadAlbumConfig: async () => ({
     title: 'Porch Light',
     artist: '',
-    tracks: [{ number: 1, title: 'Screen Door', parked: false }],
+    tracks: state.tracks,
   }),
+}));
+vi.mock('@/lib/album/listen-store', () => ({
+  getPublicListenVersion: async () => ({
+    slug: 'listen',
+    folder: 'listen',
+    title: 'Porch Light',
+    author: '',
+    blurb: '',
+    tracks: [
+      {
+        number: 1,
+        title: 'Screen Door',
+        kind: 'album',
+        filename: 'v1-01-screen-door-p1-takea.mp3',
+        audioUrl: '/api/audio/v1/v1-01-screen-door-p1-takea.mp3',
+        takes: [
+          {
+            label: 'A',
+            filename: 'v1-01-screen-door-p1-takea.mp3',
+            audioUrl: '/api/audio/v1/v1-01-screen-door-p1-takea.mp3',
+            versionSlug: 'v1',
+            voteLabel: 'A',
+          },
+        ],
+        parkedTakes: [],
+        prompt: null,
+        status: 'preview',
+      },
+    ],
+  }),
+}));
+vi.mock('@/lib/votes/provenance', () => ({
+  withVisibleDetails: async (version: unknown) => version,
 }));
 
 import Home from '../page';
 
-describe('home page while visibility is unset', () => {
+describe('home page', () => {
   beforeEach(() => {
-    state.owner = false;
-    state.viewer = false;
-    state.visibility = 'unset';
+    state.tracks = [{ number: 1, title: 'Screen Door', parked: false, slug: 'screen-door' }];
   });
 
-  it('explains that the album is not published yet', async () => {
-    render(await Home());
-
-    expect(screen.getByRole('heading', { name: UNPUBLISHED_ALBUM_MESSAGE })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
-  });
-
-  it('still shows the album to a signed-in owner', async () => {
-    state.owner = true;
-    state.visibility = 'unset';
-
+  it('plays ready takes on the home page', async () => {
     render(await Home());
 
     expect(screen.getByRole('heading', { name: 'Porch Light' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('heading', { name: UNPUBLISHED_ALBUM_MESSAGE })
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Compare takes' })).toHaveAttribute('href', '/vote');
+    expect(document.querySelector('audio, video')).not.toBeNull();
   });
 
-  it('keeps a private album hidden', async () => {
-    state.visibility = 'private';
-
-    await expect(Home()).rejects.toThrow('notFound');
-  });
-
-  it('shows a public album', async () => {
-    state.visibility = 'public';
+  it('shows an empty album without a player', async () => {
+    state.tracks = [];
 
     render(await Home());
 
-    expect(screen.getByRole('heading', { name: 'Porch Light' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Listen now' })).toHaveAttribute('href', '/listen');
+    expect(screen.getByText(/this album is empty/i)).toBeInTheDocument();
+    expect(document.querySelector('audio, video')).toBeNull();
   });
 });

@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 import { CopyButton } from '@/components/studio/CopyButton';
 import { RevealStudioButton } from '@/components/studio/RevealStudioButton';
@@ -10,7 +10,7 @@ import { loadAlbumConfig } from '@/lib/album/album-config';
 import { parseTrackSheet } from '@/lib/album/parse-sheet';
 import { defaultAlbumRoot } from '@/lib/album/paths';
 import { formatNumberExact } from '@/lib/formatters';
-import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
+import { OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
 import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
 import { wasExposed } from '@/lib/votes/exposure';
@@ -30,10 +30,6 @@ export const metadata: Metadata = {
 
 export default async function StudioPage({ params }: StudioPageProps) {
   const { track: slug } = await params;
-  if (!(await isOwner())) {
-    redirect(`/key?next=${encodeURIComponent(`/studio/${slug}`)}`);
-  }
-
   const config = await loadAlbumConfig();
   const track = config.tracks.find(item => item.slug === slug);
   if (track === undefined) {

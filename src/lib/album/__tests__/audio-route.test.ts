@@ -82,27 +82,15 @@ describe('GET /api/listen-audio/[token]', () => {
     });
   }
 
-  it('streams a scored winner with listener voting off and keeps its canonical URL protected', async () => {
+  it('streams a scored take without a sign-in and keeps its canonical URL off the response', async () => {
     published.takes = [{ filename: UNPINNED, versionSlug: 'v1' }];
     fetchMock.mockResolvedValueOnce(new Response('audio', { status: 200 }));
     const response = await listen('b'.repeat(32));
     expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect((await get('v1', UNPINNED)).status).toBe(401);
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
     published.takes = [];
     expect((await listen('b'.repeat(32))).status).toBe(404);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('requires an invitation for a private scored winner', async () => {
-    settingsState.visibility = 'private';
-    published.takes = [{ filename: UNPINNED, versionSlug: 'v1' }];
-    const token = 'b'.repeat(32);
-    expect((await listen(token)).status).toBe(404);
-    expect(fetchMock).not.toHaveBeenCalled();
-    viewerState.viewer = true;
-    fetchMock.mockResolvedValueOnce(new Response('audio', { status: 200 }));
-    expect((await listen(token)).status).toBe(200);
   });
 });
 
@@ -172,31 +160,14 @@ describe('GET /api/audio/[set]/[file]', () => {
     expect(response.headers.get('content-range')).toBeNull();
   });
 
-  it('keeps unpinned canonical audio owner-only even when listener voting is on', async () => {
-    settingsState.listenerVoting = true;
+  it('streams an unpinned take to anyone', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response('ID3audio', { status: 200, headers: { 'content-type': 'audio/mpeg' } })
+    );
     const response = await get('v1', UNPINNED);
 
-    expect(response.status).toBe(401);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('gates private audio and streams pinned audio only for invited listeners', async () => {
-    settingsState.visibility = 'private';
-    vi.stubEnv('BLOB_ACCESS', 'private');
-    expect((await get('v1', PINNED)).status).toBe(404);
-    expect(privateGetMock).not.toHaveBeenCalled();
-    viewerState.viewer = true;
-    privateGetMock.mockResolvedValue({
-      statusCode: 200,
-      stream: new Response('audio').body,
-      headers: new Headers({ 'accept-ranges': 'bytes' }),
-      blob: { contentType: 'audio/mpeg', size: 5 },
-    });
-    const response = await get('v1', PINNED);
     expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('private, no-store');
-    expect(privateGetMock).toHaveBeenCalledWith(`takes/${PINNED}`, { access: 'private' });
-    expect((await get('v1', UNPINNED)).status).toBe(401);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it('forwards byte ranges from a private store without disclosing its URL', async () => {
@@ -246,16 +217,15 @@ describe('GET /api/audio/[set]/[file]', () => {
     streamState.rows = [
       { filename: UNPINNED, clipId: 'clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee', streamUrl },
     ];
-    fetchMock.mockResolvedValueOnce(
+    fetchMock.mockResolvedValue(
       new Response('ftypisom', {
         status: 200,
         headers: { 'content-type': 'video/mp4', 'content-length': '8', 'accept-ranges': 'bytes' },
       })
     );
 
-    const blocked = await get('v1', UNPINNED);
-    expect(blocked.status).toBe(401);
-    expect(await blocked.json()).toEqual({ error: 'Owner password required' });
+    const first = await get('v1', UNPINNED);
+    expect(first.status).toBe(200);
 
     const request = new Request(
       'http://localhost/api/blind-audio/1/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -266,7 +236,7 @@ describe('GET /api/audio/[set]/[file]', () => {
       { allowUnpinned: true }
     );
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenCalledWith(streamUrl, {});
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('video/mp4');

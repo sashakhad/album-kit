@@ -27,6 +27,8 @@ const schema = z.object({
   clipId: z.string().min(1).nullable().optional(),
   streamUrl: z.string().min(1).nullable().optional(),
   roundId: z.string().min(1),
+  generationPath: z.enum(['mcp', 'browser']).optional(),
+  clipTags: z.string().max(4000).optional(),
 });
 
 export async function POST(request: Request) {
@@ -145,7 +147,7 @@ export async function POST(request: Request) {
       executionId: writer.executionId,
       sunoModel: input.sunoModel,
       generationId: input.generationId,
-      generationSettings: input.generationSettings as Prisma.InputJsonValue,
+      generationSettings: storedGenerationSettings(input) as Prisma.InputJsonValue,
       outputId: input.outputId,
       clipId,
       streamUrl: input.streamUrl ?? null,
@@ -156,4 +158,15 @@ export async function POST(request: Request) {
     },
   });
   return NextResponse.json(created, { status: 201 });
+}
+
+function storedGenerationSettings(input: {
+  generationSettings: Record<string, unknown>;
+  generationPath?: 'mcp' | 'browser' | undefined;
+  clipTags?: string | undefined;
+}): Record<string, unknown> {
+  const settings = { ...input.generationSettings };
+  if (input.generationPath !== undefined) settings.path = input.generationPath;
+  if (input.clipTags !== undefined) settings.clipTags = input.clipTags;
+  return settings;
 }

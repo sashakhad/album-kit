@@ -9,7 +9,6 @@ import {
   settingsPatchSchema,
 } from '@/lib/settings/schema';
 import { loadStoredSettings, saveSettingsPatch } from '@/lib/settings/store';
-import { privateStoreReady } from '@/lib/album/blob-audio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,15 +39,6 @@ export async function PATCH(request: Request) {
     parsed.data.preset === undefined
       ? parsed.data
       : { ...presetSettings(parsed.data.preset), ...parsed.data };
-  if (patch.visibility === 'private' && !(await privateStoreReady())) {
-    return NextResponse.json(
-      {
-        error:
-          'Private publication needs a private Blob store. Connect one and migrate any existing public takes first.',
-      },
-      { status: 409 }
-    );
-  }
   const target = 'target' in body && body.target === 'defaults' ? 'defaults' : 'overrides';
   const stored = await saveSettingsPatch(patch, target);
   return NextResponse.json({ stored, resolved: resolveSettings(stored) });

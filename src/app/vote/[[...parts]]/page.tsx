@@ -1,27 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
-import { ListenerOwnerClaim } from '@/components/album/ListenerOwnerClaim';
 import { MergeBallotPrompt } from '@/components/album/MergeBallotOffer';
 import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
 import { TakeAvailability } from '@/components/album/TakeAvailability';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
-import { loadAlbumConfig } from '@/lib/album/album-config';
 import { getListenConfig } from '@/lib/album/listen-store';
 import { findTakeByVersionAndLabel } from '@/lib/album/playback';
-import { parseTakeSegment, resolveTrack, voteHref } from '@/lib/album/play-path';
+import { parseTakeSegment, resolveTrack } from '@/lib/album/play-path';
 import type { AlbumTrack, AlbumVersion } from '@/lib/album/types';
-import { isOwner, OWNER_VISITOR_ID } from '@/lib/owner/auth';
-import { isViewer } from '@/lib/owner/viewer';
-import { canCastVote } from '@/lib/settings/access';
-import { getVisitorCurrentRound } from '@/lib/votes/pass-store';
-import { opaqueAudioId } from '@/lib/votes/blind';
-import { loadSettings } from '@/lib/settings/store';
 import { type VoteSnapshot } from '@/lib/votes/types';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
-import { listenerJudgingView } from '@/lib/votes/listener-view';
+import { opaqueAudioId } from '@/lib/votes/blind';
 import { countBrowserListenerVotes } from '@/lib/votes/merge-ballot';
 import { loadAlbumProgress } from '@/lib/rounds/load-progress';
 import { emptyTakeMessage, pendingTakeLabel, progressBannerLine } from '@/lib/rounds/progress';
@@ -34,51 +26,20 @@ type VotePageProps = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  if (!(await isOwner())) {
-    return { title: 'Compare takes' };
-  }
-  const round = await getVisitorCurrentRound(OWNER_VISITOR_ID).catch(() => 1);
-  return { title: `Round ${round}` };
+  const progress = await loadAlbumProgress().catch(() => null);
+  const round = progress?.roundNumber;
+  return { title: round === null || round === undefined ? 'Compare takes' : `Round ${round}` };
 }
 
 export default async function VotePage({ params }: VotePageProps) {
   const { parts = [] } = await params;
-  const [owner, settings, viewer, progress] = await Promise.all([
-    isOwner(),
-    loadSettings(),
-    isViewer(),
-    loadAlbumProgress(),
-  ]);
+  const progress = await loadAlbumProgress();
   const bannerLine = progressBannerLine(progress);
-  if (
-    !canCastVote({
-      visibility: settings.visibility,
-      listenerVoting: settings.listenerVoting,
-      owner,
-      viewer,
-    })
-  ) {
-    redirect(`/key?next=${encodeURIComponent(votePath(parts))}`);
-  }
   if (parts.length === 2 || parts.length > 3) {
     notFound();
   }
 
   const [trackSlug, versionSlug, takeSlug] = parts;
-  if (!owner) {
-    return listenerVotePage({
-      trackSlug,
-      versionSlug,
-      takeSlug,
-      signInHref: `/key?next=${encodeURIComponent(votePath(parts))}`,
-      returnPath: votePath(parts),
-      visibility: settings.visibility,
-      listeningDetails: settings.listeningDetails,
-      maskPromptModels: settings.maskPromptModels,
-      bannerLine,
-      progress,
-    });
-  }
   const [
     config,
     { version, originalVersion, votes, blind, awaitingReveal, passSummary },
@@ -150,52 +111,7 @@ export default async function VotePage({ params }: VotePageProps) {
       {...(blind ? { variationBlindRound: votes.currentRound } : {})}
       bannerLine={bannerLine}
       progress={progress}
-    />
-  );
-}
-
-async function listenerVotePage(args: {
-  trackSlug: string | undefined;
-  versionSlug: string | undefined;
-  takeSlug: string | undefined;
-  signInHref: string;
-  returnPath: string;
-  visibility: 'unset' | 'public' | 'private';
-  listeningDetails: 'visible' | 'reveal-after-vote' | 'keep-hidden';
-  maskPromptModels: boolean;
-  bannerLine: string | null;
-  progress: AlbumProgress;
-}) {
-  const [config, { version, votes, awaitingReveal }] = await Promise.all([
-    loadAlbumConfig(),
-    listenerJudgingView(args),
-  ]);
-  const configTrack = config.tracks.find(track => track.slug === args.trackSlug);
-  const track =
-    args.trackSlug === undefined
-      ? null
-      : configTrack === undefined
-        ? resolveTrack(args.trackSlug, version.tracks)
-        : trackByNumber(version, configTrack.number);
-  const voteLabel = parseTakeSegment(args.takeSlug);
-  const initialTake =
-    track === null || args.versionSlug === undefined || voteLabel === null
-      ? null
-      : findTakeByVersionAndLabel(track, args.versionSlug, voteLabel);
-
-  return (
-    <VoteMain
-      version={version}
-      votes={votes}
-      voter='listener'
-      awaitingReveal={awaitingReveal}
-      track={track}
-      initialTake={initialTake}
-      signInHref={args.signInHref}
-      returnPath={args.returnPath}
-      privateAlbum={args.visibility === 'private'}
-      bannerLine={args.bannerLine}
-      progress={args.progress}
+      roundNumber={progress.roundNumber}
     />
   );
 }
@@ -208,8 +124,6 @@ function VoteMain({
   track,
   initialTake,
   signInHref,
-  returnPath,
-  privateAlbum = false,
   listenerVotesOnBrowser = 0,
   showListenerScores = false,
   listenChoices,
@@ -218,6 +132,7 @@ function VoteMain({
   variationBlindRound,
   bannerLine = null,
   progress,
+  roundNumber = null,
 }: {
   version: AlbumVersion;
   votes: VoteSnapshot;
@@ -226,8 +141,6 @@ function VoteMain({
   track: AlbumTrack | null;
   initialTake: { label: string } | null;
   signInHref?: string;
-  returnPath?: string;
-  privateAlbum?: boolean;
   listenerVotesOnBrowser?: number;
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
@@ -236,6 +149,7 @@ function VoteMain({
   variationBlindRound?: number;
   bannerLine?: string | null;
   progress: AlbumProgress;
+  roundNumber?: number | null;
 }) {
   const playable = version.tracks.some(item => item.audioUrl !== null);
   const notice = playable ? undefined : emptyTakeMessage(progress);
@@ -246,7 +160,7 @@ function VoteMain({
       <div className='mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-white/10 pb-2'>
         <p className='text-muted-foreground text-sm'>
           <span className='text-foreground font-medium'>
-            {voter === 'owner' ? `Owner · Round ${votes.currentRound}` : 'Listener ballot'}
+            {`Round ${roundNumber ?? votes.currentRound}`}
           </span>
           <span className='ml-2'>
             {voter === 'owner'
@@ -261,9 +175,6 @@ function VoteMain({
           {voter === 'owner' ? 'Open Listen' : 'Sign in as owner'}
         </Link>
       </div>
-      {voter === 'listener' && privateAlbum && returnPath !== undefined ? (
-        <ListenerOwnerClaim next={returnPath} />
-      ) : null}
       {voter === 'owner' && listenerVotesOnBrowser > 0 ? (
         <MergeBallotPrompt votes={listenerVotesOnBrowser} />
       ) : null}
@@ -295,14 +206,6 @@ function VoteMain({
       )}
     </main>
   );
-}
-
-function votePath(parts: readonly string[]): string {
-  const base = voteHref();
-  if (parts.length === 0) {
-    return base;
-  }
-  return `${base}/${parts.map(part => encodeURIComponent(part)).join('/')}`;
 }
 
 function trackByNumber(version: AlbumVersion, number: number): AlbumTrack | null {

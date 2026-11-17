@@ -4,7 +4,13 @@ import { createHmac } from 'node:crypto';
 import { cache } from 'react';
 
 import { loadAlbumConfig } from '@/lib/album/album-config';
-import { applyListenSelections, buildListenVersion, rankListenTakes } from '@/lib/album/listen';
+import { jobOutputSchema } from '@/lib/rounds/job-output';
+import {
+  applyListenSelections,
+  buildListenVersion,
+  groupedReadyTakes,
+  rankListenTakes,
+} from '@/lib/album/listen';
 import { listenerAudioUrl } from '@/lib/album/stream-url';
 import type { AlbumVersion } from '@/lib/album/types';
 import { albumKey, OWNER_VISITOR_ID } from '@/lib/owner/auth';
@@ -39,11 +45,49 @@ export const getListenVersion = cache(async function getListenVersion(): Promise
           scores.get(`${track.number}:${take.versionSlug}:${take.voteLabel}`) ?? 0,
         ])
       );
-      return [track.number, rankListenTakes(track.takes, byLabel).winners];
+      return [track.number, rankListenTakes(track.takes, byLabel).playback];
     })
   );
   return buildListenVersion({ config, versions: pass.versions, defaults });
 });
+
+/** Latest round's ready takes, grouped per track. Falls back to every ready take. */
+export const getPublicListenVersion = cache(async function getPublicListenVersion() {
+  const [config, pass, filenames] = await Promise.all([
+    getListenConfig(),
+    getConsolidatedPass(OWNER_VISITOR_ID),
+    latestRoundTakeFilenames(),
+  ]);
+  return groupedReadyTakes({
+    config,
+    version: pass.version,
+    ...(filenames === null ? {} : { filenames }),
+  });
+});
+
+async function latestRoundTakeFilenames(): Promise<Set<string> | null> {
+  if (process.env.DATABASE_URL === undefined || process.env.DATABASE_URL.length === 0) {
+    return null;
+  }
+  try {
+    const rounds = await getPrisma().generationRound.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { jobs: { select: { output: true } } },
+    });
+    for (const round of rounds) {
+      const filenames = new Set<string>();
+      for (const job of round.jobs) {
+        const parsed = jobOutputSchema.safeParse(job.output);
+        if (!parsed.success) continue;
+        for (const take of parsed.data.takes) filenames.add(take.filename);
+      }
+      if (filenames.size > 0) return filenames;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export function listenAudioToken(key: string, filename: string): string {
   return createHmac('sha256', key).update(`listen-audio-v1:${filename}`).digest('hex').slice(0, 32);

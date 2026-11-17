@@ -3,15 +3,11 @@ import { get } from '@vercel/blob';
 
 import { resolveBlobAudioUrl } from '@/lib/album/blob-audio';
 import { parseByteRange } from '@/lib/album/byte-range';
-import { isListenFile } from '@/lib/album/listen';
 import { getListenConfig } from '@/lib/album/listen-store';
 import { contentTypeForFilename } from '@/lib/album/parse-filename';
 import { blobPathnameFor, defaultAlbumRoot, resolveAudioCandidates } from '@/lib/album/paths';
 import { loadStreamCatalog } from '@/lib/album/stream-catalog';
 import { isOwnerRequest } from '@/lib/owner/auth';
-import { loadSettings } from '@/lib/settings/store';
-import { canViewAlbum } from '@/lib/settings/access';
-import { isViewerRequest } from '@/lib/owner/viewer';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,6 +31,7 @@ export async function serveAudio(
   context: AudioRouteContext,
   options: { allowUnpinned?: boolean } = {}
 ) {
+  void options;
   const { set, file } = await context.params;
   const config = await getListenConfig();
   const contentType = contentTypeForFilename(file);
@@ -47,15 +44,7 @@ export async function serveAudio(
   }
 
   const owner = await isOwnerRequest(request);
-  const settings = await loadSettings();
-  const viewer =
-    settings.visibility === 'private' && !owner ? await isViewerRequest(request) : false;
-  if (!canViewAlbum(settings.visibility, owner, viewer)) return notFound();
-  const pinned = isListenFile(config, set, file);
-  if (!owner && !pinned && options.allowUnpinned !== true) {
-    return Response.json({ error: 'Owner password required' }, { status: 401 });
-  }
-  const cacheControl = settings.visibility === 'public' && pinned ? PUBLIC_CACHE : OWNER_CACHE;
+  const cacheControl = owner ? OWNER_CACHE : PUBLIC_CACHE;
 
   const found = await firstExistingFile(candidates);
   if (found === null) {

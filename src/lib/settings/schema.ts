@@ -14,7 +14,6 @@ export const settingsSchema = z.object({
   mood: z.string().max(200).default(''),
   vocals: z.enum(['instrumental', 'sung', 'chops']).default('instrumental'),
   musicalConstraints: z.string().max(2000).default(''),
-  visibility: z.enum(['unset', 'public', 'private']).default('unset'),
   listenerVoting: z.boolean().default(false),
   // Public review takes stream a Suno MP4. Private ones are downloaded.
   reviewTakes: z.enum(['public', 'private']).default('public'),
@@ -38,7 +37,6 @@ export const settingsPatchSchema = z
     mood: settingsSchema.shape.mood.removeDefault(),
     vocals: settingsSchema.shape.vocals.removeDefault(),
     musicalConstraints: settingsSchema.shape.musicalConstraints.removeDefault(),
-    visibility: settingsSchema.shape.visibility.removeDefault(),
     listenerVoting: settingsSchema.shape.listenerVoting.removeDefault(),
     reviewTakes: settingsSchema.shape.reviewTakes.removeDefault(),
     generationCreditLimit: settingsSchema.shape.generationCreditLimit.removeDefault(),
@@ -133,5 +131,5 @@ export function exportPreset(settings: AlbumSettingsValue) {
 
 export function importPreset(raw: unknown): Partial<AlbumSettingsValue> {
   const parsed = portableSchema.parse(raw);
-  return { ...parsed.settings, preset: 'imported', visibility: 'unset', listenerVoting: false };
+  return { ...parsed.settings, preset: 'imported', listenerVoting: false };
 }

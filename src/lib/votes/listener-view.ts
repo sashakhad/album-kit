@@ -1,18 +1,13 @@
 import 'server-only';
 import { OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { listenerAudioUrl } from '@/lib/album/stream-url';
-import { viewerInviteId } from '@/lib/owner/viewer';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
 import { getVoteSnapshot } from '@/lib/votes/board';
 import { blindSnapshot, blindVersion, opaqueAudioId } from '@/lib/votes/blind';
 import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
 import { isBlindForListenerSnapshot, markExposed } from '@/lib/votes/exposure';
 import { withVisibleDetails } from '@/lib/votes/provenance';
-import {
-  inviteListenerVisitorId,
-  listenerIdFromPage,
-  publicListenerVisitorId,
-} from '@/lib/votes/listener-id';
+import { listenerIdFromPage, publicListenerVisitorId } from '@/lib/votes/listener-id';
 import { EMPTY_VOTE_SNAPSHOT } from '@/lib/votes/types';
 import type { AlbumTake, AlbumVersion } from '@/lib/album/types';
 
@@ -40,20 +35,14 @@ export function withListenerPlayback(version: AlbumVersion, round: number): Albu
 
 /** Called only after the page has checked listener access. */
 export async function listenerJudgingView(
-  settings: Pick<AlbumSettingsValue, 'visibility' | 'listeningDetails' | 'maskPromptModels'>
+  settings: Pick<AlbumSettingsValue, 'listeningDetails' | 'maskPromptModels'>
 ) {
-  const [originalVersion, round, inviteId, publicId] = await Promise.all([
+  const [originalVersion, round, publicId] = await Promise.all([
     getConsolidatedPassVersion(OWNER_VISITOR_ID),
     getVisitorCurrentRound(OWNER_VISITOR_ID),
-    settings.visibility === 'private' ? viewerInviteId() : Promise.resolve(null),
     listenerIdFromPage(),
   ]);
-  const visitorId =
-    inviteId !== null
-      ? inviteListenerVisitorId(inviteId)
-      : publicId !== null
-        ? publicListenerVisitorId(publicId)
-        : '';
+  const visitorId = publicId !== null ? publicListenerVisitorId(publicId) : '';
   const originalVotes =
     visitorId.length === 0
       ? { ...EMPTY_VOTE_SNAPSHOT, currentRound: round }

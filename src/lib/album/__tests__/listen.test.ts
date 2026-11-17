@@ -6,6 +6,7 @@ import {
   buildListenVersion,
   buildListeningQueue,
   findListenTrack,
+  groupedReadyTakes,
   isListenFile,
   rankListenTakes,
 } from '../listen';
@@ -100,6 +101,24 @@ const config: AlbumConfig = parseAlbumConfig({
     },
     { number: 6, title: 'Track Six', slug: 'track-six', listen: { set: 'v1', take: 'A' } },
   ],
+});
+
+describe('grouped ready takes', () => {
+  it('keeps every ready take on its track and can limit them to one round', () => {
+    const album = { ...config, tracks: [{ number: 1, title: 'Track One', slug: 'track-one' }] };
+    const version = bubu;
+    const grouped = groupedReadyTakes({ config: album, version });
+    expect(grouped.tracks).toHaveLength(1);
+    expect(grouped.tracks[0]?.takes.map(take => take.voteLabel)).toEqual(['A', 'B']);
+    const latest = groupedReadyTakes({
+      config: album,
+      version,
+      filenames: new Set(['v1-01-track-one-p1-takeb.mp3']),
+    });
+    expect(latest.tracks[0]?.takes.map(take => take.filename)).toEqual([
+      'v1-01-track-one-p1-takeb.mp3',
+    ]);
+  });
 });
 
 describe('owner final picks', () => {
