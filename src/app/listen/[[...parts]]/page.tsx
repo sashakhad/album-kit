@@ -3,11 +3,12 @@ import { notFound } from 'next/navigation';
 import { AlbumPlayer } from '@/components/album/AlbumPlayer';
 import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
 import { TakeAvailability } from '@/components/album/TakeAvailability';
+import { UnpublishedAlbum } from '@/components/album/UnpublishedAlbum';
 import { buildListeningQueue, findListenTrack } from '@/lib/album/listen';
 import { getListenConfig, getListenVersion, withPublishedPlayback } from '@/lib/album/listen-store';
 import { isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
-import { canCastVote, canViewAlbum } from '@/lib/settings/access';
+import { awaitingPublication, canCastVote, canViewAlbum } from '@/lib/settings/access';
 import { isViewer } from '@/lib/owner/viewer';
 import { ownerJudgingView } from '@/lib/votes/owner-view';
 import { listenerJudgingView } from '@/lib/votes/listener-view';
@@ -26,6 +27,9 @@ export default async function ListenPage({ params }: ListenPageProps) {
     isViewer(),
     loadAlbumProgress(),
   ]);
+  if (awaitingPublication(settings.visibility, owner, viewer)) {
+    return <UnpublishedAlbum />;
+  }
   if (!canViewAlbum(settings.visibility, owner, viewer)) notFound();
   const { parts = [] } = await params;
   if (parts.length > 1) notFound();

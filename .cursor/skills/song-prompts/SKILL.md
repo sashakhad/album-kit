@@ -27,6 +27,12 @@ Use the album's saved `promptWriter`, `promptWriterModel` and `sunoModel` as def
 
 The ordinary flow uses the saved choices without a per-song model discussion. When a model change alters cost, output count, compatibility or the sound the owner requested, explain that difference before the round is authorized. Never invent pricing or assume that faster, newer or more experimental is universally better.
 
+## Lyrics
+
+Settings default `vocals` to `instrumental`. For that default, the sheet's Lyrics field is `[Instrumental]` and `suno-run` sends no lyric.
+
+When the owner wants vocals, or the song is sung, do not leave that default in place. Set `vocals` to `sung`, or to `chops` when they asked for vocal chops. Write original lyrics into the sheet's Lyrics field. Do not copy an existing song. A title joke may appear in the lyric; it still stays out of Style. For chops, write a short original chop line unless they asked for a full lyric. `suno-run` sends those lyrics in Suno's custom mode, the `lyrics` field, with Style and Title.
+
 ## Write and check
 
 Produce exactly the requested number of distinct musical lanes. Put genre and concrete groove early; describe defining sounds, arrangement, hooks, dynamics and a useful production direction. Honor the album job, vocals and constraints. Keep each Style paragraph under 900 characters. Keep the joke, title, funny framing and vocal negations out of Style; use the Title, Instrumental, Lyrics and Exclude fields for their intended roles. Apply `src/lib/rounds/prompt-quality.ts` and check the sheet's count and the owner's exact constraints. For a variation, check that the revision preserves the parent's requested features and applies the edit instructions without changing tracks.
@@ -37,4 +43,4 @@ Persist the result in `album/tracks/<NN>-<slug>.md`, not only chat. Include a sh
 
 The same attribution is sent in `POST /api/owner/rounds` so the immutable round snapshot and eventual `TakeProvenance` keep it with the audio. A variation round sends `variationRequestId`, one track and one prompt; the round and take records carry the parent filename and edit instructions. A sheet is the editable source, while the round snapshot records exactly what was approved and run.
 
-Stop after the prompt sheet. A saved model preference, written Style, or More like this request never authorizes Suno spending. Follow `suno-run` for live capabilities, estimate, explicit round allowance, operation IDs, generation, and intake. Respect any generation HOLD, including GOR-41; do not bypass it to test this skill.
+Stop after the prompt sheet. A saved model preference, written Style, or More like this request never authorizes Suno spending. Follow `suno-run` for live capabilities, estimate, explicit round allowance, operation IDs, generation, and intake.

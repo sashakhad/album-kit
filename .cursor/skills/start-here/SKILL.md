@@ -3,7 +3,7 @@ name: start-here
 description: First run of a new album. Collect essentials, set up the user's project, connect Suno, and prepare the first round.
 ---
 
-# Start here · version 7
+# Start here · version 8
 
 ## Readiness and resume
 
@@ -30,7 +30,7 @@ Say:
 >
 > What that buys: each Suno Create costs 10 credits and makes 2 takes. I write 5 prompts per track, so one track's round is about 50 credits and 10 takes. A 10-track album's first round is about 500 credits. Pro covers roughly 5 full rounds, Premier roughly 20.
 >
-> There is a free way, but it's clunkier: Suno Free gives 50 credits a day (10 takes), only the v6-mini model, no downloads, and no commercial rights. Takes have to be public on Suno to play on your site, and you can't keep final files. Fine for a one-track test, slow for an album.
+> There is a free way, but it's clunkier: Suno Free gives 50 credits a day (10 takes), only the v6-mini model, no downloads, and no commercial rights. Takes have to be public on Suno to play on your site, and you can't keep final files. Fine for a one- or two-track test, slow for an album.
 >
 > Before we make anything, a quick setup. I do most of it; you just sign in and approve:
 >
@@ -38,18 +38,19 @@ Say:
 > 2. GitHub. A free account. Your album's files live in a private repo there.
 > 3. Vercel. A free Hobby account. It hosts your album site, plus its database and storage.
 > 4. An owner password for your site. I'll ask for it on a secret card, never in chat.
+> 5. Public or private. I'll ask whether the album site should be public, or private for you and people you invite. Until you choose, the site link says the album isn't published yet.
 >
-> Then tell me the album name, genre, and any track titles you have. Say "small test" if you want to start with one track and 4 takes (about 20 credits).
+> Then tell me the album name, genre, and any track titles you have. Say "small test" if you want to start with one or two tracks and 4 takes each (about 20 credits per track).
 
-Extract all essentials already supplied. Ask for missing album name, genre and track titles together. Artist credit, mood and vocals are optional. If the user wants to move quickly, use a genre-appropriate instrumental default and state it once. Do not ask for an abstract album rule. Title humor stays out of Style prompts as a standing rule. If the user requests a small test, keep exactly one track, two prompts and one generation per prompt.
+Extract all essentials already supplied. Ask for missing album name, genre and track titles together. Artist credit, mood and vocals are optional. If the user wants to move quickly, use a genre-appropriate instrumental default and state it once. That default is settings `vocals: instrumental`, which sends no lyrics. If they want a sung song, set `vocals` to `sung` and follow `song-prompts` to write original lyrics into the sheet. Do not ask for an abstract album rule. Title humor stays out of Style prompts as a standing rule. If the user requests a small test, use one or two tracks, two prompts and one generation per prompt on each track. That is 4 takes and about 20 credits per track.
 
 ## Choose the path
 
 - Quick start: Grok Bot writes five prompt variations per track; Suno generates audio. No Cursor installation or model API key is needed.
 - Studio: a connected Cursor project may write selected prompt slots. Require verified execution and observed model information; otherwise offer a Cursor handoff or continue with Quick start.
-- Small test: one track, two prompts, one generation per prompt, including streaming and voting.
+- Small test: one or two tracks, two prompts and one generation per prompt on each (4 takes, about 20 credits per track), including streaming and voting.
 
-The user's explicit request overrides these presets. The default site Settings page can change future rounds. Ask the sharing questions before publishing album content, and leave both answers unset until the owner answers. Ask the review-take question in the same first-run setup. `reviewTakes` stays `public` until the owner chooses private.
+The user's explicit request overrides these presets. The default site Settings page can change future rounds. Ask the sharing questions during setup, before the site is treated as shared, and leave both answers unset until the owner answers. While visibility is unset, the site URL shows: This album isn't published yet — the owner can choose public or private in Settings. If a Site: line goes out before the owner answers, ask question 1 in that message. Ask the review-take question in the same first-run setup. `reviewTakes` stays `public` until the owner chooses private.
 
 1. **“Should the album site be public, or private for you and people you invite?”**
    - Public means anyone can open the home page and Listen. Listen plays the owner’s chosen or highest-scored takes. Enabling listener voting also lets people preview current takes.
@@ -88,7 +89,17 @@ For Studio, run `pnpm onboarding path studio`. Check Cursor installation and a c
 
 Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
 
-Ask the owner to pick an owner password with a secret card before `pnpm setup:site --name <album-slug> --password-stdin`. Pipe the password on stdin. Do not generate one, pass it as an argument, or paste it into chat. The password is stored as `ALBUM_KEY` and in ignored `.album-key`. If `ALBUM_KEY` already exists, leave it; an owner-chosen password already on the project keeps working. Setup also creates the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. As soon as setup prints `Milestone: Site created.` and the site URL, send that sentence to the owner. Do not wait for prompts or generation, and do not paste the JSON line that follows it. That line does not contain the password. Tell the owner to open `/key`, which is labeled **Owner password**, and enter the password they picked. This browser stays signed in. Every setup and round message includes the site URL. When visibility is private or still unset, include the site URL. Send `pnpm owner:link /settings` only if they cannot type the password. It prints `Site:` and `Owner:`. The owner link's secret stays in the URL fragment. Never put the owner password in the message or in a query string. The link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Confirm the owner can reach Settings. After settings are saved, say which values were saved. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. In Settings, **Owner access** can change the password, create a fallback owner link, or show the password. To reset without the old password, pipe a new one to `pnpm owner:password` and redeploy. The website and `pnpm album:settings` use the same authenticated `/api/owner/settings` record in the album database. Set visibility and `listenerVoting` only after the owner has answered. Set `reviewTakes` from the question widget card, and leave the default `public` if they have not answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass.
+Ask the owner to pick an owner password with a secret card before `pnpm setup:site --name <album-slug> --password-stdin`. Pipe the password on stdin. Do not generate one, pass it as an argument, or paste it into chat. The password is stored as `ALBUM_KEY` and in ignored `.album-key`. If `ALBUM_KEY` already exists, leave it; an owner-chosen password already on the project keeps working. Setup also creates the Vercel project, database and **private** Blob store. It may require a browser handoff for the database. Existing public stores must be migrated before private visibility is enabled. As soon as setup prints `Milestone: Site created.` and the site URL, send that sentence to the owner. Do not wait for prompts or generation, and do not paste the JSON line that follows it. That line does not contain the password. Tell the owner to open `/key`, which is labeled **Owner password**, and enter the password they picked. This browser stays signed in. Every setup and round message includes the site URL. When visibility is private or still unset, include the site URL. Send `pnpm owner:link /settings` only if they cannot type the password. It prints `Site:` and `Owner:`. The owner link's secret stays in the URL fragment. Never put the owner password in the message or in a query string. The link works once and stays valid for 7 days. After Continue as owner, that browser stays signed in. Confirm the owner can reach Settings. After settings are saved, say which values were saved. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. In Settings, **Owner access** can change the password, create a fallback owner link, or show the password. To reset without the old password, pipe a new one to `pnpm owner:password` and redeploy. The website and `pnpm album:settings` use the same authenticated `/api/owner/settings` record in the album database. Set visibility and `listenerVoting` only after the owner has answered. Set `reviewTakes` from the question widget card, and leave the default `public` if they have not answered. Check the selected branch, project owner, environment and deployment. The URL is shareable only after visibility and access checks pass. When you send that site URL during setup, ask question 1 if the owner has not chosen public or private. The page they open says the album isn't published yet until they do.
+
+### Vercel and GitHub sign-in
+
+`pnpm setup:site` needs a signed-in Vercel CLI and, for the private repo, a signed-in GitHub CLI. A Grok Bot owner signs those in themselves. The bot does not type the password.
+
+1. In the album checkout, the owner runs `npx vercel login` and finishes it in the browser. Until `vercel whoami` succeeds, `pnpm setup:site` exits 2 with `Not signed in to Vercel. Run: npx vercel login`.
+2. The owner runs `gh auth login` and finishes it in the browser. If setup exits 5, the site exists and GitHub does not. Report the `BLOCKER:` sentence, then run `pnpm album:github` after `gh auth login`.
+3. Neon is `vercel integration add neon`. If setup exits 3, the owner finishes that step in the browser and you run `pnpm setup:site` again. `pnpm onboarding status` prints `Next:` when Vercel or GitHub sign-in is still the next step.
+
+No-CLI path, when this runtime cannot complete an interactive login (no TTY, or the GitHub token cannot create repos): do not block the album on the CLIs, and do not block generation. Create the Vercel project, Neon database, and private Blob store from the owner's Vercel account in the browser, and the private GitHub repo from their GitHub account. Set `DATABASE_URL`, `BLOB_READ_WRITE_TOKEN`, `BLOB_ACCESS=private`, `PRIVATE_BLOB_AUDITED=true`, and `ALBUM_KEY`. Connect the Vercel project to that repo so a push deploys. Do not run `vercel deploy`. Write `.album-site.json` with `siteUrl`, `project`, `"deploy": "git"`, and `kitSource`. Then follow the `suno-run` backfill for any jobs that already ran. `pnpm onboarding status` still names the missing CLI sign-in until the CLIs work. That line is the CLI path, not a reason to skip generation.
 
 After the owner actually reaches Settings, run `pnpm onboarding confirm-owner-access`. This stores the current site URL so a later project change makes that checkpoint pending again. Resume an interrupted Vercel or Neon setup by checking the live account and rerunning `pnpm setup:site`; its existing project and environment checks avoid starting over.
 

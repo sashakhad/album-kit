@@ -38,6 +38,25 @@ describe('round preflight', () => {
     });
   });
 
+  it('charges about 20 generation credits per Small test track', () => {
+    const settings = { ...DEFAULT_SETTINGS, ...presetSettings('small-test') };
+    const estimate = estimateRound({
+      tracks: 2,
+      settings,
+      capabilities,
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(estimate).toMatchObject({
+      tracks: 2,
+      prompts: 4,
+      generations: 4,
+      expectedOutputs: 8,
+      generationCredits: 40,
+      blockers: [],
+    });
+  });
+
   it('blocks a missing pinned model until the owner chooses a verified replacement', () => {
     const estimate = estimateRound({
       tracks: 1,

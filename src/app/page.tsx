@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
+import { UnpublishedAlbum } from '@/components/album/UnpublishedAlbum';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { formatNumberExact } from '@/lib/formatters';
 import { isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
-import { canCastVote, canViewAlbum } from '@/lib/settings/access';
+import { awaitingPublication, canCastVote, canViewAlbum } from '@/lib/settings/access';
 import { notFound } from 'next/navigation';
 import { isViewer } from '@/lib/owner/viewer';
 
@@ -20,6 +21,9 @@ export default async function Home() {
     loadSettings(),
     isViewer(),
   ]);
+  if (awaitingPublication(settings.visibility, owner, viewer)) {
+    return <UnpublishedAlbum />;
+  }
   if (!canViewAlbum(settings.visibility, owner, viewer)) notFound();
   const trackCount = config.tracks.filter(track => track.parked !== true).length;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canCastVote, canViewAlbum, shareTarget } from '@/lib/settings/access';
+import { awaitingPublication, canCastVote, canViewAlbum, shareTarget } from '@/lib/settings/access';
 
 describe('album access', () => {
   it('lets the owner see and vote in every visibility', () => {
@@ -17,6 +17,13 @@ describe('album access', () => {
     expect(canViewAlbum('private', false, true)).toBe(true);
     expect(canViewAlbum('private', false, false)).toBe(false);
     expect(canViewAlbum('unset', false, false)).toBe(false);
+  });
+
+  it('explains an unpublished album only while visibility is unset and the visitor cannot see it', () => {
+    expect(awaitingPublication('unset', false, false)).toBe(true);
+    expect(awaitingPublication('unset', true, false)).toBe(false);
+    expect(awaitingPublication('public', false, false)).toBe(false);
+    expect(awaitingPublication('private', false, false)).toBe(false);
   });
 
   it('blocks non-owner votes while listener voting is off', () => {

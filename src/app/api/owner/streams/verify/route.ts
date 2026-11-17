@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     waiting: result.waiting,
     failed: result.failed,
     total: result.total,
+    retried: result.retried,
     line: result.line,
   });
 }

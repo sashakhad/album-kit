@@ -38,6 +38,13 @@ const ONBOARDING_PHRASES = [
       'Do not say takes are still generating',
       'pnpm takes:verify',
       'streams returned 200',
+      'one or two tracks',
+      'about 20 credits per track',
+      "This album isn't published yet",
+      'npx vercel login',
+      'custom-mode lyrics field',
+      'Retried newly published files that returned 403.',
+      'no-CLI path',
     ],
   },
   {
@@ -54,6 +61,12 @@ const ONBOARDING_PHRASES = [
       'Do not go silent',
       'Every setup and round message includes the site URL',
       'stays valid for 7 days',
+      'one or two tracks',
+      'about 20 credits per track',
+      "This album isn't published yet",
+      'npx vercel login',
+      'No-CLI path',
+      'original lyrics',
     ],
   },
   {
@@ -64,6 +77,9 @@ const ONBOARDING_PHRASES = [
       'Downloading a song from Suno uses Suno download credits, which are limited per month.',
       'public MP4',
       'stops playing',
+      'one or two tracks',
+      'about 20 credits per track',
+      "This album isn't published yet",
     ],
   },
   {
@@ -84,8 +100,26 @@ const ONBOARDING_PHRASES = [
       'Do not say takes are still generating',
       'pnpm takes:verify',
       'streams returned 200',
+      'costModel',
+      'downloadsPerOutput',
+      'hostingEligibilityVerified',
+      'about 20 generation credits per track',
+      'backfill',
+      'custom mode',
+      'Retried newly published files that returned 403.',
+      'vercel integration add neon',
     ],
   },
+];
+
+const PLAYBOOK_SKILLS = [
+  'start-here',
+  'album-track',
+  'song-prompts',
+  'suno-run',
+  'judge',
+  'finish',
+  'publish',
 ];
 
 const problems = [];
@@ -215,6 +249,35 @@ function checkForLeaks(file, lines) {
   }
 }
 
+async function checkSkillNames(skillDirs) {
+  const names = new Set(skillDirs.map(dir => path.basename(dir)));
+  for (const name of PLAYBOOK_SKILLS) {
+    if (!names.has(name)) {
+      problems.push(`missing skill ${name}`);
+    }
+  }
+  for (const file of [path.join(ROOT, 'grokbot', 'BOT.md'), path.join(ROOT, 'README.md')]) {
+    const text = await readFile(file, 'utf8');
+    if (text.includes('album-making')) {
+      report(file, 1, 'names album-making, which is not a skill');
+    }
+    for (const name of PLAYBOOK_SKILLS) {
+      if (!text.includes(name)) {
+        report(file, 1, `does not name the ${name} skill`);
+      }
+    }
+  }
+
+  const prompts = path.join(ROOT, '.cursor', 'skills', 'song-prompts', 'SKILL.md');
+  const promptText = await readFile(prompts, 'utf8');
+  if (promptText.includes('GOR-41')) {
+    report(prompts, 1, 'still mentions GOR-41');
+  }
+  if (!promptText.includes('original lyrics') || !promptText.includes('custom mode')) {
+    report(prompts, 1, 'lyrics guidance is missing');
+  }
+}
+
 async function checkOnboardingCopy() {
   for (const entry of ONBOARDING_PHRASES) {
     let text;
@@ -238,6 +301,7 @@ async function checkOnboardingCopy() {
 async function main() {
   await checkOnboardingCopy();
   const skillDirs = await listSkillDirs();
+  await checkSkillNames(skillDirs);
   if (skillDirs.length === 0) {
     problems.push(`${path.relative(ROOT, SKILLS_DIR)}: no skills found`);
   }

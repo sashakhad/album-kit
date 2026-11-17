@@ -7,7 +7,7 @@ import { SiteHeader } from '@/components/album/SiteHeader';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { isOwner } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
-import { canCastVote, canViewAlbum } from '@/lib/settings/access';
+import { awaitingPublication, canCastVote, canViewAlbum } from '@/lib/settings/access';
 import { isViewer } from '@/lib/owner/viewer';
 
 import './globals.css';
@@ -26,6 +26,9 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const [owner, settings, viewer] = await Promise.all([isOwner(), loadSettings(), isViewer()]);
+  if (awaitingPublication(settings.visibility, owner, viewer)) {
+    return { title: "This album isn't published yet", robots: { index: false, follow: false } };
+  }
   if (!canViewAlbum(settings.visibility, owner, viewer))
     return { title: 'Private album', robots: { index: false, follow: false } };
   const { title, artist } = await albumHeading();
@@ -50,12 +53,17 @@ export default async function RootLayout({
     isViewer(),
   ]);
   const canListen = canViewAlbum(settings.visibility, owner, viewer);
+  const heading = siteHeading(
+    canListen,
+    awaitingPublication(settings.visibility, owner, viewer),
+    title
+  );
 
   return (
     <html lang='en' className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className='font-sans antialiased'>
         <SiteHeader
-          albumTitle={canListen ? title : 'Private album'}
+          albumTitle={heading}
           isOwner={owner}
           showListen={canListen}
           showVote={canCastVote({
@@ -79,6 +87,16 @@ export default async function RootLayout({
       </body>
     </html>
   );
+}
+
+function siteHeading(canListen: boolean, unpublished: boolean, title: string): string {
+  if (canListen) {
+    return title;
+  }
+  if (unpublished) {
+    return 'Album';
+  }
+  return 'Private album';
 }
 
 async function albumHeading(): Promise<{ title: string; artist: string }> {

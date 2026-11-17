@@ -8,6 +8,15 @@ export function canViewAlbum(
   return owner || visibility === 'public' || (visibility === 'private' && viewer);
 }
 
+/** The site link should explain itself while the owner has not chosen public or private. */
+export function awaitingPublication(
+  visibility: AlbumSettingsValue['visibility'],
+  owner: boolean,
+  viewer = false
+): boolean {
+  return visibility === 'unset' && !canViewAlbum(visibility, owner, viewer);
+}
+
 export function canCastVote(args: {
   visibility: AlbumSettingsValue['visibility'];
   listenerVoting: boolean;
