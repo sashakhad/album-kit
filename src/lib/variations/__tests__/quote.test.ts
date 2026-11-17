@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_SETTINGS } from '@/lib/settings/schema';
-import { estimateVariation, type WebhookQuote } from '../quote';
+import { allowanceQuoteProvider, estimateVariation, type WebhookQuote } from '../quote';
 
 function provider(overrides: Partial<WebhookQuote['capabilities']> = {}): WebhookQuote {
   return {
@@ -92,6 +92,26 @@ describe('site variation quote', () => {
     });
     expect(quote.blockers).toEqual(expect.arrayContaining([expect.stringContaining('fixture')]));
     expect(quote.generationCredits).toBe(10);
+  });
+
+  it('prices a saved model without a webhook and does not mention one', () => {
+    const quote = estimateVariation({
+      requestedTakes: 2,
+      settings: { ...DEFAULT_SETTINGS, sunoModel: 'v6-mini', variationCreditAllowance: 50 },
+      creditsAlreadyReserved: 0,
+      provider: allowanceQuoteProvider({ ...DEFAULT_SETTINGS, sunoModel: 'v6-mini' }),
+    });
+    expect(quote).toMatchObject({
+      model: 'v6-mini',
+      generationCredits: 10,
+      expectedOutputs: 2,
+      blockers: [],
+      requiresConfirmation: false,
+    });
+    expect(quote.blockers.join(' ')).not.toMatch(/webhook/i);
+    const automatic = allowanceQuoteProvider(DEFAULT_SETTINGS);
+    expect(automatic.capabilities.costModel).toBe('v6');
+    expect(automatic.fixture).toBeUndefined();
   });
 
   it('asks for confirmation when there is a USD charge even within the credit allowance', () => {

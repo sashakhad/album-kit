@@ -161,6 +161,9 @@ model VariationRequest {
   quotedDownloadCredits  Int?
   quotedExternalSpendUsd Float?
   quotedHostingChargeUsd Float?
+  workerPayload          Json?
+  claimToken             String?
+  claimExpiresAt         DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

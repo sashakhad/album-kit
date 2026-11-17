@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   round: {} as Record<string, unknown>,
 }));
 
+vi.mock('server-only', () => ({}));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     variationRequest: {
@@ -58,6 +59,43 @@ describe('variation worker callback', () => {
     state.round.status = 'ready-to-listen';
     expect((await POST(request({ status: 'ready', roundId: 'round-1' }))).status).toBe(200);
     expect(state.row.status).toBe('ready');
+  });
+
+  it('accepts the album write token when no webhook secret is set', async () => {
+    delete process.env.ALBUM_VARIATION_WEBHOOK_SECRET;
+    vi.stubEnv('ALBUM_WRITE_TOKEN', 'write-token');
+    state.round.status = 'ready-to-listen';
+    const ready = await POST(
+      new Request('http://localhost/api/owner/variations/callback', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer write-token' },
+        body: JSON.stringify({
+          requestId: id,
+          operationId: id,
+          status: 'ready',
+          roundId: 'round-1',
+        }),
+      })
+    );
+    expect(ready.status).toBe(200);
+    expect(state.row.status).toBe('ready');
+    state.row.status = 'generating';
+    const denied = await POST(
+      new Request('http://localhost/api/owner/variations/callback', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer someone-else' },
+        body: JSON.stringify({
+          requestId: id,
+          operationId: id,
+          status: 'failed',
+          reason: 'Stopped',
+          chargeApplied: false,
+        }),
+      })
+    );
+    expect(denied.status).toBe(401);
+    expect(state.row.status).toBe('generating');
+    vi.unstubAllEnvs();
   });
 
   it('records a failure reason and releases only known unspent credits', async () => {

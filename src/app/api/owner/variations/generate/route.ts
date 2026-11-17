@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Prisma } from '@/generated/prisma/client';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -8,8 +10,13 @@ import { DEFAULT_SETTINGS, settingsPatchSchema, settingsSchema } from '@/lib/set
 import { isBlindForSnapshot } from '@/lib/votes/exposure';
 import { getVoteSnapshot } from '@/lib/votes/board';
 import type { VariationQuote } from '@/lib/variations/quote';
+import { buildWorkerPayload, CLAIM_LEASE_MS } from '@/lib/variations/pull';
 import { loadVariationQuote } from '@/lib/variations/service';
-import { callVariationWebhook, VariationWebhookError } from '@/lib/variations/webhook';
+import {
+  callVariationWebhook,
+  variationWebhookConfigured,
+  VariationWebhookError,
+} from '@/lib/variations/webhook';
 
 export const runtime = 'nodejs';
 
@@ -83,6 +90,16 @@ export async function POST(request: Request) {
       { error: 'The cost changed. Review the new estimate.', quote },
       { status: 409 }
     );
+  const webhookOn = variationWebhookConfigured();
+  const workerPayload = buildWorkerPayload({
+    context,
+    quote,
+    operationId: row.id,
+    liveAccountChecked: webhookOn && loaded.liveAccountChecked !== false,
+    dispatch: webhookOn ? 'webhook-pending' : 'pull',
+  });
+  const heldToken = webhookOn ? randomUUID() : null;
+  const heldUntil = webhookOn ? new Date(Date.now() + CLAIM_LEASE_MS) : null;
   try {
     for (let attempt = 0; ; attempt += 1) {
       try {
@@ -137,6 +154,9 @@ export async function POST(request: Request) {
                 quotedExternalSpendUsd: quote.externalSpendEstimateUsd,
                 quotedHostingChargeUsd: quote.hostingChargeEstimateUsd,
                 dispatchError: null,
+                workerPayload: workerPayload as Prisma.InputJsonValue,
+                claimToken: heldToken,
+                claimExpiresAt: heldUntil,
               },
             });
             if (changed.count !== 1)
@@ -166,16 +186,18 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
+  if (!webhookOn) {
+    return NextResponse.json({ status: 'generating', requestId: row.id }, { status: 202 });
+  }
   try {
-    const accepted = acceptedSchema.parse(
-      await callVariationWebhook('generate', {
-        ...context,
-        operationId: row.id,
-        quote,
-        callbackPath: '/api/owner/variations/callback',
-      })
-    );
+    const accepted = acceptedSchema.parse(await callVariationWebhook('generate', workerPayload));
     if (accepted.operationId !== row.id) throw new Error('Webhook operation ID did not match.');
+    await prisma.variationRequest.updateMany({
+      where: { id: row.id, status: 'generating' },
+      data: {
+        workerPayload: { ...workerPayload, dispatch: 'webhook-accepted' } as Prisma.InputJsonValue,
+      },
+    });
     return NextResponse.json({ status: 'generating', requestId: row.id }, { status: 202 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Generation was not confirmed.';
@@ -188,6 +210,12 @@ export async function POST(request: Request) {
         // live so late worker progress can reconcile without a second paid call.
         status: definitelyNotCharged ? 'failed' : 'generating',
         dispatchError: message,
+        workerPayload: {
+          ...workerPayload,
+          dispatch: definitelyNotCharged ? 'webhook-rejected' : 'webhook-uncertain',
+        } as Prisma.InputJsonValue,
+        claimToken: null,
+        claimExpiresAt: null,
         ...(definitelyNotCharged ? { creditsReserved: 0 } : {}),
       },
     });

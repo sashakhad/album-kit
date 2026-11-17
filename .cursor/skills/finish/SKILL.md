@@ -3,7 +3,7 @@ name: finish
 description: Use when the owner reviews which takes play on Listen.
 ---
 
-# Finish · version 7
+# Finish · version 8
 
 Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for someone with comparison access. A specific pick is not chosen on the Compare takes card.
 
@@ -14,7 +14,7 @@ Compare takes is where the owner listens and scores. Listen plays the highest po
 
 ## Steps
 
-1. Open Compare takes on the album site. Every message includes the site URL. Do not paste `ALBUM_WRITE_TOKEN`.
+1. Open Compare takes on the album site. Every message includes the site URL. Do not paste `ALBUM_WRITE_TOKEN`. If the page says more takes are generating, follow `suno-run`: claim that operation, make the takes, and post them beside the parent. Do not ask the owner to copy a link or a key, and do not describe how the site reaches you.
 2. The highest scores appear first for each track. Score a take on its chip (tap the score for −/+) or in the player’s Score panel. The two stay in sync. Listener votes, when they are on, show on each chip and do not choose what plays.
 3. Listen follows those scores, including ties. The Compare takes card has no On Listen row and no Use/Keep button. A pin saved earlier still overrides the scores until it is cleared. The server resolves blind aliases. A saved choice overrides file-backed picks in `album/album.json`.
 4. Open `<siteUrl>/listen` and verify that the chosen track plays from its stored stream, or from its uploaded file when it has no stream. For a public site, check without the key that pinned audio plays and an unpinned canonical file does not. For a private site, check with a valid invited-listener session; signed-out pages and the take list must stay closed.

@@ -10,17 +10,35 @@ const state = vi.hoisted(() => ({
   reserved: 0,
   otherUsd: 0,
   webhook: vi.fn(),
+  webhookConfigured: true,
   blind: false,
 }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/owner/auth', () => ({ OWNER_VISITOR_ID: 'owner', requireOwner: () => null }));
+vi.mock('@/lib/owner/auth', () => ({
+  OWNER_VISITOR_ID: 'owner',
+  requireOwner: () => null,
+  isWriteRequest: () => false,
+}));
 vi.mock('@/lib/votes/board', () => ({ getVoteSnapshot: async () => ({ currentRound: 1 }) }));
 vi.mock('@/lib/votes/exposure', () => ({ isBlindForSnapshot: async () => state.blind }));
 vi.mock('@/lib/variations/service', () => ({
   loadVariationQuote: async () => ({
     settings: state.settings,
-    context: { requestId: id },
+    context: {
+      requestId: id,
+      trackNumber: 1,
+      trackTitle: 'Track One',
+      parentTakeFilename: 'v1-01-track-one-p1-takea.mp3',
+      parentStyle: 'warm bass and a steady hook',
+      requestedTakes: 2,
+      instructions: '',
+      sunoModelPolicy: 'auto',
+      promptWriter: 'grok-bot',
+      promptWriterModel: 'auto',
+      reviewTakes: 'public',
+    },
+    liveAccountChecked: true,
     quote: {
       quoteKey: 'a'.repeat(64),
       generationCredits: 10,
@@ -35,6 +53,7 @@ vi.mock('@/lib/variations/service', () => ({
 }));
 vi.mock('@/lib/variations/webhook', () => ({
   callVariationWebhook: state.webhook,
+  variationWebhookConfigured: () => state.webhookConfigured,
   VariationWebhookError: class VariationWebhookError extends Error {
     constructor(
       message: string,
@@ -97,6 +116,7 @@ beforeEach(() => {
   state.reserved = 0;
   state.otherUsd = 0;
   state.blind = false;
+  state.webhookConfigured = true;
   state.webhook.mockReset().mockResolvedValue({ operationId: id, status: 'accepted' });
 });
 
@@ -114,6 +134,41 @@ describe('site generation dispatch', () => {
     );
     expect((await POST(request())).status).toBe(200);
     expect(state.webhook).toHaveBeenCalledTimes(1);
+    expect(state.row.workerPayload).toMatchObject({
+      operationId: id,
+      parentStyle: 'warm bass and a steady hook',
+      allowanceReserved: 10,
+      dispatch: 'webhook-accepted',
+    });
+  });
+
+  it('stores the worker payload and stays generating when no webhook is configured', async () => {
+    state.webhookConfigured = false;
+    const response = await POST(request());
+    expect(response.status).toBe(202);
+    const body: unknown = await response.json();
+    expect(body).toEqual({ status: 'generating', requestId: id });
+    expect(JSON.stringify(body)).not.toMatch(/webhook/i);
+    expect(state.webhook).not.toHaveBeenCalled();
+    expect(state.row).toMatchObject({
+      status: 'generating',
+      creditsReserved: 10,
+      dispatchError: null,
+      claimToken: null,
+      claimExpiresAt: null,
+    });
+    expect(state.row.workerPayload).toMatchObject({
+      kind: 'generate',
+      operationId: id,
+      parentStyle: 'warm bass and a steady hook',
+      allowanceReserved: 10,
+      creditsReserved: 10,
+      callbackPath: '/api/owner/variations/callback',
+      liveAccountChecked: false,
+      dispatch: 'pull',
+    });
+    expect((await POST(request())).status).toBe(200);
+    expect(state.webhook).not.toHaveBeenCalled();
   });
 
   it('requires in-form confirmation when the saved balance is insufficient', async () => {

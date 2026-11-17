@@ -16,6 +16,34 @@ export const webhookQuoteSchema = z.object({
 
 export type WebhookQuote = z.infer<typeof webhookQuoteSchema>;
 
+const STANDARD_CREDITS_PER_GENERATION = 10;
+const STANDARD_OUTPUTS_PER_GENERATION = 2;
+
+/** Cost shown when no webhook is configured. Album Bot rechecks the live account before spending. */
+export function allowanceQuoteProvider(
+  settings: AlbumSettingsValue,
+  now: Date = new Date()
+): WebhookQuote {
+  const model = settings.sunoModel === 'auto' ? 'v6' : settings.sunoModel;
+  return {
+    capabilities: {
+      availableModels: [model],
+      qualityDefault: model,
+      costModel: model,
+      creditsPerGeneration: STANDARD_CREDITS_PER_GENERATION,
+      outputsPerGeneration: STANDARD_OUTPUTS_PER_GENERATION,
+      downloadsPerOutput: 0,
+      generationCreditsAvailable: 1_000_000,
+      downloadsAvailable: 0,
+      checkedAt: now.toISOString(),
+    },
+    writerReady: settings.promptWriter !== 'cursor',
+    hostingEligibilityVerified: true,
+    externalSpendEstimateUsd: 0,
+    hostingChargeEstimateUsd: 0,
+  };
+}
+
 export function estimateVariation(args: {
   requestedTakes: number;
   settings: AlbumSettingsValue;

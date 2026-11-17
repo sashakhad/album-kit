@@ -4,11 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Reference worker for the More takes webhook.
- *
- * It never calls Suno and never spends credits. Its quote is marked fixture,
- * and the site refuses to start a paid run from a fixture. Album Bot implements
- * this same HTTP contract with a live Suno check, then calls back ready or failed.
+ * Optional fast-path shape for More takes. Album Bot pulls pending operations
+ * and does not need this server. It never calls Suno and never spends credits.
+ * Its quote is marked fixture, and the site refuses to start a paid run from a
+ * fixture. A live worker checks the account, then calls back ready or failed.
  *
  *   ALBUM_VARIATION_WEBHOOK_SECRET=local node scripts/variation-worker.mjs
  */

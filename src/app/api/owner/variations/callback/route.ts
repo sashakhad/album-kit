@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import { isWriteRequest } from '@/lib/owner/auth';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
@@ -23,6 +24,7 @@ const callbackSchema = z.discriminatedUnion('status', [
 ]);
 
 function authorized(request: Request): boolean {
+  if (isWriteRequest(request)) return true;
   const secret = process.env.ALBUM_VARIATION_WEBHOOK_SECRET;
   const token = request.headers.get('authorization')?.replace(/^Bearer /i, '');
   if (!secret || !token) return false;

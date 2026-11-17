@@ -56,6 +56,7 @@ describe('visible More takes form', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Confirm and generate' }));
     expect(await screen.findByText('More takes are generating on this track.')).toBeInTheDocument();
+    expect(screen.queryByText(/webhook/i)).not.toBeInTheDocument();
     const dispatch = fetcher.mock.calls.find(([url]) => url === '/api/owner/variations/generate');
     expect(JSON.parse(dispatch![1]!.body as string)).toMatchObject({
       quoteKey: quote.quoteKey,

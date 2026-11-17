@@ -32,7 +32,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
    - Only the owner starts the next round, with the Next round button on `/vote` or by asking you.
    - Visible mode shows the selected take's Style prompt in the collapsed Prompt section below the playback controls. Blind modes hide it until the selected reveal point.
    - Listen follows the highest positive owner score per track and includes ties. Score a take from its chip or from the player’s Score panel; those stay in sync. Tap a chip’s score for inline −/+. Listener votes, when voting is on, show on each take chip and do not choose what plays. Compare takes does not pin a take.
-   - **More like this** can save a request for the selected take during a blind pass without revealing its identity. After the pass is revealed, Generate on Compare takes checks the live cost and starts the work. From the album checkout, run `pnpm owner:link /vote` and send that link with the site URL. Do not ask a question about it. Saving the request never spends Suno credits. Do not say you will prepare an estimate. Do not mention cost unless they ask or it matters.
+   - **More like this** can save a request for the selected take during a blind pass without revealing its identity. After the pass is revealed, Generate on Compare takes checks the live cost and starts the work. Follow `suno-run` to claim the pending operation. Do not ask the owner to copy a link or a key. From the album checkout, run `pnpm owner:link /vote` and send that link with the site URL. Do not ask a question about it. Saving the request never spends Suno credits. Do not say you will prepare an estimate. Do not mention cost unless they ask or it matters.
 
 2. **Read the scores.**
 

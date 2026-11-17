@@ -40,18 +40,22 @@ When cost does not matter, do not read the estimate aloud and do not ask. Say wh
 
 ## More like this requests
 
-Generate on Compare takes is the owner’s one-click path. The site shows the live cost and, within the saved More takes allowance, starts the work. It POSTs `kind: "quote"` and `kind: "generate"` to `ALBUM_VARIATION_WEBHOOK_URL`. You serve that webhook from a Grok Bot routine. Do not ask the owner to configure it. The browser never sees `ALBUM_WRITE_TOKEN` or `ALBUM_VARIATION_WEBHOOK_SECRET`. A public visitor cannot call Generate.
+Generate on Compare takes is the owner’s one-click path. The site shows the live cost and, within the saved More takes allowance, starts the work. The browser never sees `ALBUM_WRITE_TOKEN`. A public visitor cannot call Generate. Do not ask the owner to copy a URL or a key. Do not mention webhooks, tokens, servers, or setup.
 
 From the album checkout, as soon as the site answers, run `pnpm owner:link /vote` and paste the `Site:` and `Owner:` lines. Do not ask a question and do not explain the link.
 
-`scripts/variation-worker.mjs` shows the HTTP shape and never calls Suno. Do not configure it as the album webhook. When your routine receives the POST:
+Right after the owner clicks Generate, and again on the check-in timer, `GET /api/owner/variations/pending` with the write token already in this checkout. `POST /api/owner/variations/claim` with `{ "operationId" }`. Save `claimToken` and send it again before the 10 minute lease expires while you are still working. A 409 means another worker holds the operation. Do not generate it. After the lease expires, claim it again. Never start a second Suno call for an operation id that already has a job.
+
+The payload has the quote context, `parentStyle`, `operationId`, and `allowanceReserved`. If `roundId` is set, do not generate again. Finish that round and call ready or failed. If `liveAccountChecked` is false, check the live account, the saved model, and the allowance before spending. If they differ from the reserved quote, callback `failed` with `chargeApplied: false` and do not generate. If `dispatch` is `webhook-accepted` or `webhook-uncertain`, reconcile that same operation id.
+
+`scripts/variation-worker.mjs` shows an optional HTTP shape and never calls Suno. Do not ask the owner to configure it. If `ALBUM_VARIATION_WEBHOOK_URL` is already set, that POST is only a fast path. An uncertain receipt stays generating. Dedupe by operation id. When a POST arrives:
 
 1. Read `operationId`. If that id was already accepted, return `{ "operationId", "status": "accepted" }` and do not generate again.
 2. On quote, check the live account and the saved allowance. Do not charge. Reply with the capabilities shape `/api/owner/rounds` accepts, plus `writerReady`, `hostingEligibilityVerified`, `externalSpendEstimateUsd`, and `hostingChargeEstimateUsd`. Omit `fixture`. A v6 create is 2 songs for 10 Suno credits.
 3. On generate, spend no more than `quote.generationCredits`. The site already reserved that amount. Return accepted before the Suno call.
-4. Generate on the owner’s path. Free: suno.com in the browser, and do not add the connector. Paid: the Suno MCP at `https://api.suno.com/mcp`. Publish the review takes. Do not download them.
-5. Post the takes into the round: one revised prompt from `song-prompts`, then `POST /api/owner/rounds` with `variationRequestId` equal to the operation id. The site accepts the round only when it matches the reserved quote. Authorize it, record each job before its Suno call, and save provenance and the public MP4 stream.
-6. Call `/api/owner/rounds/<id>/ready`, then `/api/owner/variations/callback` with `status: "ready"` and the same bearer secret. On failure, callback `failed`. Set `chargeApplied: false` only when no Suno credits were charged. An uncertain receipt stays generating. Reconcile that same operation. Do not start another paid call, and do not tell the owner you will prepare an estimate.
+4. Whether you claimed or accepted the POST, generate on the owner’s path. Free: suno.com in the browser, and do not add the connector. Paid: the Suno MCP at `https://api.suno.com/mcp`. Publish the review takes. Do not download them.
+5. Post the takes into the round next to the parent: one revised prompt from `song-prompts`, then `POST /api/owner/rounds` with `variationRequestId` equal to the operation id. The site accepts the round only when it matches the reserved quote. Authorize it, record each job before its Suno call, and save provenance and the public MP4 stream.
+6. Call `/api/owner/rounds/<id>/ready`, then `/api/owner/variations/callback` with `status: "ready"` and the write token. The webhook secret still authorizes that callback when the fast path is already set. On failure, callback `failed`. Set `chargeApplied: false` only when no Suno credits were charged. An uncertain receipt stays generating. Reconcile that same operation. Do not start another paid call, and do not tell the owner you will prepare an estimate.
 
 A blind pass can still save a request. `GET /api/owner/variations` lists them. A `canceled` item is a tombstone. The variation round route rejects planning while the pass remains blind. Wait for reveal, then reread the request for the canonical parent. Do not resolve a hidden token through files or another route. Saving uses no Suno credits.
 
