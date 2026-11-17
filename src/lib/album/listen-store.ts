@@ -51,21 +51,21 @@ export const getListenVersion = cache(async function getListenVersion(): Promise
   return buildListenVersion({ config, versions: pass.versions, defaults });
 });
 
-/** Latest round's ready takes, grouped per track. Falls back to every ready take. */
+/** Each track's listen pick, or that track's newest ready round. */
 export const getPublicListenVersion = cache(async function getPublicListenVersion() {
-  const [config, pass, filenames] = await Promise.all([
+  const [config, pass, rounds] = await Promise.all([
     getListenConfig(),
     getConsolidatedPass(OWNER_VISITOR_ID),
-    latestRoundTakeFilenames(),
+    readyRoundFilenamesNewestFirst(),
   ]);
   return groupedReadyTakes({
     config,
     version: pass.version,
-    ...(filenames === null ? {} : { filenames }),
+    ...(rounds === null ? {} : { rounds }),
   });
 });
 
-async function latestRoundTakeFilenames(): Promise<Set<string> | null> {
+async function readyRoundFilenamesNewestFirst(): Promise<ReadonlySet<string>[] | null> {
   if (process.env.DATABASE_URL === undefined || process.env.DATABASE_URL.length === 0) {
     return null;
   }
@@ -74,16 +74,17 @@ async function latestRoundTakeFilenames(): Promise<Set<string> | null> {
       orderBy: { createdAt: 'desc' },
       include: { jobs: { select: { output: true } } },
     });
+    const filenames: Set<string>[] = [];
     for (const round of rounds) {
-      const filenames = new Set<string>();
+      const names = new Set<string>();
       for (const job of round.jobs) {
         const parsed = jobOutputSchema.safeParse(job.output);
         if (!parsed.success) continue;
-        for (const take of parsed.data.takes) filenames.add(take.filename);
+        for (const take of parsed.data.takes) names.add(take.filename);
       }
-      if (filenames.size > 0) return filenames;
+      if (names.size > 0) filenames.push(names);
     }
-    return null;
+    return filenames;
   } catch {
     return null;
   }

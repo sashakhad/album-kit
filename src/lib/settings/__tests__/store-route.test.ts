@@ -122,6 +122,30 @@ describe('shared settings storage', () => {
     expect((await loadSettings()).promptVariations).toBe(5);
   });
 
+  it('loads settings that still store a legacy visibility key and drops it on write', async () => {
+    state.row = {
+      version: 1,
+      defaults: { visibility: 'public', promptVariations: 3 },
+      overrides: { visibility: 'public' },
+    };
+
+    expect((await loadSettings()).promptVariations).toBe(3);
+    expect(await loadSettings()).not.toHaveProperty('visibility');
+    const response = await GET(new Request('http://localhost/api/owner/settings'));
+    expect(response.status).toBe(200);
+    expect((await response.json()).resolved).not.toHaveProperty('visibility');
+
+    const saved = await PATCH(
+      new Request('http://localhost/api/owner/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ patch: { listenerVoting: true } }),
+      })
+    );
+    expect(saved.status).toBe(200);
+    expect(JSON.stringify(state.row)).not.toContain('visibility');
+    expect((await loadSettings()).listenerVoting).toBe(true);
+  });
+
   it('keeps unauthenticated listeners away from settings writes', async () => {
     state.owner = false;
     const response = await PATCH(

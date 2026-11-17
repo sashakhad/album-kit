@@ -8,11 +8,15 @@ import type { TakeTallies } from '@/lib/votes/types';
 
 export const LISTEN_SLUG = 'listen';
 
-/** Every ready take from one round, still grouped under its track. */
+/**
+ * One row per track. A listen pick plays when it is ready. Otherwise the
+ * newest round that has ready takes for that track plays. `rounds` is newest
+ * first. A track that only exists in an older round still shows.
+ */
 export function groupedReadyTakes(args: {
   config: AlbumConfig;
   version: AlbumVersion;
-  filenames?: ReadonlySet<string>;
+  rounds?: readonly ReadonlySet<string>[];
 }): AlbumVersion {
   const tracks: AlbumTrack[] = [];
   for (const item of args.config.tracks) {
@@ -20,15 +24,14 @@ export function groupedReadyTakes(args: {
     const source = args.version.tracks.find(
       track => track.kind === 'album' && track.number === item.number
     );
-    const ready = (source?.takes ?? []).filter(take => {
-      if (take.audioUrl.length === 0) return false;
-      return (
-        args.filenames === undefined ||
-        args.filenames.size === 0 ||
-        args.filenames.has(take.filename)
-      );
-    });
-    const first = ready[0];
+    const ready = (source?.takes ?? []).filter(take => take.audioUrl.length > 0);
+    const pin = item.listen;
+    const picked =
+      pin === undefined
+        ? undefined
+        : ready.find(take => take.versionSlug === pin.set && take.voteLabel === pin.take);
+    const chosen = picked === undefined ? newestRoundTakes(ready, args.rounds) : [picked];
+    const first = chosen[0];
     if (first === undefined) continue;
     tracks.push({
       number: item.number,
@@ -36,11 +39,11 @@ export function groupedReadyTakes(args: {
       kind: 'album',
       filename: first.filename,
       audioUrl: first.audioUrl,
-      takes: ready,
+      takes: chosen,
       parkedTakes: [],
       prompt: null,
       listenSlug: item.slug,
-      status: 'preview',
+      status: picked === undefined ? 'preview' : 'picked',
     });
   }
   return {
@@ -51,6 +54,18 @@ export function groupedReadyTakes(args: {
     blurb: '',
     tracks,
   };
+}
+
+function newestRoundTakes(
+  ready: readonly AlbumTake[],
+  rounds: readonly ReadonlySet<string>[] | undefined
+): AlbumTake[] {
+  if (rounds === undefined || rounds.length === 0) return [...ready];
+  for (const round of rounds) {
+    const inRound = ready.filter(take => round.has(take.filename));
+    if (inRound.length > 0) return inRound;
+  }
+  return [...ready];
 }
 
 type Pin = {

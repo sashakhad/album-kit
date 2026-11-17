@@ -49,6 +49,21 @@ export type SettingsPatch = z.infer<typeof settingsPatchSchema>;
 
 export const DEFAULT_SETTINGS: AlbumSettingsValue = settingsSchema.parse({});
 
+const SETTINGS_KEYS = Object.keys(settingsSchema.shape);
+
+/** Drop keys the current schema does not know, including a legacy `visibility`. */
+export function withoutLegacySettings(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+  const source = value as Record<string, unknown>;
+  const kept: Record<string, unknown> = {};
+  for (const key of SETTINGS_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      kept[key] = source[key];
+    }
+  }
+  return kept;
+}
+
 export type StoredSettings = {
   version: number;
   defaults: AlbumSettingsValue;

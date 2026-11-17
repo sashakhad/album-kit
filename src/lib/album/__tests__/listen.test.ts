@@ -104,19 +104,45 @@ const config: AlbumConfig = parseAlbumConfig({
 });
 
 describe('grouped ready takes', () => {
-  it('keeps every ready take on its track and can limit them to one round', () => {
+  it('keeps every ready take on its track when no rounds are named', () => {
     const album = { ...config, tracks: [{ number: 1, title: 'Track One', slug: 'track-one' }] };
-    const version = bubu;
-    const grouped = groupedReadyTakes({ config: album, version });
+    const grouped = groupedReadyTakes({ config: album, version: bubu });
     expect(grouped.tracks).toHaveLength(1);
     expect(grouped.tracks[0]?.takes.map(take => take.voteLabel)).toEqual(['A', 'B']);
-    const latest = groupedReadyTakes({
+  });
+
+  it('plays a listen pick, and otherwise each track’s newest ready round', () => {
+    const album = {
+      ...config,
+      tracks: [
+        { number: 1, title: 'Track One', slug: 'track-one', listen: { set: 'v1', take: 'A' } },
+        { number: 2, title: 'Track Two', slug: 'track-two' },
+        { number: 3, title: 'Track Three', slug: 'track-three' },
+      ],
+    };
+    const grouped = groupedReadyTakes({
       config: album,
-      version,
-      filenames: new Set(['v1-01-track-one-p1-takeb.mp3']),
+      version: bubu,
+      rounds: [
+        new Set(['v1-01-track-one-p1-takeb.mp3', 'v1-03-track-three-p1-takef.mp3']),
+        new Set(['v1-02-track-two-p1-takec.mp3']),
+      ],
     });
-    expect(latest.tracks[0]?.takes.map(take => take.filename)).toEqual([
-      'v1-01-track-one-p1-takeb.mp3',
+
+    expect(grouped.tracks.map(track => track.title)).toEqual([
+      'Track One',
+      'Track Two',
+      'Track Three',
+    ]);
+    expect(grouped.tracks[0]).toMatchObject({
+      status: 'picked',
+      takes: [expect.objectContaining({ voteLabel: 'A' })],
+    });
+    expect(grouped.tracks[1]?.takes.map(take => take.filename)).toEqual([
+      'v1-02-track-two-p1-takec.mp3',
+    ]);
+    expect(grouped.tracks[2]?.takes.map(take => take.filename)).toEqual([
+      'v1-03-track-three-p1-takef.mp3',
     ]);
   });
 });

@@ -8,6 +8,7 @@ import {
   resolveSettings,
   settingsPatchSchema,
   settingsSchema,
+  withoutLegacySettings,
   type AlbumSettingsValue,
   type SettingsPatch,
   type StoredSettings,
@@ -21,8 +22,8 @@ function decode(
   }
   return {
     version: row.version,
-    defaults: settingsSchema.parse(row.defaults),
-    overrides: settingsPatchSchema.parse(row.overrides),
+    defaults: settingsSchema.parse(withoutLegacySettings(row.defaults)),
+    overrides: settingsPatchSchema.parse(withoutLegacySettings(row.overrides)),
   };
 }
 
