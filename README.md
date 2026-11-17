@@ -29,6 +29,8 @@ pnpm setup:site --name my-album
 
 `setup:site` creates or links your Vercel project, a public Blob store, a Neon database, and a write token. It generates `ALBUM_WRITE_TOKEN`, stores it on the Vercel project and in `.env`, and never prints it. `.album-site.json` holds the site URL. The home page plays the album. Listener voting stays off until you turn it on. Want it private? Change your Vercel/GitHub settings.
 
+Album Bot connects GitHub and Vercel with the Grok Bot connectors and a one-tap card, then runs `pnpm setup:site` in the background. The CLI commands above are the fallback when a connector cannot do a step. Neon is created on the tester's own account, with the Neon connector or Vercel Marketplace Neon, never a shared database.
+
 An existing **public** Blob store cannot protect already uploaded objects by changing a site setting. Migrate takes into a private Blob store and retire the old public objects before selecting Private; Settings requires a verified private store and `PRIVATE_BLOB_AUDITED=true` after that audit. New setup sets this flag because it creates no earlier public take store. Private listening invites are one-use links that expire after 15 minutes. The link secret is in the URL fragment, removed on opening, and exchanged for a revocable viewer cookie. Viewers can hear final picks. With listener voting on, they can also hear previews and score takes, and those scores stay separate from the owner's. They cannot change Settings. Test access on a second browser before sharing.
 
 ## Kit updates

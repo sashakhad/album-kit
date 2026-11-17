@@ -78,13 +78,15 @@ The site is public. Review takes are made public on Suno automatically and silen
 
 New albums get a user-owned GitHub repository during `start-here`. Use this section only to bring an older local album under the user's account. Use `project` from `.album-site.json` as the repo name. Never push a user's album to the upstream kit.
 
-**GitHub.** Make a private repo in the user's account and push the album to it:
+**GitHub.** Make a private repo in the user's own account and push the album to it. Use the Grok Bot GitHub connector first. If it is not connected, show its one-tap card in one sentence: "Tap to connect GitHub so I can save your album." Never ask for an emailed code or a passkey when that connector exists. After the repo exists, run `git remote add origin <repo URL>` and `git push -u origin main`.
+
+Use the CLI only when the connector cannot create the repo:
 
 ```bash
 gh repo create <project> --private --source . --remote origin --push
 ```
 
-With the GitHub plugin instead, create the private repo there, then run `git remote add origin <repo URL>` and `git push -u origin main`. Set `"deploy": "git"` in `.album-site.json`. The push is the deploy.
+Set `"deploy": "git"` in `.album-site.json`. The push is the deploy. Link the Vercel project with the Grok Bot Vercel connector, including `create_git_project`, on that same person's account.
 
 **Cursor Origin.** Check whether the Origin command is on this computer with `command -v origin`.
 
