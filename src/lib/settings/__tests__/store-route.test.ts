@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   row: null as null | { version: number; defaults: unknown; overrides: unknown },
@@ -48,9 +48,20 @@ vi.mock('@/lib/prisma', () => ({
 import { GET, PATCH } from '@/app/api/owner/settings/route';
 import { loadSettings } from '../store';
 
+const originalDatabaseUrl = process.env.DATABASE_URL;
+
 beforeEach(() => {
   state.row = null;
   state.owner = true;
+  process.env.DATABASE_URL = 'postgresql://localhost/album';
+});
+
+afterEach(() => {
+  if (originalDatabaseUrl === undefined) {
+    delete process.env.DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
 });
 
 describe('shared settings storage', () => {
@@ -100,6 +111,18 @@ describe('shared settings storage', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).resolved.reviewTakes).toBe('private');
     expect((await loadSettings()).reviewTakes).toBe('private');
+  });
+
+  it('uses built-in defaults when no database url is configured', async () => {
+    state.row = {
+      version: 1,
+      defaults: { promptVariations: 9, visibility: 'public' },
+      overrides: {},
+    };
+    delete process.env.DATABASE_URL;
+    expect((await loadSettings()).visibility).toBe('unset');
+    process.env.DATABASE_URL = '';
+    expect((await loadSettings()).promptVariations).toBe(5);
   });
 
   it('keeps unauthenticated listeners away from settings writes', async () => {

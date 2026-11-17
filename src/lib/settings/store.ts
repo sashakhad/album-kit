@@ -27,6 +27,10 @@ function decode(
 }
 
 export async function loadStoredSettings(): Promise<StoredSettings> {
+  // No database URL: same result as a database that has no settings row yet.
+  if (process.env.DATABASE_URL === undefined || process.env.DATABASE_URL.length === 0) {
+    return decode(null);
+  }
   return decode(await prisma.albumSettings.findUnique({ where: { id: 'default' } }));
 }
 
