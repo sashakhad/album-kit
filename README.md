@@ -4,6 +4,15 @@ Make an album with Suno, hear every take, and choose the winners. The album live
 
 Sasha never hosts Album Bot for anyone. Make and play your album locally. If you choose to share it, the listening page runs on your own Vercel account.
 
+## Guides
+
+- [Product requirements](docs/prd.md)
+- [Execution plan](docs/execution-plan.md)
+- [Decision charts](docs/decision-charts.md)
+- [Tester walkthrough](docs/tester-walkthrough.md)
+
+ChatGPT and Claude can follow [grokbot/PORTABLE.md](grokbot/PORTABLE.md). Grok Bot with Cursor is the supported path. Credit a writer only when that model actually returned the prompt.
+
 ## Start
 
 Open Album Bot and tell it your album idea. Choose Lite for a quick listen or Full Setup to compare prompt writers. Lite prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send **Open Album.html** as soon as the first take plays. Listen while the rest finish.
