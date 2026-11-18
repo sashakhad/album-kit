@@ -55,7 +55,8 @@ it('counts Free publishes itself and says when Suno shows no number', async () =
     const first = decisionFromArgs(['--free', '--takes', '4', '--root', root]);
     expect(first.ok).toBe(true);
     expect(first.say).toBe(freeQuotaSay(0, 4));
-    expect(first.say).toContain('does not show');
+    expect(first.say).toContain('not the account total');
+    expect(first.say).toContain('album folder');
 
     expect(decisionFromArgs(['--record', '--root', root])).toMatchObject({ made: 1 });
     expect(decisionFromArgs(['--record', '--root', root])).toMatchObject({ made: 2 });
