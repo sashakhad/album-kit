@@ -2,7 +2,7 @@ import 'server-only';
 
 import { OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { loadSettings } from '@/lib/settings/store';
-import { blindSnapshot, blindVersion } from '@/lib/votes/blind';
+import { blindSnapshot, blindVersion, withStableTakeIds } from '@/lib/votes/blind';
 import { safeVoteSnapshot } from '@/lib/votes/board';
 import { allTakesVoted, markExposed, wasExposed } from '@/lib/votes/exposure';
 import { getConsolidatedPass } from '@/lib/votes/pass-store';
@@ -25,7 +25,10 @@ export async function ownerJudgingView() {
   if (!blind) await markExposed(OWNER_VISITOR_ID, originalVotes.currentRound);
   const version = blind
     ? await blindVersion(originalVersion, originalVotes.currentRound)
-    : await withVisibleDetails(originalVersion, settings.maskPromptModels);
+    : withStableTakeIds(
+        await withVisibleDetails(originalVersion, settings.maskPromptModels),
+        originalVotes.currentRound
+      );
   const votes = blind ? await blindSnapshot(originalVotes) : originalVotes;
   const total = versions.reduce(
     (count, set) => count + set.tracks.reduce((sum, track) => sum + track.takes.length, 0),

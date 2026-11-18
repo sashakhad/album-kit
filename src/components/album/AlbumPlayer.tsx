@@ -32,6 +32,7 @@ import {
   nextVariation,
   previousPlayableIndex,
   previousVariation,
+  selectionKey,
   takeForTrack,
   trackKey,
 } from '@/lib/album/playback';
@@ -52,6 +53,7 @@ import {
   scoredTakesOnTrack,
   takeCountsForTrack,
 } from '@/lib/votes/tally';
+import { remapSnapshotToStableTakes, stableTakeRefs } from '@/lib/votes/stable-takes';
 import { EMPTY_VOTE_SNAPSHOT, type VoteSnapshot } from '@/lib/votes/types';
 import {
   formatDuration,
@@ -163,16 +165,19 @@ export function AlbumPlayer({
         const take = choice?.manual
           ? track.takes.find(take => take.filename === choice.token)
           : rankListenTakes(track.takes, takeCountsForTrack(votes, track)).winners[0];
-        if (take !== undefined) selected[trackKey(track)] = take.label;
+        if (take !== undefined) selected[trackKey(track)] = selectionKey(take);
       }
     }
     const track = version.tracks[startIndex];
-    if (
-      initialTakeLabel !== undefined &&
-      track !== undefined &&
-      findTakeOnTrack(track, initialTakeLabel) !== null
-    ) {
-      selected[trackKey(track)] = initialTakeLabel;
+    if (initialTakeLabel !== undefined && track !== undefined) {
+      const initialTake = findTakeOnTrack(track, initialTakeLabel);
+      if (initialTake !== null) selected[trackKey(track)] = selectionKey(initialTake);
+    }
+    for (const item of version.tracks) {
+      const key = trackKey(item);
+      if (selected[key] !== undefined) continue;
+      const fallback = takeForTrack(item, {}, initialTakeLabel ?? 'A');
+      if (fallback !== null) selected[key] = selectionKey(fallback);
     }
     return selected;
   });
@@ -194,6 +199,14 @@ export function AlbumPlayer({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.85);
   const [voteSnapshot, setVoteSnapshot] = useState(votes);
+  const stableRefs = useMemo(() => stableTakeRefs(version), [version]);
+  const previousStableRefs = useRef<ReturnType<typeof stableTakeRefs> | null>(null);
+  useEffect(() => {
+    const previous = previousStableRefs.current;
+    previousStableRefs.current = stableRefs;
+    if (previous === null) return;
+    setVoteSnapshot(current => remapSnapshotToStableTakes(current, previous, stableRefs));
+  }, [stableRefs]);
   const displayedVotes = useMemo(() => {
     if (voter === 'owner' || showListenerScores) return voteSnapshot;
     const visible = { ...voteSnapshot };
@@ -402,9 +415,10 @@ export function AlbumPlayer({
 
       let nextSelected = selectedTakeByTrackRef.current;
       if (takeLabel !== undefined) {
+        const chosen = findTakeOnTrack(track, takeLabel);
         nextSelected = {
           ...nextSelected,
-          [trackKey(track)]: takeLabel,
+          [trackKey(track)]: chosen === null ? takeLabel : selectionKey(chosen),
         };
         selectedTakeByTrackRef.current = nextSelected;
         setSelectedTakeByTrack(nextSelected);

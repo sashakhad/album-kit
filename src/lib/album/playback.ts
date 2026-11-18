@@ -39,6 +39,11 @@ export function findTakeOnTrack(track: AlbumTrack, label: string): AlbumTake | n
   return null;
 }
 
+/** Prefer the recording id. Fall back to the display letter when a take has no id. */
+export function selectionKey(take: AlbumTake): string {
+  return take.stableId ?? take.label;
+}
+
 export function findTakeByVersionAndLabel(
   track: AlbumTrack,
   versionSlug: string,
@@ -76,9 +81,14 @@ export function takeForTrack(
   selectedTakeByTrack: Record<string, string>,
   preferredLabel: string
 ): AlbumTake | null {
-  const selectedLabel = selectedTakeByTrack[trackKey(track)];
-  if (selectedLabel !== undefined) {
-    const selected = findTakeOnTrack(track, selectedLabel);
+  const selectedKey = selectedTakeByTrack[trackKey(track)];
+  if (selectedKey !== undefined) {
+    for (const take of takesOnTrack(track)) {
+      if (take.stableId === selectedKey) {
+        return take;
+      }
+    }
+    const selected = findTakeOnTrack(track, selectedKey);
     if (selected !== null) {
       return selected;
     }

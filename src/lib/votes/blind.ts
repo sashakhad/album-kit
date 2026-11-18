@@ -77,6 +77,7 @@ export async function blindVersion(version: AlbumVersion, round: number): Promis
           voteLabel: alias,
           versionSlug: take.versionSlug,
           filename: token,
+          stableId: token,
           audioUrl: listenerAudioUrl(take.audioUrl, `/api/blind-audio/${round}/${token}`),
         };
       };
@@ -95,6 +96,21 @@ export async function blindVersion(version: AlbumVersion, round: number): Promis
     })
   );
   return { ...version, tracks };
+}
+
+export function withStableTakeIds(version: AlbumVersion, round: number): AlbumVersion {
+  const stamp = (take: AlbumTake): AlbumTake => ({
+    ...take,
+    stableId: albumKey() === null ? take.filename : opaqueAudioId(round, take.filename),
+  });
+  return {
+    ...version,
+    tracks: version.tracks.map(track => ({
+      ...track,
+      takes: track.takes.map(stamp),
+      ...(track.parkedTakes === undefined ? {} : { parkedTakes: track.parkedTakes.map(stamp) }),
+    })),
+  };
 }
 
 function labelIndex(label: string): number {
