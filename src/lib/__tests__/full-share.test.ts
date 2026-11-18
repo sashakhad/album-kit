@@ -64,7 +64,12 @@ it.each(['hosted', 'previous static'])(
       await mkdir(path.join(root, '.tmp/share-projects/creator'), { recursive: true });
       await writeFile(
         path.join(root, '.tmp/share-projects/creator/my-album.json'),
-        JSON.stringify({ id: project.id, name: project.name, scope: 'creator' })
+        JSON.stringify({
+          id: project.id,
+          name: project.name,
+          scope: 'creator',
+          accountId: project.accountId,
+        })
       );
     }
     await writeFile(path.join(root, 'package.json'), '{}');
@@ -104,6 +109,7 @@ it.each(['hosted', 'previous static'])(
         expect(existsSync(path.join(stage, 'index.html'))).toBe(false);
         result = {
           deployment: {
+            projectId: project.id,
             target: 'production',
             readyState: 'READY',
             productionUrl: origin === 'hosted' ? 'https://other-alias.vercel.app' : siteUrl,
@@ -112,10 +118,11 @@ it.each(['hosted', 'previous static'])(
       }
       return { stdout: JSON.stringify(result), stderr: '', status: 0, shown: args[0] ?? '' };
     });
-    const request = vi.fn(async (input: RequestInfo | URL) => {
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input));
       if (url.host === 'api.github.com') {
         expect(url.pathname).toBe(`/repos/sashakhad/album-kit/git/commits/${revision}`);
+        expect(new Headers(init?.headers).get('authorization')).toBeNull();
         return Response.json({ sha: revision });
       }
       if (url.href === take.streamUrl)
@@ -130,6 +137,7 @@ it.each(['hosted', 'previous static'])(
         return publicPage(`<h1>Two &amp; Three</h1><video src="${take.streamUrl}"></video>`);
       throw new Error('Unexpected request');
     });
+    expect(existsSync(path.join(root, '.git'))).toBe(false);
     expect(
       await shareAlbum(
         root,
@@ -137,7 +145,15 @@ it.each(['hosted', 'previous static'])(
         runner,
         request
       )
-    ).toBe(`${siteUrl}/vote`);
+    ).toMatchObject({
+      url: `${siteUrl}/vote`,
+      edition: 'full',
+      project: project.name,
+      projectId: project.id,
+      accountId: project.accountId,
+      scope: 'creator',
+      kitRevision: revision,
+    });
     expect(vercel.mock.calls.filter(([args]) => args[0] === 'deploy')).toHaveLength(1);
     expect(
       vercel.mock.calls.some(

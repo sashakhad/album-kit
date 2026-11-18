@@ -263,6 +263,13 @@ export async function deployHostedApp(root, project, runner, request = fetch, so
     );
     const payload = JSON.parse(result.stdout);
     const deployment = payload.deployment ?? payload;
+    const deployedProjectId = deployment.projectId ?? payload.projectId;
+    if (typeof deployedProjectId !== 'string' || deployedProjectId.length === 0) {
+      throw new Error('Vercel did not name the project for this deployment.');
+    }
+    if (deployedProjectId !== project.projectId) {
+      throw new Error('Vercel deployed a different project than this album.');
+    }
     if (
       deployment.readyState !== 'READY' ||
       deployment.target !== 'production' ||

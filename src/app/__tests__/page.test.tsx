@@ -39,12 +39,12 @@ vi.mock('@/lib/album/listen-store', () => ({
         title: 'Screen Door',
         kind: 'album',
         filename: 'v1-01-screen-door-p1-takea.mp3',
-        audioUrl: '/api/audio/v1/v1-01-screen-door-p1-takea.mp3',
+        audioUrl: 'https://cdn1.suno.ai/screenDoorTake.mp4',
         takes: [
           {
             label: 'A',
             filename: 'v1-01-screen-door-p1-takea.mp3',
-            audioUrl: '/api/audio/v1/v1-01-screen-door-p1-takea.mp3',
+            audioUrl: 'https://cdn1.suno.ai/screenDoorTake.mp4',
             versionSlug: 'v1',
             voteLabel: 'A',
           },
@@ -102,7 +102,10 @@ describe('home page', () => {
     vi.stubGlobal('fetch', submit);
     render(await VotePage({ params: Promise.resolve({ parts: ['screen-door'] }) }));
 
-    expect(document.querySelector('audio, video')).not.toBeNull();
+    expect(document.querySelector('video')?.getAttribute('src')).toBe(
+      'https://cdn1.suno.ai/screenDoorTake.mp4'
+    );
+    expect(document.body.innerHTML).not.toMatch(/\/key|owner link|sign in as owner/i);
     expect(screen.queryByRole('link', { name: /sign in|owner/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /generate takes/i })).not.toBeInTheDocument();
     fireEvent.click(

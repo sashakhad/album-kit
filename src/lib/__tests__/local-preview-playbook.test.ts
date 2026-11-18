@@ -168,6 +168,9 @@ describe('local preview playbook', () => {
     expect(completionCard).toMatch(/free.text|typed (?:reply|answer)/i);
     expect(completionCard).not.toMatch(/Keep it local|Want to share it with other people/i);
     expect(afterOffer).toContain('pnpm share:album');
+    expect(afterOffer).toContain('node scripts/album-batch.mjs');
+    expect(afterOffer).toContain('projectId');
+    expect(afterOffer).toContain('accountId');
     const lite = afterOffer.indexOf('Album Bot Lite');
     const full = afterOffer.indexOf('Full Setup', lite);
     expect(lite).toBeGreaterThan(0);

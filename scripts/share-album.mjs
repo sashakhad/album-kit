@@ -16,6 +16,7 @@ import { parseSunoStreamUrl } from '../src/lib/album/stream-url.ts';
 
 const usage =
   'Usage: pnpm share:album --project <album-project> --scope <owner-scope> [--ref <kit-ref>], or pnpm share:album --prepare (Lite only)';
+const accountIdPattern = /^[A-Za-z0-9_]{4,80}$/;
 
 export async function shareMode(root) {
   let mode;
@@ -57,38 +58,88 @@ async function savedStaticProject(root, project, scope) {
     if (saved.name !== project || saved.scope !== scope || !/^prj_[\w-]+$/.test(saved.id)) {
       throw new Error('The saved share project is invalid. Choose a new album project name.');
     }
-    return { project, scope, projectId: saved.id };
+    if (!accountIdPattern.test(saved.accountId ?? '')) {
+      throw new Error('The saved share project does not name its Vercel account.');
+    }
+    return { project, scope, projectId: saved.id, accountId: saved.accountId };
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     throw error;
   }
 }
 
+function confirmedProject(created, project) {
+  if (
+    created?.name !== project ||
+    !/^prj_[\w-]+$/.test(created?.id ?? '') ||
+    !accountIdPattern.test(created?.accountId ?? '')
+  ) {
+    throw new Error('Vercel did not confirm the album project and account.');
+  }
+  return { project, projectId: created.id, accountId: created.accountId };
+}
+
+async function rememberProject(root, scope, identity) {
+  const filename = path.join(root, '.tmp', 'share-projects', scope, identity.project + '.json');
+  await mkdir(path.dirname(filename), { recursive: true });
+  const pending = filename + '.' + process.pid;
+  await writeFile(
+    pending,
+    JSON.stringify({
+      name: identity.project,
+      scope,
+      id: identity.projectId,
+      accountId: identity.accountId,
+    }),
+    { mode: 0o600 }
+  );
+  await rename(pending, filename);
+}
+
 async function shareProject(root, project, scope, vercel) {
   const saved = await savedStaticProject(root, project, scope);
-  if (saved) return saved.projectId;
-  const stateDir = path.join(root, '.tmp', 'share-projects', scope);
-  const filename = path.join(stateDir, project + '.json');
-  await mkdir(stateDir, { recursive: true });
-  const created = vercel([
-    'api',
-    '/v10/projects',
-    '--method',
-    'POST',
-    '--raw-field',
-    'name=' + project,
-    '--raw',
-  ]);
-  if (created.name !== project || !/^prj_[\w-]+$/.test(created.id)) {
-    throw new Error('Vercel did not confirm the new album project.');
+  if (saved) {
+    const live = confirmedProject(
+      vercel(['api', '/v9/projects/' + saved.projectId, '--raw']),
+      project
+    );
+    if (live.projectId !== saved.projectId || live.accountId !== saved.accountId) {
+      throw new Error('Vercel did not confirm the saved album project and account.');
+    }
+    return { ...saved, scope };
   }
-  const pending = filename + '.' + process.pid;
-  await writeFile(pending, JSON.stringify({ name: project, scope, id: created.id }), {
-    mode: 0o600,
-    flag: 'wx',
-  });
-  await rename(pending, filename);
-  return created.id;
+  const created = confirmedProject(
+    vercel(['api', '/v10/projects', '--method', 'POST', '--raw-field', 'name=' + project, '--raw']),
+    project
+  );
+  const identity = { ...created, scope };
+  await rememberProject(root, scope, identity);
+  return identity;
+}
+
+function productionUrl(result, projectId) {
+  const deployment = result.deployment ?? result;
+  const deployedProjectId = deployment.projectId ?? result.projectId;
+  if (typeof deployedProjectId !== 'string' || deployedProjectId.length === 0) {
+    throw new Error('Vercel did not name the project for this deployment.');
+  }
+  if (deployedProjectId !== projectId) {
+    throw new Error('Vercel deployed a different project than this album.');
+  }
+  const url = new URL(deployment.productionUrl ?? deployment.url);
+  if (
+    deployment.readyState !== 'READY' ||
+    deployment.target !== 'production' ||
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.pathname !== '/'
+  ) {
+    throw new Error('Vercel did not return a ready production album link.');
+  }
+  return url;
 }
 
 async function verifyMedia(url, request) {
@@ -223,9 +274,10 @@ export async function shareVotingApp(root, options, runner, request) {
   if (!uploads.length && !streams.length && !existing?.siteUrl)
     throw new Error('Generate a playable take before sharing this album.');
   if (!options.scope && !existing?.siteUrl) throw new Error(usage);
-  const previousStatic = !existing
+  const savedStatic = !existing
     ? await savedStaticProject(root, options.project, options.scope)
     : null;
+  const previousStatic = savedStatic ? { ...savedStatic, orgId: savedStatic.accountId } : null;
   const source = await verifiedScaffold(root, options.ref ?? 'main', request, existing);
   try {
     const site = await setup(
@@ -247,7 +299,24 @@ export async function shareVotingApp(root, options, runner, request) {
           { cwd: root }
         )
       );
-    return await verifyFullAlbum(site.siteUrl, album, request, existing?.siteUrl ? [] : streams);
+    const url = await verifyFullAlbum(
+      site.siteUrl,
+      album,
+      request,
+      existing?.siteUrl ? [] : streams
+    );
+    if (!/^prj_[\w-]+$/.test(site.projectId ?? '') || !accountIdPattern.test(site.orgId ?? '')) {
+      throw new Error('Vercel did not confirm the album project and account.');
+    }
+    return {
+      url,
+      edition: 'full',
+      project: site.project,
+      projectId: site.projectId,
+      accountId: site.orgId,
+      scope: site.scope,
+      kitRevision: site.deployedKitRevision,
+    };
   } finally {
     await source.cleanup();
   }
@@ -274,27 +343,21 @@ export async function shareAlbum(
       JSON.parse(
         runner.must(runner.vercel([...args, '--scope', scope, '--cwd', snapshot.directory])).stdout
       );
-    const id = await shareProject(root, project, scope, vercel);
-    const result = vercel(['deploy', '--project', id, '--prod', '--yes', '--json']);
-    const deployment = result.deployment ?? result;
-    const url = new URL(deployment.productionUrl ?? deployment.url);
-    if (
-      deployment.readyState !== 'READY' ||
-      deployment.target !== 'production' ||
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash ||
-      url.pathname !== '/'
-    ) {
-      throw new Error('Vercel did not return a ready production album link.');
-    }
+    const identity = await shareProject(root, project, scope, vercel);
+    const result = vercel(['deploy', '--project', identity.projectId, '--prod', '--yes', '--json']);
+    const url = productionUrl(result, identity.projectId);
     for (const delay of [0, 1000, 3000]) {
       if (delay) await wait(delay);
       try {
         await verifyShare(url, snapshot, request);
-        return url.href;
+        return {
+          url: url.href,
+          edition: 'light',
+          project: identity.project,
+          projectId: identity.projectId,
+          accountId: identity.accountId,
+          scope: identity.scope,
+        };
       } catch (error) {
         if (delay === 3000) throw error;
       }
@@ -325,8 +388,8 @@ if (
       const { directory } = await prepareShare(process.cwd());
       console.log(JSON.stringify({ directory }));
     } else {
-      const url = await shareAlbum(process.cwd(), values);
-      console.log(JSON.stringify({ url }));
+      const destination = await shareAlbum(process.cwd(), values);
+      console.log(JSON.stringify(destination));
     }
   } catch (error) {
     console.error(error.message);

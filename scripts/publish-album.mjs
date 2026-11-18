@@ -18,14 +18,14 @@ export async function publish(
   if (!site?.project)
     throw new Error('Run pnpm setup:site in this album folder before publishing.');
   if (site.deployedKitRevision) {
-    const url = await shareVotingApp(
+    const destination = await shareVotingApp(
       root,
       { project: site.project, scope: site.scope, ref: site.deployedKitRevision },
       runner,
       request
     );
-    console.log(url);
-    return url;
+    console.log(destination.url);
+    return destination.url;
   }
   const project = await hostedProject(
     root,
