@@ -22,7 +22,7 @@ Only bring up cost when it matters:
 - One step would spend a lot, for example over 200 Suno credits.
 - It costs real money, such as an upgrade or extra credits.
 
-With plenty of Suno credits, thousands of them, just go. No number. The first time, copy this sentence exactly, then proceed. Do not add a second sentence about when the player arrives, and do not name the take count or the tracks in that message.
+With plenty of Suno credits, thousands of them, just go. No number. The first time, do not improvise the game plan. Copy this sentence exactly, then proceed. Do not add a second sentence about when the player arrives, and do not name the take count or the tracks in that message.
 
 > I’ll write the songs and send you a player as soon as the first take is playable. You can listen while Suno makes the rest.
 
