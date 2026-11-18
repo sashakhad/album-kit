@@ -50,6 +50,26 @@ flowchart TD
 
 The Full Setup card copy is the five-model sentence. It does not offer a website or a 5–10 minute estimate. That time is said later, and only if a sign-in is required.
 
+## Suno account
+
+```mermaid
+flowchart TD
+  path["Path card is done"] --> session{"Is a Suno session already working?"}
+  session -->|Yes| names["Names. Skip the account question and the method menu"]
+  session -->|No| ask["Do you already have a Suno account?"]
+  ask -->|Not yet| expect["Since you don't have a Suno account, this takes a few minutes to set up."]
+  expect --> phone["Phone is the fastest. Also offer email, Google, Apple, Microsoft, Discord, and Facebook"]
+  phone --> birth["Fill January 1, 1995 without asking, then say so"]
+  birth --> names
+  ask -->|Yes, already signed in| names
+  ask -->|Cannot log in| phoneIn["Same phone recommendation. Do not wait for a failed password"]
+  phoneIn --> birthIn{"Does this page require a birth date?"}
+  birthIn -->|Yes| birth
+  birthIn -->|No| names
+```
+
+A working session skips the question and the method menu. The greeting and the path card do not ask this. If they do not have an account, say “Since you don't have a Suno account, this takes a few minutes to set up.” Recommend phone: “Phone is the fastest. Suno texts you a code and you're in.” Fill January 1, 1995 without asking, then say “I just picked Jan 1, 1995 for the birthday so sign-up keeps moving; you can change it later in Suno settings.” Names and the brief continue while the code is entered. A Create waits until the session can create.
+
 ## Connections and fallback
 
 ```mermaid

@@ -254,6 +254,32 @@ describe('local preview playbook', () => {
   it.each([
     'grokbot/BOT.md',
     'grokbot/PORTABLE.md',
+    'grokbot/INSTRUCTIONS.md',
+    '.cursor/skills/start-here/SKILL.md',
+    '.cursor/skills/suno-run/SKILL.md',
+  ])('asks about a Suno account and recommends phone before sign-up in %s', async file => {
+    const body = await text(file);
+    expect(body).toContain('Do you already have a Suno account?');
+    expect(body).toContain(
+      "Since you don't have a Suno account, this takes a few minutes to set up."
+    );
+    expect(body).toContain("Phone is the fastest. Suno texts you a code and you're in.");
+    expect(body).toContain('January 1, 1995');
+    expect(body).toContain(
+      'I just picked Jan 1, 1995 for the birthday so sign-up keeps moving; you can change it later in Suno settings.'
+    );
+    expect(body).toContain('A working session skips');
+    expect(body).not.toContain('streams from a public Suno link');
+    const greeting = body.indexOf("Hey, I'm Album Bot!");
+    const account = body.indexOf('Do you already have a Suno account?');
+    if (greeting !== -1) {
+      expect(account).toBeGreaterThan(greeting);
+    }
+  });
+
+  it.each([
+    'grokbot/BOT.md',
+    'grokbot/PORTABLE.md',
     '.cursor/skills/start-here/SKILL.md',
     '.cursor/skills/suno-run/SKILL.md',
   ])('offers the next tracks after a take in %s', async file => {

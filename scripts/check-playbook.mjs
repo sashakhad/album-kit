@@ -21,6 +21,15 @@ const completionCard = ['Your album is ready. What’s next?', 'Share album', 'A
 const nextTracksLine =
   'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
 
+const sunoAccountPhrases = [
+  'Do you already have a Suno account?',
+  "Since you don't have a Suno account, this takes a few minutes to set up.",
+  "Phone is the fastest. Suno texts you a code and you're in.",
+  'January 1, 1995',
+  'I just picked Jan 1, 1995 for the birthday so sign-up keeps moving; you can change it later in Suno settings.',
+  'A working session skips',
+];
+
 const shareEditions = [
   'Album Bot Lite',
   'static HTML player',
@@ -423,6 +432,37 @@ async function checkSessionSplit() {
   }
 }
 
+const SUNO_ACCOUNT_FILES = [
+  path.join(ROOT, 'grokbot', 'BOT.md'),
+  path.join(ROOT, 'grokbot', 'PORTABLE.md'),
+  path.join(ROOT, 'grokbot', 'INSTRUCTIONS.md'),
+  path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
+  path.join(ROOT, '.cursor', 'skills', 'suno-run', 'SKILL.md'),
+  path.join(ROOT, 'docs', 'prd.md'),
+  path.join(ROOT, 'docs', 'decision-charts.md'),
+  path.join(ROOT, 'docs', 'tester-walkthrough.md'),
+];
+
+async function checkSunoAccount() {
+  for (const file of SUNO_ACCOUNT_FILES) {
+    let text;
+    try {
+      text = await readFile(file, 'utf8');
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+      report(file, 1, 'missing Suno account file');
+      continue;
+    }
+    for (const phrase of sunoAccountPhrases) {
+      if (!text.includes(phrase)) {
+        report(file, 1, `Suno account guidance is missing “${phrase}”`);
+      }
+    }
+  }
+}
+
 async function checkOnboardingCopy() {
   for (const entry of ONBOARDING_PHRASES) {
     let text;
@@ -506,6 +546,7 @@ async function checkLiteBranding() {
 
 async function main() {
   await checkOnboardingCopy();
+  await checkSunoAccount();
   await checkSessionSplit();
   await checkLiteBranding();
   await checkFreshOpenings();
