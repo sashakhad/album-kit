@@ -104,8 +104,8 @@ flowchart TD
   ready -->|No| wait["Leave that clip pending. Keep polling the other ids"]
   ready -->|Yes| record["Record that clip. Do not wait for the others"]
   record --> first{"Is this the first playable take in the batch?"}
-  first -->|Yes| sendFirst["Attach Open Album.html, and a screenshot only when one was captured. Your album page is ready. Tap to listen."]
-  first -->|No| sendMore["Attach the same filename and name what is new"]
+  first -->|Yes| sendFirst["Send the printed link, and a screenshot only when one was captured. Your album page is ready. Tap to listen."]
+  first -->|No| sendMore["Send a new link and name what is new"]
   sendFirst --> done{"Is every requested take in this batch playable?"}
   sendMore --> done
   done -->|No| watch["Do not show the completion card"]

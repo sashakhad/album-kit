@@ -174,12 +174,16 @@ describe('playable handoff', () => {
       if (typeof report !== 'object' || report === null || !('link' in report)) {
         throw new Error('preview JSON has no link');
       }
-      const link = report.link;
-      if (typeof link !== 'string') throw new Error('preview link was not a string');
-      const html = await readFile(link, 'utf8');
+      if (!('page' in report) || typeof report.page !== 'string') {
+        throw new Error('preview JSON has no page');
+      }
+      if (typeof report.link !== 'string' || !report.link.startsWith('https://')) {
+        throw new Error('preview link was not an album URL');
+      }
+      const html = await readFile(report.page, 'utf8');
       expect(html).toContain('Paper Lantern');
       expect(html).toContain('fixture-1-a');
-      expect(path.dirname(link)).toBe(path.join(album, '.tmp', 'album-preview-online'));
+      expect(path.dirname(report.page)).toBe(path.join(album, '.tmp', 'album-preview-online'));
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

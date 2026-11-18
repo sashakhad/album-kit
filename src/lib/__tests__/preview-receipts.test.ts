@@ -62,7 +62,7 @@ it('merges concurrent arrivals, duplicate deliveries, and an ordinary re-export 
   writeFileSync(catalogFile(), JSON.stringify([saved]));
   const first = JSON.parse((await record('retry-b', b)).stdout);
   expect(first.online).toBe(1);
-  expect(label(readFileSync(first.link, 'utf8'), b.filename)).toBe('B');
+  expect(label(readFileSync(first.page, 'utf8'), b.filename)).toBe('B');
   await Promise.all([
     run(process.execPath, [script, '--streams-only'], { cwd: root }),
     record('a1', take('a')),
@@ -72,7 +72,7 @@ it('merges concurrent arrivals, duplicate deliveries, and an ordinary re-export 
   const rows = JSON.parse(readFileSync(catalogFile(), 'utf8'));
   expect(rows).toHaveLength(3);
   expect(rows).toContainEqual(saved);
-  const html = readFileSync(first.link, 'utf8');
+  const html = readFileSync(first.page, 'utf8');
   for (const id of ['a', 'b', 'c']) {
     expect(label(html, take(id).filename)).toBe(id.toUpperCase());
     expect(html).toContain(take(id).streamUrl);
@@ -80,7 +80,7 @@ it('merges concurrent arrivals, duplicate deliveries, and an ordinary re-export 
   expect(html).not.toContain('original-operation');
   const anotherSet = take('different', 'v2', 'a');
   await record('more', anotherSet);
-  const changed = readFileSync(first.link, 'utf8');
+  const changed = readFileSync(first.page, 'utf8');
   expect(label(changed, anotherSet.filename)).toBe('D');
   expect(label(changed, b.filename)).toBe('B');
   expect(changed).not.toContain('v2-01-five');
@@ -88,9 +88,9 @@ it('merges concurrent arrivals, duplicate deliveries, and an ordinary re-export 
 
 it('refuses conflicting IDs, URLs, or provenance as one atomic batch', async () => {
   const a = { ...take('a'), promptId: 'one' };
-  const { link } = JSON.parse((await record('original', a)).stdout);
+  const report = JSON.parse((await record('original', a)).stdout) as { page: string };
   const before = readFileSync(catalogFile(), 'utf8');
-  const page = readFileSync(link, 'utf8');
+  const page = readFileSync(report.page, 'utf8');
   for (const conflict of [
     { ...a, promptId: 'wrong' },
     { ...take('c'), filename: a.filename },
@@ -100,7 +100,7 @@ it('refuses conflicting IDs, URLs, or provenance as one atomic batch', async () 
   ]) {
     await expect(record('broken', [take('b'), conflict])).rejects.toThrow();
     expect(readFileSync(catalogFile(), 'utf8')).toBe(before);
-    expect(readFileSync(link, 'utf8')).toBe(page);
+    expect(readFileSync(report.page, 'utf8')).toBe(page);
   }
 });
 
@@ -109,9 +109,12 @@ it('delivers a chat receipt even when rebuilding an old local player would fail'
   writeFileSync(path.join(root, 'album/public-streams.json'), JSON.stringify([a]));
   writeFileSync(path.join(root, 'album/audio'), 'Orphaned media directory');
   writeFileSync(path.join(root, '.tmp/album-preview-catalog.json'), '{"names":[]}');
-  const { link, online } = JSON.parse((await record('new', take('b'))).stdout);
-  expect(online).toBe(2);
-  expect(readFileSync(link, 'utf8')).toContain(a.streamUrl);
+  const report = JSON.parse((await record('new', take('b'))).stdout) as {
+    page: string;
+    online: number;
+  };
+  expect(report.online).toBe(2);
+  expect(readFileSync(report.page, 'utf8')).toContain(a.streamUrl);
   expect(readFileSync(path.join(root, '.tmp/album-preview-catalog.json'), 'utf8')).toBe(
     '{"names":[]}'
   );

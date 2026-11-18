@@ -16,5 +16,6 @@ export const exporterFiles = [
   'src/lib/album/preview-listen.ts',
   'src/lib/album/embed-public-audio.ts',
   'src/lib/album/stream-url.ts',
+  'src/lib/album/link-fragment.ts',
   'src/lib/votes/local-pass.ts',
 ];
