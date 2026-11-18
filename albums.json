@@ -3,6 +3,10 @@
     {
       "repo": "sashakhad/poop-on-the-sunrise",
       "branch": "main"
+    },
+    {
+      "repo": "sashakhad/afterglow-engine",
+      "branch": "main"
     }
   ]
 }
