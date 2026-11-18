@@ -723,7 +723,7 @@ describe('AlbumPlayer', () => {
     );
 
     expect(screen.getByText('Possible renames')).toBeInTheDocument();
-    expect(screen.getByText('D')).toBeInTheDocument();
+    expect(screen.getByText('Take D')).toBeInTheDocument();
     expect(screen.getByText('1 take parked under Possible renames.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Take D' })).not.toBeInTheDocument();
   });
@@ -759,10 +759,10 @@ describe('AlbumPlayer', () => {
     );
 
     expect(screen.getByText('Possible renames')).toBeInTheDocument();
-    expect(screen.getByText('F')).toBeInTheDocument();
+    expect(screen.getByText('Take F')).toBeInTheDocument();
     expect(screen.queryByText('Waiting')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /^21track twenty-onef/i }));
+    await user.click(screen.getByRole('button', { name: /^21track twenty-onetake f/i }));
 
     expect(screen.getByRole('heading', { name: 'Track Twenty-One' })).toBeInTheDocument();
     expect(audioElement().getAttribute('src')).toBe('/twenty-one-f.mp3');
@@ -1241,7 +1241,7 @@ describe('AlbumPlayer', () => {
         .map(button => button.textContent ?? '');
     }
 
-    expect(chipLabels()).toEqual(['J', 'A', 'B', 'C']);
+    expect(chipLabels()).toEqual(['Take J', 'Take A', 'Take B', 'Take C']);
     expect(within(card).getByRole('button', { name: 'Take J' })).toHaveAttribute(
       'aria-pressed',
       'true'
@@ -1250,7 +1250,7 @@ describe('AlbumPlayer', () => {
 
     await user.click(within(card).getByRole('button', { name: /Add one to take A of Track One/i }));
 
-    expect(chipLabels()).toEqual(['A', 'J', 'B', 'C']);
+    expect(chipLabels()).toEqual(['Take A', 'Take J', 'Take B', 'Take C']);
     expect(within(card).getByRole('button', { name: 'Take J' })).toHaveAttribute(
       'aria-pressed',
       'true'

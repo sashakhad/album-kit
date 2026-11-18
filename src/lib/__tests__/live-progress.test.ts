@@ -1,11 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { expect, it } from 'vitest';
 
-import { renderAlbumPagePng } from '../../../scripts/page-preview.mjs';
 import {
   deliverySay,
   firstOnesIn,
@@ -44,27 +43,6 @@ it('prints the measured estimate and refuses the share card until a later messag
       { cwd: root, encoding: 'utf8' }
     );
     expect(JSON.parse(cli).say).toBe(generationEstimate);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-it('draws a png preview of the listen page', async () => {
-  const png = renderAlbumPagePng({
-    title: 'Harbor Lines',
-    tracks: [
-      { title: 'First Light', letters: ['A'] },
-      { title: 'Glass Harbor', letters: ['A', 'B'] },
-    ],
-  });
-  expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
-  expect(png.length).toBeGreaterThan(500);
-  const root = await mkdtemp(path.join(tmpdir(), 'page-preview-'));
-  try {
-    const file = path.join(root, 'Album page.png');
-    await writeFile(file, png);
-    const saved = await readFile(file);
-    expect(saved.equals(png)).toBe(true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

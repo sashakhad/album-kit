@@ -22,7 +22,7 @@ const tapToListen = 'Your album page is ready. Tap to listen ↓';
 const firstOnesIn =
   'Cool, the first ones are in. Spinning up your album page now. Tap here to listen.';
 const generationEstimate =
-  'About 1–2 minutes until the first take can play, then a few more minutes for the rest. I’ll send each one as soon as you can tap it.';
+  'A short paid clip is often playable in a couple of minutes. A Free song can run about 3–4 minutes, so the first take can take longer. I’ll send each one as soon as you can tap it.';
 const nextTracksLine =
   'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
 const liveLines = [tapToListen, firstOnesIn, generationEstimate, nextTracksLine];
