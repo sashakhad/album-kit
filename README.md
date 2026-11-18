@@ -18,7 +18,7 @@ The bot still checks Suno generation credits, plus external prompt models when a
 
 Open **Open Album.html** from the chat. Press Play and use **−** or **+** beside a take to score it.
 
-From a checkout with Node 24, run `node scripts/preview-album.mjs --streams-only`. Open the file named by `link`. Run the command again as more takes arrive and send the same Open Album.html. Scores stay in the listener’s browser. For a ballot saved to the checkout, run `node scripts/preview-album.mjs --serve` and open its local URL. Refresh it with `node scripts/preview-album.mjs` and reload that URL. For offline playback with local audio files, use `node scripts/preview-album.mjs --zip`.
+When a take becomes playable, pass its canonical filename, clip ID and public stream URL as a JSON record to `node scripts/preview-album.mjs --record <ready-take.json>` (Node 24). Send the file named by `link` in the album chat. Each subsequent record produces an updated player with the previous takes included. To reopen an existing catalog, run `node scripts/preview-album.mjs --streams-only`. Scores stay in the listener’s browser. For a ballot saved to the checkout, run `node scripts/preview-album.mjs --serve` and open its local URL. Refresh it with `node scripts/preview-album.mjs` and reload that URL. For offline playback with local audio files, use `node scripts/preview-album.mjs --zip`.
 
 ## When the album is ready
 

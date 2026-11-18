@@ -72,7 +72,7 @@ describe('local preview playbook', () => {
     }
     expect(start).toContain('fresh album');
     expect(start).toContain('Keep the previous album, takes and scores intact');
-    expect(start).toContain('node scripts/preview-album.mjs --streams-only');
+    expect(start).toContain('node scripts/preview-album.mjs --record <ready-take.json>');
     expect(setup).toContain('`/setup` is optional');
     expect(setup).toContain('Suno Free');
     expect(help).toContain('when requested');
@@ -116,13 +116,20 @@ describe('local preview playbook', () => {
     expect(index).toBeGreaterThan(0);
     const beforeOffer = body.slice(0, index);
     const afterOffer = body.slice(index + question.length);
-    const firstHandoff = beforeOffer.indexOf('node scripts/preview-album.mjs --streams-only');
+    const firstHandoff = beforeOffer.indexOf(
+      'node scripts/preview-album.mjs --record <ready-take.json>'
+    );
     expect(firstHandoff).toBeGreaterThan(0);
     const delivery = beforeOffer.slice(firstHandoff, firstHandoff + 550);
     expect(delivery).toMatch(/attach.*Open Album\.html.*directly in chat/i);
     expect(delivery).toContain('under ten seconds from the first playable take');
     expect(delivery).toContain('printed `link`');
-    expect(delivery).toContain('before checking audio playback');
+    expect(delivery).toContain(
+      'before checking other takes or running whole-round playback verification'
+    );
+    expect(beforeOffer).toContain('explicitly reports ready media');
+    expect(beforeOffer).toContain('Range: bytes=0-31');
+    expect(beforeOffer).toMatch(/403[^.]+only that clip pending/i);
     // The opening also has an allowCustom card. Check the card attached to this question.
     const completionCard = body.slice(Math.max(0, index - 190), index + 900);
     expect(completionCard).toContain('allowCustom: true');
