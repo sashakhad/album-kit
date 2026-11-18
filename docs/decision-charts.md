@@ -80,9 +80,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  clip["A Suno clip changes"] --> ready{"Is there ready media and its stream URL?"}
+  clip["A Suno clip changes"] --> ready{"Is it streaming, or ready media with its stream URL?"}
   ready -->|No| wait["Leave that clip pending. Keep watching the others"]
-  ready -->|Yes| record["preview-album.mjs --record for that clip"]
+  ready -->|Yes| record["Send that clip before a ranged read and before any other clip"]
   record --> first{"Is this the first playable take in the batch?"}
   first -->|Yes| sendFirst["Attach Open Album.html. Here’s your first take."]
   first -->|No| sendMore["Attach the same filename and name what is new"]

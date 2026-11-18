@@ -78,6 +78,9 @@ describe('product handoff', () => {
       'Explicit `/start` starts a fresh album and preserves the existing album, takes, scores, and jobs.'
     );
     expect(requirements).toContain('`/help` and `/settings` work before sign-in.');
+    expect(requirements).toContain('Copy this sentence exactly');
+    expect(requirements).toContain('A status of streaming is ready media for that clip.');
+    expect(requirements).toContain('Do not run pnpm, an install, or a build');
 
     const charts = bodies.get('docs/decision-charts.md');
     if (charts === undefined) throw new Error('Missing charts');

@@ -49,7 +49,7 @@ During Lite, do not connect Cursor, GitHub, or Vercel, and do not run `pnpm setu
 
 Use the signed-in suno.com browser on Suno Free, and do not add the Suno connector. On Free or paid Suno, honor an explicit model choice, then a saved preference. Otherwise prefer `v6-mini` when that account lists it. If Mini is unavailable, use another verified eligible model within the approved cost. Full Setup keeps the account’s normal quality default.
 
-Start with two or three tracks unless the creator asked for another number. A requested small test is one or two tracks, two prompts each. Say the game plan in two or three sentences, then write and generate:
+Start with two or three tracks unless the creator asked for another number. A requested small test is one or two tracks, two prompts each. Submit the agreed Creates and send Open Album.html when the first take can play. Do not wait for the other takes. Copy this sentence exactly, then write the brief and the prompts. Do not add a second sentence about when the player arrives, and do not name the take count or the tracks in that message.
 
 > I’ll write the songs and send you a player as soon as the first take is playable. You can listen while Suno makes the rest.
 
@@ -69,9 +69,9 @@ The historical _Photosynthesupersizeme_ notes show how that album’s writers an
 
 ## First playable take, then the finished batch
 
-A ready media event with its stream URL can go to the player. A clip id, a guessed address, or a publish flag alone is not playback. If the URL is not yet media, one small ranged read may confirm bytes. A refusal leaves only that clip pending.
+A status of streaming is ready media for that clip. Send the earliest streaming clip before a ranged read and before any other clip. A clip id, a guessed address, or a publish flag alone is not playback. If the URL is not yet media, one small ranged read may confirm bytes. A refusal leaves only that clip pending.
 
-When one clip is playable, write `{ "filename", "clipId", "streamUrl" }` and run `node scripts/preview-album.mjs --record <ready-take.json>` with Node 24. Attach `Open Album.html` from the printed `link` in the same chat, before checking the other takes. Aim for under ten seconds from the first playable take. The line with the first file is “Here’s your first take.” Later files reuse the same filename and name what is new, such as “Two more takes are ready.” Songs may be submitted as each sheet is ready, so the first playable song can be any track in the batch. `node scripts/preview-album.mjs --streams-only` reopens takes already recorded.
+When one clip is playable, write `{ "filename", "clipId", "streamUrl" }` and run `node scripts/preview-album.mjs --record <ready-take.json>` with Node 24. Attach `Open Album.html` from the printed `link` in the same chat, before checking the other takes. Aim for under ten seconds from the first playable take. Do not run pnpm, an install, or a build between that URL and the attachment. The line with the first file is “Here’s your first take.” Later files reuse the same filename and name what is new, such as “Two more takes are ready.” Songs may be submitted as each sheet is ready, so the first playable song can be any track in the batch. `node scripts/preview-album.mjs --streams-only` reopens takes already recorded.
 
 The completion card waits until every requested take in the batch is playable. A pending or failed take keeps the batch open unless the creator agrees to finish with fewer. Ask once per completed batch:
 
