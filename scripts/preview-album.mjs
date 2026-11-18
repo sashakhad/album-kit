@@ -76,15 +76,19 @@ async function renderPreview(album, tracks, albumKey) {
       const takes = track.takes
         .map((take, index) => {
           const label = `Take ${takeLabel(index + 1)}`;
-          return `<button type="button" aria-pressed="false" data-src="${escapeHtml(take.src)}"
-        data-id="${take.id}" data-title="${title}" data-label="${label}" data-online="${take.online}"
-        data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${label}${
-          take.online ? ' <small>Internet required</small>' : ''
-        } <small data-score>0</small></button>`;
+          const name = `${title}, ${label}`;
+          return `<div class="take-row" data-take-id="${take.id}" role="group" aria-label="${name}">
+            <button type="button" data-take aria-label="${name}" aria-pressed="false"
+              data-src="${escapeHtml(take.src)}" data-id="${take.id}" data-title="${title}" data-label="${label}"
+              data-online="${take.online}" data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${takeLabel(index + 1)}</button>
+            <button type="button" data-delta="-1" disabled aria-label="Lower score for ${name}">−</button>
+            <output class="take-score" aria-label="Score for ${name}">0</output>
+            <button type="button" data-delta="1" disabled aria-label="Raise score for ${name}">+</button>
+          </div>`;
         })
         .join('');
       return `<section class="track"><h2><span class="track-number">${number}</span>${title}</h2>
-      ${takes ? `<div class="takes">${takes}</div>` : '<p class="muted">No takes ready yet.</p>'}</section>`;
+      ${takes ? `<div class="takes">${takes}</div><p class="muted" data-pass-empty hidden>No takes left in this pass.</p>` : '<p class="muted">No takes ready yet.</p>'}</section>`;
     })
     .join('');
 

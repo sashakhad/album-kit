@@ -35,6 +35,7 @@ function fixture() {
   write(kit, 'album/album.json', '{"title":"Untitled album","tracks":[]}');
   write(kit, 'src/app/page.tsx', 'new player');
   write(kit, 'next.config.ts', 'new build config');
+  write(kit, 'grokbot/INSTRUCTIONS.md', 'current bot instructions');
   write(kit, '.cursor/skills/start-here/SKILL.md', 'new onboarding');
   write(album, 'album/album.json', '{"title":"Keep This Album","tracks":[]}');
   write(album, 'package.json', '{"name":"album-kit"}');
@@ -83,6 +84,7 @@ it('updates kit code in an ordinary album directory and preserves the owner’s 
   updateAlbum(kit, album);
   expect(read(album, 'src/app/page.tsx')).toBe('new player');
   expect(read(album, 'next.config.ts')).toBe('new build config');
+  expect(read(album, 'grokbot/INSTRUCTIONS.md')).toBe('current bot instructions');
   expect(read(album, '.cursor/skills/start-here/SKILL.md')).toBe('new onboarding');
   expect(protectedFiles.map(file => read(album, file))).toEqual(originals);
   for (const file of excluded) expect(existsSync(path.join(album, file))).toBe(false);

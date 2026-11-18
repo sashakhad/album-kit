@@ -42,7 +42,7 @@ Only bring up cost when it matters:
 - One step would spend a lot, for example over 200 Suno credits.
 - It costs real money, such as an upgrade or extra credits.
 
-With plenty of Suno credits, thousands of them, just go. No number. The first time, the game plan is that message, and it includes the 3 to 5 minute timing. A later round can be as short as "Making two quick tracks, four takes each. About 1 to 3 minutes."
+When the approved run fits comfortably within the Suno credit balance, start it. Mention cost only under the conditions above.
 
 `/cost` and `/settings` still show the numbers when asked.
 
@@ -72,10 +72,10 @@ Prompt: "How do you want to start?"
 
 Options, with this exact copy:
 
-- Album Bot Light — Try your album on this computer. I'll start with a few tracks you can play and score. You can use Suno Free.
+- Album Bot Light — Play and score a few tracks on this computer. I’ll use Suno’s lighter model when available. Works with Suno Free.
 - Full Setup — Explore your sound with up to five Cursor models and paid Suno. Compare their takes in your local player. Allow about 5–10 minutes for setup if you need to sign in.
 
-The 5–10 minutes is for connecting services. Making the audio takes longer. Reuse a connection that already works.
+The 5–10 minutes covers personal sign-ins. Reuse a connection that already works.
 
 Then keep going, one question at a time. Skip anything they already answered: mood, two or three songs or artists they love, vocals or instrumental and the language, and how many tracks. A tap on Surprise me invents the concept and shows it in three lines. It does not name the album or the tracks, and it does not skip **Names**.
 
@@ -109,13 +109,15 @@ Only then write the brief and the prompts, and only then call Suno.
 
 During Light onboarding, do not connect Cursor, GitHub, or Vercel. Do not run `pnpm setup:site`. Do not show a connect card. Record `node scripts/onboarding.mjs path light`. Grok Bot writes the prompts. Use the signed-in suno.com browser on Suno Free, or an existing eligible paid connection. On Free, do not add the Suno connector.
 
+For Album Bot Light on Free or paid Suno, honor an explicit model choice for the round, then a saved model preference. Otherwise, prefer `v6-mini` when the signed-in account lists it as eligible. If Mini is unavailable, use the account’s eligible quality default or another verified eligible model within the approved cost. Keep going without a model question unless the change needs approval for cost or a requested quality requirement. Full Setup keeps the account’s normal quality default. Use the model check in `suno-run` before Create. Only report faster generation if measured.
+
 Start with two or three tracks unless they asked for another number. One track, or a small test of one or two tracks, 4 takes each, about 20 Suno credits per track, is fine when they ask. Begin the batch and open the player as soon as the first take can play. Say this game plan in two or three short sentences, then write the brief and the prompts. Do not say a cost estimate is ready, and do not wait for a cost OK, unless **When to mention cost** says cost matters.
 
-> Love it. I'll write these songs and make a few takes of each on Suno, then build an album player you can open and listen to right away and vote on locally. The first songs take about 3 to 5 minutes.
+> I’ll write the songs and send you a player as soon as the first take is playable. You can listen while Suno makes the rest.
 
-The first songs take about 3 to 5 minutes. A later round of takes is about 1 to 3 minutes. Use those timings. For anything over about 2 minutes, keep them posted without being asked. In Grok Bot, create a one-off or short-interval routine, a timer, to check back every 3 to 5 minutes. Post one short, upbeat line at each real milestone: songs written, takes generating, preview ready. Delete the timer when the work is done. If you cannot set a timer, still send a status update at each milestone while you work. Never leave silence for more than about 5 minutes during generation.
+Use observed progress for updates. Give a generation ETA only if Suno supplies a current estimate for that job, and attribute it to Suno.
 
-When a take on that page streams from a public Suno URL, say so. Scores and the current pass stay in `.tmp/album-preview-ballot.json` and survive a restart. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
+The attached player keeps scores and the current pass in the browser. The locally served player saves them in `.tmp/album-preview-ballot.json`. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
 
 When Suno hides the balance, do not ask how many Suno credits are left. Send `generationCreditsAvailable: null`. Try only the batch they agreed to, inside the spending limit. On Free the daily cap is 50 Suno credits. If Suno accepts one create and refuses the next, play the accepted takes and say Suno says you're out of credits. Save the accepted job and never submit that job again.
 
@@ -172,7 +174,7 @@ Reuse existing sessions and entitlements. Check [Grok Bot](https://x.ai/bot) and
 
 - The Suno connector is a custom connector at `https://api.suno.com/mcp` and is not in the Grok Bot plugin catalog.
 - If OAuth fails, use a signed-in suno.com session in the bot's browser.
-- Suno Free limits are 50 Suno credits/day, v6-mini only, no downloads, and non-commercial use. Use model v6-mini, Small test, review takes public, and no download calls. Say how many songs are left today only when that daily limit changes the plan.
+- The checked Free account offered `v6-mini`, 50 Suno credits/day, no downloads, and non-commercial use. Check the current account’s model list for this run. Use Small test, review takes public, and no download calls. Say how many songs are left today only when that daily limit changes the plan.
 
 A copy of the kit in the creator’s workspace is enough for both generation and sharing. Use a GitHub account only if they explicitly request a backup. Follow `publish` for that separate step.
 
@@ -180,27 +182,35 @@ Install Node 24 and pnpm if needed. On a paid plan, connect the official Suno MC
 
 For Full Setup, run `node scripts/onboarding.mjs path full`. Check Cursor installation and a connected Project execution, including the actual model from runtime output; then record it with `node scripts/onboarding.mjs verify-cursor '<observed model>'`. This command records the observed label; it does not run Cursor or prove a model by itself. If Cursor cannot be verified, keep it pending or switch to Album Bot Light with `node scripts/onboarding.mjs path light` after the owner chooses. Do not treat `cursor --version` alone as a connection.
 
-Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Those titles are the names from **Names**. The preview, the share page, and each Suno title use those same strings. Adding a track later means editing that file and redeploying. `POST /api/owner/rounds` rejects a track that is not listed there. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
+Create `album/album.json` with the title, optional artist, genre, starter set and the exact track titles with unique slugs. Those titles are the names from **Names**. The preview, the share page, and each Suno title use those same strings. Append new tracks in that file. A local album needs only a preview refresh. If a hosted voting app is already in use, publish the updated tracklist before registering the new hosted round. `POST /api/owner/rounds` rejects a track that is not listed there. Keep `rule` as an empty legacy field if no actual musical constraint was supplied. Write `album/BRIEF.md` from the user's genre and sound choices. Include the standing Style rule: no title pun or joke-derived musical premise. Add actual user constraints, not invented ones.
 
 ### Open the preview
 
-When Suno returns the first playable stream URL, add it to `.tmp/album-preview-streams.json` and run `node scripts/preview-album.mjs --streams-only` with Node 24. Attach the `Open Album.html` file from the printed `link` directly in chat. Aim to send it in under ten seconds from the first playable take. Send the file before checking audio playback or waiting for another take. For each new URL, update the catalog, run the command again and send the same Open Album.html with the new takes.
+While Suno renders, have the album directory and the selected revision’s standalone exporter ready. Save each accepted Create’s operation ID and provider job or clip IDs immediately. Check its outputs on acceptance. Prefer provider events, streaming updates, or a status tool that returns individual clips. Otherwise check the accepted IDs in the foreground about every 5 seconds while the first take is pending, within provider limits. Honor Retry-After and any rate limit. As each output changes, handle it independently, including a playable clip whose sibling is still rendering. Put its public stream in the HTML player, send the file immediately, and keep watching the remaining clips. Chat updates to the creator run separately from these per-clip checks.
+
+A screenshot or status question is a read-only check. Look up the existing job or clip IDs and current outputs before saying what is generating. If the ledger has no provider ID, check Suno’s history against the original request. If current status cannot be verified, say when it was last seen and what is unknown. Never start another Create to answer a status question.
+
+When Suno returns the first playable stream URL, add it to `.tmp/album-preview-streams.json` and run `node scripts/preview-album.mjs --streams-only` with Node 24. Attach the `Open Album.html` file from the printed `link` directly in chat. Aim to send it in under ten seconds from the first playable take. Send the file before checking audio playback or waiting for another take. For each new URL, update the catalog, run the command again and send the same Open Album.html with the new takes. Attach the player with one line, “Here’s your first take.” For an update, name what’s new, such as “Two more takes are ready.” Keep the source, connection requirements, file format and delivery checks out of routine chat. If playback fails, say what failed and what happens next.
 
 For scores saved to the album checkout, run `node scripts/preview-album.mjs --serve` on the owner’s computer. Leave the server running and use `node scripts/preview-album.mjs` to refresh the same URL as takes arrive. If the owner needs local audio files in a remote session, attach the bundle from `node scripts/preview-album.mjs --zip`. For public streams alone, attach the refreshed HTML.
 
 ### Share
 
-In Album Bot Light and Full Setup, after all requested tracks and takes are playable, ask once in the completion message:
+In Album Bot Light and Full Setup, deliver individual takes as they arrive. Once all requested tracks and takes are playable, ask once for this completed batch. Use one question widget card with `allowCustom: true`.
 
-> Your album is ready. Want to share it with other people?
+> Your album is ready. What’s next?
 
-Offer **Share album** and **Keep it local**. Wait for any pending takes unless the owner chooses to finish with fewer. On resume, honor their earlier answer. **Keep it local** or no answer leaves the album in the local player. They can choose `/share` later.
+Show exactly two choices in order: **Share album** and **Add more tracks**. The widget provides **Something else** for free text. In plain chat, offer the same two choices and accept a typed reply. Silence leaves the player open for listening. Honor a typed “later” or “just listening.” A bare “yes” to this two-action card needs one short clarification. An explicit answer to an earlier yes/no sharing question still stands.
 
-On **Share album**, a yes in chat, or `/share`, choose a Vercel project for this album's listening link, verify the owner's account or team, and run `pnpm share:album --project <album-share-slug> --scope <verified-owner-scope>` in their album checkout. The bot deploys the listening app, checks the public player and audio, and sends the verified public URL. If only a Vercel connector is available, follow the connector steps in `grokbot/BOT.md` under **Share**. Ask the owner only for a sign-in, account selection or provider consent if needed. If publishing or verification fails, keep their preview available, report the blocker, and resume with the existing takes. The shared player saves scores in each listener’s browser and needs only Vercel. To collect votes across listeners follow **Advanced hosted voting**.
+Record the completion prompt and reply against the batch’s saved operation IDs in the local ledger. On resume, continue the recorded choice. A still-pending or failed take keeps the batch open unless the owner agrees to finish with fewer. Show the card again when the next batch of new tracks is complete, once for that batch.
+
+**Add more tracks** continues the same album with new songs. Reuse its brief and settings. Take any titles, count and direction already supplied, and ask only for what is missing. If they want ideas, suggest new titles that fit. Append entries with new track numbers and unique slugs. Preserve the existing tracks, takes, scores, current pass and pending jobs. Follow `album-track` and `suno-run` for only the new tracks, under the usual spending rules. Resume by the saved batch and track IDs so the same reply cannot append or generate twice. Send the first new take in the same player as soon as it arrives. `/more` still makes alternate takes of an existing track.
+
+On **Share album**, an explicit request to share, or `/share`, choose a Vercel project for this album's listening link, verify the owner's account or team, and run `pnpm share:album --project <album-share-slug> --scope <verified-owner-scope>` in their album checkout. The bot deploys the listening app, checks the public player and audio, and sends the verified public URL. If only a Vercel connector is available, follow the connector steps in `grokbot/BOT.md` under **Share**. Ask the owner only for a sign-in, account selection or provider consent if needed. If publishing or verification fails, keep their preview available, report the blocker, and resume with the existing takes. The shared player saves scores in each listener’s browser and needs only Vercel. To collect votes across listeners follow **Advanced hosted voting**.
 
 ### Advanced hosted voting
 
-Only when the owner explicitly asks for hosted voting or the full site with a database. Run `pnpm setup:site --name <album-slug> --scope <verified-owner-scope>` in their own accounts. It creates the Vercel project, a public Blob store, the database, and `ALBUM_WRITE_TOKEN`. It writes the token to `.env` and the Vercel project and never prints it. It may require a browser handoff for the database. When setup prints `Milestone: Site created.`, open `<site>/vote` signed out. Once it lists the generated takes and audio plays, send that public link: “Here’s the album. Open a take to listen and vote.” Guests go straight to Compare takes. Do not paste the JSON line that follows it, and do not quote the milestone sentence. Every setup and round message includes the site URL once that site exists. The home page plays the album. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. Never leave silence for more than about 5 minutes. If this step will take over about 2 minutes, the timer stays on until the page is live and the takes are ready to hear. Each update is one short, upbeat line. `pnpm album:settings` uses the write token on `/api/owner/settings`. Set `reviewTakes` to `public`. Never ask how review takes should play. Never offer a shared host.
+Only when the owner explicitly asks for hosted voting or the full site with a database. Run `pnpm setup:site --name <album-slug> --scope <verified-owner-scope>` in their own accounts. It creates the Vercel project, a public Blob store, the database, and `ALBUM_WRITE_TOKEN`. It writes the token to `.env` and the Vercel project and never prints it. It may require a browser handoff for the database. When setup prints `Milestone: Site created.`, open `<site>/vote` signed out. Once it lists one generated take and its audio plays, send that public link: “Here’s the album. Open a take to listen and vote.” Guests go straight to Compare takes. Do not paste the JSON line that follows it, and do not quote the milestone sentence. Every setup and round message includes the site URL once that site exists. The home page plays the album. The owner can watch `<site>/status` while later steps run. Do not go silent between these milestones. Report a real change as soon as it happens. During long waits, send a brief chat update. `pnpm album:settings` uses the write token on `/api/owner/settings`. Set `reviewTakes` to `public`. Never ask how review takes should play. Never offer a shared host.
 
 ### Connect Vercel and the database
 
@@ -218,6 +228,6 @@ Before paid work, use `suno-run` preflight to resolve a supported model and chec
 - The album brief reflects the user's actual input; the prompt count matches the selected scope.
 - Suno capability checks were made in the connected account; no retired model was assumed.
 - Review takes are public on Suno. Never ask how review takes should play.
-- On both paths the owner received the sharing choice after generation. If they accepted, the public URL opens their album on their own Vercel account and a take plays for a signed-out listener.
+- On both paths the owner received the next-step card after the requested batch. If they chose **Share album**, the public URL opens their album on their own Vercel account and a take plays for a signed-out listener.
 - If they asked for hosted voting, the Vercel project, storage and database are in their account, and the public voting link works.
 - Any unresolved account connection is named precisely.

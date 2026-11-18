@@ -86,6 +86,35 @@ describe('album progress', () => {
     expect(progressBannerLine(progress)).toBe(progress.line);
   });
 
+  it('reports a single clip from a later track while every generation is still running', () => {
+    const progress = summarize({
+      jobs: [
+        { promptId: 'p1', status: 'accepted', output: null },
+        {
+          promptId: 'p3',
+          status: 'accepted',
+          output: {
+            takes: [
+              {
+                filename: 'v1-02-second-p1-takea.mp3',
+                outputId: clip,
+                clipId: clip,
+                streamUrl,
+                downloaded: false,
+                uploaded: false,
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(progress).toMatchObject({ phase: 'generating', jobsFinished: 0, takesReady: 1 });
+    expect(progress.tracks).toEqual([
+      { trackNumber: 1, title: 'First', ready: 0, expected: 4 },
+      { trackNumber: 2, title: 'Second', ready: 1, expected: 2 },
+    ]);
+  });
+
   it('stays quiet once the round is ready to listen', () => {
     const progress = summarize({
       status: 'ready-to-listen',

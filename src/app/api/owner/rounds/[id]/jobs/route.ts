@@ -27,22 +27,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const existing = await tx.providerJob.findUnique({
         where: { operationId: parsed.data.operationId },
       });
+      const round = await tx.generationRound.findUnique({ where: { id } });
+      if (round === null) return { kind: 'missing' } as const;
+      const snapshot = round.snapshot as {
+        resolvedSunoModel?: string;
+        prompts?: Array<{ id: string }>;
+        settings?: { generationsPerPrompt: number };
+      };
+      const sunoModel = snapshot.resolvedSunoModel ?? null;
       if (existing !== null)
         return {
           kind:
             existing.roundId === id && existing.promptId === parsed.data.promptId
               ? 'existing'
               : 'conflict',
-          job: existing,
+          job: { ...existing, sunoModel },
         } as const;
-      const round = await tx.generationRound.findUnique({ where: { id } });
-      if (round === null) return { kind: 'missing' } as const;
       if (round.authorization === null) return { kind: 'unauthorized' } as const;
       if (round.status === 'ready-to-listen') return { kind: 'ready' } as const;
-      const snapshot = round.snapshot as {
-        prompts?: Array<{ id: string }>;
-        settings?: { generationsPerPrompt: number };
-      };
       if (!snapshot.prompts?.some(prompt => prompt.id === parsed.data.promptId))
         return { kind: 'unknown-prompt' } as const;
       const promptCount = await tx.providerJob.count({
@@ -54,7 +56,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const count = await tx.providerJob.count({ where: { roundId: id } });
       if (count >= estimate.generations) return { kind: 'full' } as const;
       const job = await tx.providerJob.create({ data: { roundId: id, ...parsed.data } });
-      return { kind: 'created', job } as const;
+      return { kind: 'created', job: { ...job, sunoModel } } as const;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
   );

@@ -5,7 +5,7 @@ description: Redeploy a creator’s hosted voting app directly to Vercel, update
 
 # Publish · version 8
 
-Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. New albums start with a local player. After the album is generated, an owner who accepts the sharing offer or later types `/share` gets the static player on their own Vercel account. Follow **Share** in `start-here`, which runs `pnpm share:album`. That path requires no GitHub repository or database. This skill applies when they have the advanced hosted site, or when they ask to back the album up to their own GitHub or Origin.
+Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. New albums start with a local player. After the album is generated, an owner who chooses **Share album**, asks to share or types `/share` gets the static player on their own Vercel account. Follow **Share** in `start-here`, which runs `pnpm share:album`. That path requires no GitHub repository or database. This skill applies when they have the advanced hosted site, or when they ask to back the album up to their own GitHub or Origin.
 
 The hosted site is public. Review takes are made public on Suno automatically and silently and play from stored public MP4 stream URLs. Never ask how review takes should play. Do not download a review take. Only a final pick is downloaded, and that download is silent.
 

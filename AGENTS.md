@@ -19,7 +19,7 @@ For any new album, run `start-here` first.
 ## Rules
 
 - Never call full mixes stems. A take is a full mix. Stems are the separate files a split makes, several per song.
-- Sasha never hosts Album Bot for anyone. In Light and Full Setup, send the local player as soon as the first take is playable. Once the entire requested album is playable, ask once whether to share it. Yes deploys a listening page on the owner’s Vercel account and returns the verified public link. Later keeps the player local.
+- Sasha never hosts Album Bot for anyone. In Light and Full Setup, send the local player as soon as the first take is playable. When every requested take is playable, ask “Your album is ready. What’s next?” Offer **Share album** and **Add more tracks** with a free-text reply. Sharing returns the verified listening link on the owner’s Vercel account. Adding tracks makes new songs on the same album, preserving its existing recordings, scores and pass. Ask once per completed batch.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
 - For a kit release, check the changes and merge the upstream PR. To update a creator's existing album, run the fresh kit’s `pnpm kit:update <existing-album-directory>`. Preserve the creator’s entire `album/` directory, local scores, settings, credentials and Vercel project link. For a requested production update, publish from that album directory to its linked project and verify its public listening and voting pages.

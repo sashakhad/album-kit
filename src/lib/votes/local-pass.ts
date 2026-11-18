@@ -65,12 +65,13 @@ export function readLocalStore(raw: unknown, albumKey: string): LocalBallotStore
 export function applyLocalVote(
   ballot: LocalBallot,
   filename: string,
-  vote: -1 | 1 | undefined
+  vote: -1 | 1 | undefined,
+  select = true
 ): LocalBallot {
   if (ballot.retired.includes(filename)) return ballot;
   const votes = { ...ballot.votes };
   if (vote !== undefined) votes[filename] = (votes[filename] ?? 0) + vote;
-  return { ...ballot, selected: filename, votes };
+  return { ...ballot, selected: select ? filename : ballot.selected, votes };
 }
 
 /**

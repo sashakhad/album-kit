@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
-import { resolveSunoModel, sunoCapabilitiesSchema } from '@/lib/rounds/preflight';
+import { sunoCapabilitiesSchema } from '@/lib/rounds/preflight';
+import { resolveSunoModel } from '@/lib/rounds/suno-model';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
 
 export const webhookQuoteSchema = z.object({
@@ -52,7 +53,7 @@ export function estimateVariation(args: {
 }) {
   const provider = webhookQuoteSchema.parse(args.provider);
   const { capabilities } = provider;
-  const { model, migration } = resolveSunoModel(args.settings.sunoModel, capabilities);
+  const { model, migration, needsChoice } = resolveSunoModel(args.settings.sunoModel, capabilities);
   const generations = Math.ceil(args.requestedTakes / capabilities.outputsPerGeneration);
   const expectedOutputs = generations * capabilities.outputsPerGeneration;
   const generationCredits = generations * capabilities.creditsPerGeneration;
@@ -70,12 +71,7 @@ export function estimateVariation(args: {
   if (checkedAt > Date.now() + 5 * 60_000 || Date.now() - checkedAt > 15 * 60_000)
     blockers.push('Refresh the Suno account and cost check before generating.');
   if (migration !== null) blockers.push(`Saved model ${args.settings.sunoModel} is unavailable.`);
-  if (
-    (args.settings.sunoModel === 'auto' || migration !== null) &&
-    (capabilities.qualityDefault === null ||
-      !capabilities.availableModels.includes(capabilities.qualityDefault)) &&
-    capabilities.availableModels.length > 1
-  )
+  if (needsChoice)
     blockers.push('Suno did not identify an eligible quality default; choose a verified model.');
   if (capabilities.costModel !== model)
     blockers.push(`The generation credit rate for ${model} is unverified.`);

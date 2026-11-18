@@ -210,7 +210,7 @@ async function putVote(pageUrl: string, take: string, delta: number): Promise<Ba
 }
 
 describe('album preview', () => {
-  it('bundles a local MP3, marks a public stream internet-required, and skips private URLs', async () => {
+  it('bundles a local MP3, lists public and local takes without network notices, and skips private URLs', async () => {
     const root = await writeFixture();
     const result = await runPreview(root, ['--zip']);
     expect(result.code).toBe(0);
@@ -229,7 +229,7 @@ describe('album preview', () => {
     expect(html).toContain(localSrc);
     expect(html).toContain('data-online="false"');
     expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
-    expect(html).toContain('Internet required');
+    expect(html).not.toMatch(/internet required|streams from a public Suno link/i);
     expect(html).toContain('data-online="true"');
     expect(html).not.toContain('example.com');
     expect(html).not.toContain('Parked');
@@ -302,7 +302,9 @@ describe('album preview', () => {
     const afterSubtract = await putVote(pageUrl, localId, -1);
     expect(afterSubtract.votes[localId]).toBe(2);
     await putVote(pageUrl, streamId, -1);
-    const other = await putVote(pageUrl, streamId, -1);
+    await putBallot(pageUrl, { take: localId });
+    const other = await putBallot(pageUrl, { take: streamId, vote: -1, select: false });
+    expect(other.selected).toBe(localId);
     expect(other.votes[localId]).toBe(2);
     expect(other.votes[streamId]).toBe(-2);
 
@@ -318,6 +320,7 @@ describe('album preview', () => {
     const ballot = readBallot(await reloaded.json());
     expect(ballot.votes[localId]).toBe(2);
     expect(ballot.votes[streamId]).toBe(-2);
+    expect(ballot.selected).toBe(localId);
     expect(ballot.pass).toBe(1);
   });
 
