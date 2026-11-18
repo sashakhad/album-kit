@@ -1,11 +1,13 @@
 // @vitest-environment node
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { prepareShare, shareAlbum, verifyShare } from '../../../scripts/share-album.mjs';
+import { prepareShare, shareAlbum, shareMode, verifyShare } from '../../../scripts/share-album.mjs';
 import { createRunner } from '../../../scripts/setup.mjs';
 
 const options = { project: 'porch-listen', scope: 'owner-team' };
@@ -45,6 +47,43 @@ afterEach(async () => {
   if (exported) await rm(exported, { recursive: true, force: true });
   exported = undefined;
   await rm(root, { recursive: true, force: true });
+});
+
+describe('choosing how to share an album', () => {
+  it.each([
+    ['light', 'light'],
+    ['quick', 'light'],
+    ['full', 'full'],
+    ['studio', 'full'],
+  ])('uses the saved %s choice when the creator shares', async (saved, expected) => {
+    await writeFile(path.join(root, '.album-onboarding.json'), JSON.stringify({ path: saved }));
+    expect(await shareMode(root)).toBe(expected);
+  });
+
+  it('recognizes an existing voting app when an older album has no onboarding record', async () => {
+    expect(await shareMode(root)).toBe('light');
+    await writeFile(
+      path.join(root, '.album-site.json'),
+      JSON.stringify({
+        siteUrl: url,
+        project: options.project,
+        deploy: 'git',
+      })
+    );
+    expect(await shareMode(root)).toBe('full');
+  });
+
+  it('refuses to give Full Setup a static folder for a connector to publish', async () => {
+    await writeFile(path.join(root, '.album-onboarding.json'), JSON.stringify({ path: 'full' }));
+    const script = fileURLToPath(new URL('../../../scripts/share-album.mjs', import.meta.url));
+    const result = spawnSync(process.execPath, [script, '--prepare'], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/full|voting app/i);
+    expect(result.stdout).not.toContain('"directory"');
+  });
 });
 
 describe('public listening app', () => {

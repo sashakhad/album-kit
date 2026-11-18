@@ -82,6 +82,38 @@ afterEach(() => {
 });
 
 describe('round creation', () => {
+  it('records a Lite round’s checked model and respects an explicit override or saved model', async () => {
+    const capabilities = {
+      availableModels: ['v6', 'v6-mini'],
+      qualityDefault: 'v6',
+      costModel: 'v6-mini',
+      creditsPerGeneration: 10,
+      outputsPerGeneration: 2,
+      downloadsPerOutput: 0,
+      generationCreditsAvailable: 100,
+      downloadsAvailable: 0,
+      checkedAt: new Date().toISOString(),
+    };
+    const plan = async (changes: Record<string, unknown> = {}) =>
+      (await POST(request({ setupPath: 'light', capabilities, ...changes }))).json();
+    const light = await plan();
+    expect(light.round.status).toBe('preparing');
+    expect(light.round.snapshot).toMatchObject({
+      setupPath: 'light',
+      resolvedSunoModel: 'v6-mini',
+    });
+    const lite = await plan({ setupPath: 'lite' });
+    expect(lite.round.snapshot).toMatchObject({ setupPath: 'light', resolvedSunoModel: 'v6-mini' });
+    const quality = { ...capabilities, costModel: 'v6' };
+    const full = await plan({ setupPath: 'full', capabilities: quality });
+    expect(full.round.snapshot.resolvedSunoModel).toBe('v6');
+    const override = await plan({ sunoModelOverride: 'v6', capabilities: quality });
+    expect(override.round.snapshot.resolvedSunoModel).toBe('v6');
+    settingsState.sunoModel = 'v6';
+    const pinned = await plan({ capabilities: quality });
+    expect(pinned.round.snapshot.resolvedSunoModel).toBe('v6');
+  });
+
   it('saves exactly two Small test prompt slots and the full route estimate', async () => {
     const response = await POST(request());
     expect(response.status).toBe(201);

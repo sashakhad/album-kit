@@ -19,6 +19,7 @@ import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { isPlayableStream, isVideoStream } from '../src/lib/album/stream-url.ts';
 
 import { servePreview } from './preview-server.mjs';
+import { previewIdentity } from './preview-identity.mjs';
 
 async function readJson(filename, fallback) {
   try {
@@ -49,19 +50,7 @@ function takeLabel(number) {
     : takeLabel(Math.floor((number - 1) / 26)) + takeLabel(((number - 1) % 26) + 1);
 }
 
-function albumKeyFor(album) {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        title: album.title,
-        tracks: album.tracks.map(track => [track.number, track.slug]),
-      })
-    )
-    .digest('hex')
-    .slice(0, 16);
-}
-
-async function renderPreview(album, tracks, albumKey) {
+async function renderPreview(album, tracks, albumKey, legacyAlbumKey) {
   const [template, styles] = await Promise.all([
     readFile(new URL('./album-preview.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/globals.css', import.meta.url), 'utf8'),
@@ -76,15 +65,19 @@ async function renderPreview(album, tracks, albumKey) {
       const takes = track.takes
         .map((take, index) => {
           const label = `Take ${takeLabel(index + 1)}`;
-          return `<button type="button" aria-pressed="false" data-src="${escapeHtml(take.src)}"
-        data-id="${take.id}" data-title="${title}" data-label="${label}" data-online="${take.online}"
-        data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${label}${
-          take.online ? ' <small>Internet required</small>' : ''
-        } <small data-score>0</small></button>`;
+          const name = `${title}, ${label}`;
+          return `<div class="take-row" data-take-id="${take.id}" role="group" aria-label="${name}">
+            <button type="button" data-take aria-label="${name}" aria-pressed="false"
+              data-src="${escapeHtml(take.src)}" data-id="${take.id}" data-title="${title}" data-label="${label}"
+              data-online="${take.online}" data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${takeLabel(index + 1)}</button>
+            <button type="button" data-delta="-1" disabled aria-label="Lower score for ${name}">−</button>
+            <output class="take-score" aria-label="Score for ${name}">0</output>
+            <button type="button" data-delta="1" disabled aria-label="Raise score for ${name}">+</button>
+          </div>`;
         })
         .join('');
       return `<section class="track"><h2><span class="track-number">${number}</span>${title}</h2>
-      ${takes ? `<div class="takes">${takes}</div>` : '<p class="muted">No takes ready yet.</p>'}</section>`;
+      ${takes ? `<div class="takes">${takes}</div><p class="muted" data-pass-empty hidden>No takes left in this pass.</p>` : '<p class="muted">No takes ready yet.</p>'}</section>`;
     })
     .join('');
 
@@ -94,9 +87,10 @@ async function renderPreview(album, tracks, albumKey) {
     tracks: sections || '<p class="muted">No tracks yet.</p>',
     theme,
     albumKey: JSON.stringify(albumKey),
+    legacyAlbumKey: JSON.stringify(legacyAlbumKey),
   };
   return template.replace(
-    /\{\{(title|artist|tracks|theme|albumKey)\}\}/g,
+    /\{\{(title|artist|tracks|theme|albumKey|legacyAlbumKey)\}\}/g,
     (_, key) => replacements[key]
   );
 }
@@ -114,7 +108,7 @@ export async function preview(
   const albumRoot = path.join(root, 'album');
   const audioRoot = path.join(albumRoot, 'audio');
   const album = await readJson(path.join(albumRoot, 'album.json'));
-  const albumKey = albumKeyFor(album);
+  const { albumKey, legacyAlbumKey } = await previewIdentity(root, album);
   const streams = await readJson(path.join(root, '.tmp', 'album-preview-streams.json'), []);
   if (!Array.isArray(streams)) throw new Error('The preview stream catalog must be a JSON array.');
 
@@ -176,7 +170,7 @@ export async function preview(
       }
     }
     if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
-    const html = await renderPreview(album, tracks, albumKey);
+    const html = await renderPreview(album, tracks, albumKey, legacyAlbumKey);
     await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
     if (makeZip) {

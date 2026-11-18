@@ -210,7 +210,7 @@ async function putVote(pageUrl: string, take: string, delta: number): Promise<Ba
 }
 
 describe('album preview', () => {
-  it('bundles a local MP3, marks a public stream internet-required, and skips private URLs', async () => {
+  it('bundles a local MP3, lists public and local takes without network notices, and skips private URLs', async () => {
     const root = await writeFixture();
     const result = await runPreview(root, ['--zip']);
     expect(result.code).toBe(0);
@@ -229,7 +229,7 @@ describe('album preview', () => {
     expect(html).toContain(localSrc);
     expect(html).toContain('data-online="false"');
     expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
-    expect(html).toContain('Internet required');
+    expect(html).not.toMatch(/internet required|streams from a public Suno link/i);
     expect(html).toContain('data-online="true"');
     expect(html).not.toContain('example.com');
     expect(html).not.toContain('Parked');
@@ -287,6 +287,40 @@ describe('album preview', () => {
     expect((await fetch(audioUrl(localName))).status).toBe(404);
   });
 
+  it('keeps the first album link, scores and current pass when a new song arrives', async () => {
+    const root = await writeFixture();
+    const pageUrl = readReport((await runPreview(root, ['--serve'])).stdout).url ?? '';
+    const oldId = takeId(localName);
+    await putVote(pageUrl, oldId, 1);
+    await putBallot(pageUrl, { action: 'next-pass' });
+    const manifest = path.join(root, 'album', 'album.json');
+    const album = JSON.parse(await readFile(manifest, 'utf8'));
+    album.tracks.push({ number: 3, slug: 'encore', title: 'Encore' });
+    await writeFile(manifest, JSON.stringify(album));
+    const next = 'v1-03-encore-p1-takea.mp3';
+    await writeFile(path.join(root, 'album/audio', next), 'new-audio');
+    expect((await runPreview(root, [])).code).toBe(0);
+    const response = await fetch(pageUrl);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('Encore');
+    const updated = await putVote(pageUrl, takeId(next), -1);
+    expect(updated.pass).toBe(2);
+    expect(updated.votes).toEqual({ [oldId]: 1, [takeId(next)]: -1 });
+  });
+
+  it('keeps a first standalone export playable with corrupt optional legacy metadata', async () => {
+    const root = await writeFixture();
+    for (const file of ['album-preview-catalog.json', 'album-preview-ballot.json']) {
+      await writeFile(path.join(root, '.tmp', file), 'unreadable');
+    }
+    const result = await runPreview(root, ['--streams-only']);
+    expect(result.code).toBe(0);
+    expect(readReport(result.stdout).online).toBe(2);
+    expect(await readFile(path.join(root, '.tmp/album-preview-ballot.json'), 'utf8')).toBe(
+      'unreadable'
+    );
+  });
+
   it('keeps cumulative scores across a preview restart', async () => {
     const root = await writeFixture();
     const first = readReport((await runPreview(root, ['--serve'])).stdout);
@@ -302,7 +336,9 @@ describe('album preview', () => {
     const afterSubtract = await putVote(pageUrl, localId, -1);
     expect(afterSubtract.votes[localId]).toBe(2);
     await putVote(pageUrl, streamId, -1);
-    const other = await putVote(pageUrl, streamId, -1);
+    await putBallot(pageUrl, { take: localId });
+    const other = await putBallot(pageUrl, { take: streamId, vote: -1, select: false });
+    expect(other.selected).toBe(localId);
     expect(other.votes[localId]).toBe(2);
     expect(other.votes[streamId]).toBe(-2);
 
@@ -318,6 +354,7 @@ describe('album preview', () => {
     const ballot = readBallot(await reloaded.json());
     expect(ballot.votes[localId]).toBe(2);
     expect(ballot.votes[streamId]).toBe(-2);
+    expect(ballot.selected).toBe(localId);
     expect(ballot.pass).toBe(1);
   });
 

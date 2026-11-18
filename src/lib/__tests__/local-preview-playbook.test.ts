@@ -11,6 +11,54 @@ async function text(relativePath: string): Promise<string> {
 }
 
 describe('local preview playbook', () => {
+  it.each(['grokbot/INSTRUCTIONS.md', 'grokbot/BOT.md'])(
+    'can refresh the current conversation from public instructions using %s alone',
+    async file => {
+      const body = await text(file);
+      const repo = 'sashakhad/album-kit';
+      const raw = `https://raw.githubusercontent.com/${repo}/<sha>`;
+      expect(body).toContain('every user request');
+      expect(body).toMatch(/anonymous (?:HTTP )?GET/i);
+      expect(body).toContain(`https://api.github.com/repos/${repo}/commits/main`);
+      expect(body).toContain(`https://api.github.com/repos/${repo}/commits/<ref>`);
+      expect(body).toContain(`${raw}/grokbot/BOT.md`);
+      expect(body).toContain(`${raw}/.cursor/skills/<skill>/SKILL.md`);
+      expect(body).toContain('/refresh <branch-or-SHA>');
+      expect(body).toContain('/refresh main');
+      expect(body).toContain('this chat only');
+      expect(body).toContain('keep the previous selection');
+      expect(body).toMatch(/(?:album|jobs)[^.\n]+(?:votes|scores)[^.\n]+settings/i);
+    }
+  );
+
+  it('opens a fresh album with help and settings before the album idea', async () => {
+    const greeting =
+      "Hey, I'm Album Bot! Type /help for commands or /settings to see your setup. Let's get some music going.";
+    for (const file of [
+      'grokbot/BOT.md',
+      '.cursor/skills/start-here/SKILL.md',
+      'grokbot/PORTABLE.md',
+    ]) {
+      const body = await text(file);
+      const welcome = body.indexOf(greeting);
+      expect(welcome).toBeGreaterThan(-1);
+      expect(body.indexOf('What kind of album do you want to make?', welcome)).toBeGreaterThan(
+        welcome
+      );
+    }
+  });
+
+  it('describes the model comparison on the path card and defers connecting Cursor', async () => {
+    for (const file of ['grokbot/BOT.md', '.cursor/skills/start-here/SKILL.md']) {
+      const body = await text(file);
+      const card = body.split('\n').find(line => line.startsWith('- Full Setup —'));
+      expect(card).toContain('Up to five different AI models each write a prompt');
+      expect(card).toContain('combines their ideas');
+      expect(card).not.toContain('Cursor');
+      expect(body).toContain('Connect Cursor when the brief and track names are ready');
+    }
+  });
+
   it('routes creator slash commands to the album playbook and first HTML player', async () => {
     const start = await text('.cursor/commands/start.md');
     const setup = await text('.cursor/commands/setup.md');
@@ -61,9 +109,9 @@ describe('local preview playbook', () => {
     '.cursor/skills/start-here/SKILL.md',
     '.cursor/skills/suno-run/SKILL.md',
     'grokbot/PORTABLE.md',
-  ])('offers sharing at album completion in %s', async file => {
+  ])('offers sharing, new tracks, and a custom reply after a completed batch in %s', async file => {
     const body = await text(file);
-    const question = 'Your album is ready. Want to share it with other people?';
+    const question = 'Your album is ready. What’s next?';
     const index = body.indexOf(question);
     expect(index).toBeGreaterThan(0);
     const beforeOffer = body.slice(0, index);
@@ -75,14 +123,50 @@ describe('local preview playbook', () => {
     expect(delivery).toContain('under ten seconds from the first playable take');
     expect(delivery).toContain('printed `link`');
     expect(delivery).toContain('before checking audio playback');
-    expect(beforeOffer).toMatch(
-      /(?:all|every) requested (?:tracks|take)[^.\n]*?(?:playable|plays)/i
-    );
-    expect(afterOffer).toMatch(/no (?:answer|or later)|decline/i);
+    // The opening also has an allowCustom card. Check the card attached to this question.
+    const completionCard = body.slice(Math.max(0, index - 190), index + 900);
+    expect(completionCard).toContain('allowCustom: true');
+    expect(completionCard).toMatch(/Share album[^.\n]*Add more tracks/);
+    expect(completionCard).toContain('Something else');
+    expect(completionCard).toMatch(/free.text|typed (?:reply|answer)/i);
+    expect(completionCard).not.toMatch(/Keep it local|Want to share it with other people/i);
     expect(afterOffer).toContain('pnpm share:album');
-    expect(afterOffer).toMatch(/verified public (?:player )?URL/i);
-    expect(body.slice(beforeOffer.lastIndexOf('Full Setup'))).toMatch(/ask (?:only )?once\b/i);
+    const lite = afterOffer.indexOf('Album Bot Lite');
+    const full = afterOffer.indexOf('Full Setup', lite);
+    expect(lite).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(lite);
+    expect(afterOffer.slice(lite, full)).toMatch(/static HTML player/i);
+    const fullShare = afterOffer.slice(full);
+    expect(fullShare).toContain('Next.js');
+    expect(fullShare).toContain('sashakhad/album-kit');
+    expect(fullShare).toContain('--ref <verified-kit-SHA>');
+    expect(fullShare).toMatch(/(?:existing|actual) (?:album|songs|tracks)/i);
+    expect(afterOffer).toMatch(/(?:own|creator’s|creator's) Vercel/);
+    expect(fullShare).toContain('/listen');
+    expect(fullShare).toContain('/vote');
+    expect(fullShare).toMatch(/verified public (?:player )?URL/i);
+    expect(body).not.toContain('Album Bot Light');
     expect(body).not.toContain('Do not offer it in the first session.');
+  });
+
+  it('resumes the completion choice and distinguishes new songs from takes', async () => {
+    const run = await text('.cursor/skills/suno-run/SKILL.md');
+    const questionAt = run.indexOf('Your album is ready. What’s next?');
+    const decision = run.slice(
+      run.lastIndexOf('\n### ', questionAt),
+      run.indexOf('\n### ', questionAt)
+    );
+    expect(decision).toMatch(/(?:all|every) requested [^.\n]+(?:ready|playable|play)/i);
+    expect(decision).toMatch(/(?:pending|partial|failed)/i);
+    expect(decision).toMatch(/once[^.\n]*batch|batch[^.\n]*once/i);
+    expect(decision).toMatch(/operation IDs[^.\n]*ledger/i);
+    expect(decision).toMatch(/resume[^.\n]*recorded choice/i);
+    expect(decision).toMatch(/pending[^.\n]*(?:keeps|leave)[^.\n]*batch open/i);
+    expect(decision).toMatch(/(?:cannot|never)[^.\n]*(?:append|generate)[^.\n]*twice/i);
+    expect(decision).toMatch(/append|new songs|new tracks/i);
+    expect(decision).toMatch(/(?:keep|preserve)[^.\n]*takes[^.\n]*scores/i);
+    expect(decision).toMatch(/`?\/more`?[^.\n]*(?:take|variation)[^.\n]*(?:track|song)/i);
+    expect(decision).toMatch(/no (?:reply|response|answer)|(?:typed|type)[^.\n]*later/i);
   });
 
   it.each([
@@ -95,16 +179,45 @@ describe('local preview playbook', () => {
     const body = await text(file);
     expect(body).toContain('node scripts/preview-album.mjs --streams-only');
     expect(body).toContain('same Open Album.html');
+    expect(body).toContain(
+      file.includes('/finish/') ? 'Here are the takes you picked.' : 'Here’s your first take.'
+    );
     expect(body).not.toContain('pnpm preview:album --zip');
     expect(body).not.toContain('pnpm preview:album --serve');
   });
 
   it('measures the first handoff through the actual chat send', async () => {
     const run = await text('.cursor/skills/suno-run/SKILL.md');
+    expect(run).toMatch(/UTC timestamps with milliseconds/i);
+    expect(run).toMatch(/preflight starts and finishes/i);
+    expect(run).toMatch(/prompt preparation starts and finishes/i);
+    expect(run).toMatch(/Suno accepts each Create/i);
     expect(run).toContain('when Suno first signaled a playable take');
+    expect(run).toContain('when the bot first observed its public playable URL');
     expect(run).toContain('when the exporter produced the page');
     expect(run).toContain('when the chat host acknowledged sending the attachment');
     expect(run).toContain('mark any unavailable event unmeasured');
+  });
+
+  it.each([
+    'grokbot/BOT.md',
+    'grokbot/PORTABLE.md',
+    '.cursor/skills/start-here/SKILL.md',
+    '.cursor/skills/suno-run/SKILL.md',
+  ])('checks individual clips independently of chat updates in %s', async file => {
+    const body = await text(file);
+    const withoutUpdateCadence = body.replace(
+      /every 3(?: to |[-–])5 minutes?|3(?: to |[-–])5 minute (?:user|chat) update/gi,
+      ''
+    );
+    expect(withoutUpdateCadence).not.toMatch(
+      /\b(?:3(?: to |\s*[-–]\s*)5|1(?: to |\s*[-–]\s*)3) min(?:ute)?s?\b/i
+    );
+    expect(body).toMatch(/check [^.\n]*?on acceptance/i);
+    expect(body).toMatch(/provider events[^.\n]*[.\s][^\n]*foreground/i);
+    expect(body).toMatch(/retry-after/i);
+    expect(body).toMatch(/sibling|second clip/i);
+    expect(body).toMatch(/heartbeat|status (?:message|update|timer)|chat update/i);
   });
 
   it.each([

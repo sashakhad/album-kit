@@ -22,6 +22,7 @@ vi.mock('@/lib/prisma', () => {
         estimate: { generations: 2 },
         status: 'authorized',
         snapshot: {
+          resolvedSunoModel: 'v6-mini',
           prompts: [
             { id: 'p1', trackNumber: 1, lane: 1 },
             { id: 'p2', trackNumber: 1, lane: 2 },
@@ -74,6 +75,26 @@ function request(body: unknown, method = 'POST') {
 beforeEach(() => state.jobs.clear());
 
 describe('provider job ledger', () => {
+  it('hands off the round model with the same operation when a previously accepted job resumes', async () => {
+    const job = { operationId: 'light-take', promptId: 'p1' };
+    const created = await POST(request(job), context);
+    expect(await created.json()).toMatchObject({ sunoModel: 'v6-mini', status: 'planned' });
+    await PATCH(
+      request(
+        { operationId: job.operationId, status: 'accepted', providerId: 'suno-one' },
+        'PATCH'
+      ),
+      context
+    );
+    const resumed = await POST(request(job), context);
+    expect(await resumed.json()).toMatchObject({
+      sunoModel: 'v6-mini',
+      providerId: 'suno-one',
+      status: 'accepted',
+    });
+    expect(state.jobs.size).toBe(1);
+  });
+
   it('reuses the operation ID and caps paid generations at the authorized estimate', async () => {
     expect((await POST(request({ operationId: 'p1-run1', promptId: 'p1' }), context)).status).toBe(
       201

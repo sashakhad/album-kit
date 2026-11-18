@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 import { promptsPerTrack } from '@/lib/rounds/lineup';
+import { resolveSunoModel } from '@/lib/rounds/suno-model';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
+
+export { resolveSunoModel };
 
 export const sunoCapabilitiesSchema = z.object({
   availableModels: z.array(z.string().min(1)).min(1),
@@ -17,33 +20,6 @@ export const sunoCapabilitiesSchema = z.object({
 });
 
 export type SunoCapabilities = z.infer<typeof sunoCapabilitiesSchema>;
-
-export function resolveSunoModel(
-  policy: string,
-  capabilities: SunoCapabilities
-): { model: string; migration: string | null } {
-  const available = new Set(capabilities.availableModels);
-  const quality =
-    capabilities.qualityDefault !== null && available.has(capabilities.qualityDefault)
-      ? capabilities.qualityDefault
-      : capabilities.availableModels[0];
-  if (quality === undefined) {
-    throw new Error('Suno returned no available models');
-  }
-  if (policy === 'auto') {
-    return { model: quality, migration: null };
-  }
-  if (available.has(policy)) {
-    return { model: policy, migration: null };
-  }
-  return {
-    model: quality,
-    migration:
-      capabilities.qualityDefault === quality
-        ? `${policy} is unavailable; ${quality} is the account's reported quality default.`
-        : `${policy} is unavailable; ${quality} is listed by the account, but its quality priority is unverified.`,
-  };
-}
 
 export type RoundEstimate = {
   tracks: number;
@@ -65,6 +41,7 @@ export type RoundEstimate = {
 export function estimateRound(args: {
   tracks: number;
   settings: AlbumSettingsValue;
+  setupPath?: 'light' | 'full' | undefined;
   capabilities: SunoCapabilities;
   externalSpendEstimateUsd?: number | undefined;
   hostingChargeEstimateUsd?: number | undefined;
@@ -78,7 +55,11 @@ export function estimateRound(args: {
 }): RoundEstimate {
   const capabilities = sunoCapabilitiesSchema.parse(args.capabilities);
   const tracks = z.number().int().positive().parse(args.tracks);
-  const { model, migration } = resolveSunoModel(args.settings.sunoModel, capabilities);
+  const { model, migration, needsChoice } = resolveSunoModel(
+    args.settings.sunoModel,
+    capabilities,
+    args.setupPath
+  );
   const prompts = tracks * promptsPerTrack(args.settings);
   const generations = prompts * args.settings.generationsPerPrompt;
   const expectedOutputs = generations * capabilities.outputsPerGeneration;
@@ -93,12 +74,7 @@ export function estimateRound(args: {
       `Saved Suno model ${args.settings.sunoModel} is unavailable. Choose an available model in Album Settings or request a one-round override.`
     );
   }
-  if (
-    (args.settings.sunoModel === 'auto' || migration !== null) &&
-    (capabilities.qualityDefault === null ||
-      !capabilities.availableModels.includes(capabilities.qualityDefault)) &&
-    capabilities.availableModels.length > 1
-  ) {
+  if (needsChoice) {
     blockers.push('Suno did not identify an eligible quality default; choose a verified model.');
   }
   if (args.settings.reviewTakes === 'private') {

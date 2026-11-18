@@ -173,6 +173,34 @@ describe('direct album deployment', () => {
     ).rejects.toThrow('did not confirm');
     expect(deployments).toEqual([]);
   });
+  it('restores the public stream catalog after the preview cache is removed and preserves explicit removals', async () => {
+    const album = {
+      title: 'Test Album',
+      sets: [{ id: 'v1' }],
+      tracks: [{ number: 1, slug: 'track-one' }],
+    };
+    const stream = {
+      filename: 'v1-01-track-one-p1-takea.mp3',
+      clipId: 'first',
+      streamUrl: 'https://cdn1.suno.ai/first.mp4',
+    };
+    await put('album/album.json', JSON.stringify(album));
+    await put(
+      '.tmp/album-preview-streams.json',
+      JSON.stringify([{ ...stream, privateNote: 'local only' }])
+    );
+    const { runner, request } = host();
+    await setup({ name: project.name, scope: 'test-scope' }, root, runner, request);
+    const saved = path.join(root, 'album/public-streams.json');
+    expect(JSON.parse(await readFile(saved, 'utf8'))).toEqual([stream]);
+    await rm(path.join(root, '.tmp/album-preview-streams.json'));
+    await publish('Restored album', root, runner, request);
+    expect(JSON.parse(await readFile(saved, 'utf8'))).toEqual([stream]);
+    await put('.tmp/album-preview-streams.json', '[]');
+    await publish('Remove old stream', root, runner, request);
+    expect(JSON.parse(await readFile(saved, 'utf8'))).toEqual([]);
+  });
+
   it('rejects a track sheet symlink instead of following it', async () => {
     const sheet = path.join(root, 'album/tracks/01-track-one.md');
     await rm(sheet);

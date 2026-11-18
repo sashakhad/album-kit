@@ -9,7 +9,7 @@ Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared data
 
 ## Default
 
-Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on Node 24 and attach the same Open Album.html from the printed `link` immediately. File scores stay in that browser. Use the optional local server for a ballot saved to the checkout, or the ZIP for offline audio files. The sharing offer happens in `suno-run` once the requested album is generated. If they chose to keep it local, they can still use `/share` here.
+Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on Node 24 and attach the same Open Album.html from the printed `link` immediately. When returning picks, one line is enough, such as “Here are the takes you picked.” If playback fails, name the affected track and the next step. File scores stay in that browser. Use the optional local server for a ballot saved to the checkout, or the ZIP for offline audio files. The next-step card in `suno-run` offers **Share album** and **Add more tracks** after each new-song batch. Resume the existing choice here. The creator can still use `/share` while listening.
 
 ## When to use
 
@@ -18,7 +18,7 @@ Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on N
 
 ## Advanced hosted site
 
-These steps apply only after the owner has asked for hosted voting and a site exists. Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for anyone opening the album. A specific pick is not chosen on the Compare takes card.
+Use these steps after a Full Setup share, or on an existing hosted voting app. Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for anyone opening the album. A specific pick is not chosen on the Compare takes card.
 
 ## Steps
 

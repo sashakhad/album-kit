@@ -13,6 +13,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
+import { publicStreamEntries } from '../src/lib/album/stream-url.ts';
+
 const projectPattern = /^[a-z0-9][a-z0-9-]{0,99}$/;
 const scopePattern = /^[A-Za-z0-9][\w-]{0,99}$/;
 const projectIdPattern = /^prj_[\w-]+$/;
@@ -120,7 +123,6 @@ const buildFiles = [
   'prisma.config.ts',
   'vercel.json',
   'scripts/vercel-build.mjs',
-  'album/album.json',
 ];
 const directories = {
   src: /\.(?:[cm]?[jt]sx?|json|css|svg|woff2?|ico|png|jpg|webp|webmanifest)$/,
@@ -128,17 +130,45 @@ const directories = {
   prisma: /\.(?:prisma|sql|toml)$/,
 };
 
-export async function stageHostedApp(root) {
+async function readAlbumStreams(directory, basename) {
+  const file = path.join(directory, basename);
+  try {
+    if (!(await lstat(directory)).isDirectory() || !(await lstat(file)).isFile()) {
+      throw new Error('Expected an ordinary album stream catalog.');
+    }
+    return JSON.parse(await readFile(file, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+export async function localPublicStreams(root, album) {
+  const current = await readAlbumStreams(path.join(root, '.tmp'), 'album-preview-streams.json');
+  const input =
+    current ?? (await readAlbumStreams(path.join(root, 'album'), 'public-streams.json'));
+  if (input === null) return [];
+  const sets = new Set(album.sets.map(set => set.id));
+  const tracks = new Map(
+    album.tracks.filter(track => !track.parked).map(track => [track.number, track.slug])
+  );
+  return publicStreamEntries(input).filter(({ filename }) => {
+    const take = parseCanonicalTake(filename);
+    return take && sets.has(take.setId) && tracks.get(take.trackNumber) === take.slug;
+  });
+}
+
+export async function stageHostedApp(root, kitRoot = root) {
   const stage = await mkdtemp(path.join(tmpdir(), 'album-hosted-'));
-  async function copy(file) {
+  async function copy(file, source = kitRoot) {
     const destination = path.join(stage, file);
-    if (!(await lstat(path.join(root, file))).isFile())
+    if (!(await lstat(path.join(source, file))).isFile())
       throw new Error('Expected an album file: ' + file);
     await mkdir(path.dirname(destination), { recursive: true });
-    await copyFile(path.join(root, file), destination);
+    await copyFile(path.join(source, file), destination);
   }
   async function tree(dir, pattern) {
-    for (const entry of await readdir(path.join(root, dir), { withFileTypes: true })) {
+    for (const entry of await readdir(path.join(kitRoot, dir), { withFileTypes: true })) {
       if (
         entry.name.startsWith('.') ||
         ['__tests__', '__mocks__', 'generated', 'node_modules'].includes(entry.name)
@@ -151,13 +181,19 @@ export async function stageHostedApp(root) {
   }
   try {
     // Stage only build inputs. Source control metadata, credentials, raw audio, and generation ledgers stay local.
-    for (const dir of ['scripts', 'album', ...Object.keys(directories)]) {
-      if (!(await lstat(path.join(root, dir))).isDirectory())
+    if (!(await lstat(path.join(root, 'album'))).isDirectory())
+      throw new Error('Expected an album directory.');
+    for (const dir of ['scripts', ...Object.keys(directories)]) {
+      if (!(await lstat(path.join(kitRoot, dir))).isDirectory())
         throw new Error('Expected an album directory: ' + dir);
     }
     for (const file of buildFiles) await copy(file);
     for (const [dir, pattern] of Object.entries(directories)) await tree(dir, pattern);
-    const album = await readJson(path.join(root, 'album/album.json'));
+    await copy('album/album.json', root);
+    const album = await readJson(path.join(stage, 'album/album.json'));
+    const publicTakes = await localPublicStreams(root, album);
+    if (publicTakes.length)
+      await saveJson(path.join(stage, 'album/public-streams.json'), publicTakes);
     const sheets = await lstat(path.join(root, 'album/tracks')).catch(error => {
       if (error.code !== 'ENOENT') throw error;
       return null;
@@ -168,7 +204,7 @@ export async function stageHostedApp(root) {
         if (!Number.isInteger(track.number) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(track.slug))
           throw new Error('Invalid track in album.json.');
         const file = `album/tracks/${String(track.number).padStart(2, '0')}-${track.slug}.md`;
-        await copy(file).catch(error => {
+        await copy(file, root).catch(error => {
           if (error.code !== 'ENOENT') throw error;
         });
       }
@@ -207,8 +243,8 @@ export async function checkVotingApp(siteUrl, request = fetch) {
   return url.origin;
 }
 
-export async function deployHostedApp(root, project, runner, request = fetch) {
-  const directory = await stageHostedApp(root);
+export async function deployHostedApp(root, project, runner, request = fetch, source = null) {
+  const directory = await stageHostedApp(root, source?.directory ?? root);
   try {
     const result = runner.must(
       runner.vercel([
@@ -219,6 +255,7 @@ export async function deployHostedApp(root, project, runner, request = fetch) {
         project.scope,
         '--cwd',
         directory,
+        ...(source ? ['--meta', 'albumKitRevision=' + source.revision] : []),
         '--prod',
         '--yes',
         '--json',
@@ -236,7 +273,21 @@ export async function deployHostedApp(root, project, runner, request = fetch) {
     for (const delay of [0, 1000, 3000]) {
       if (delay) await sleep(delay);
       try {
-        return await checkVotingApp(deployment.productionUrl, request);
+        const siteUrl = await checkVotingApp(
+          source?.preferredUrl && project.aliases.includes(new URL(source.preferredUrl).hostname)
+            ? source.preferredUrl
+            : deployment.productionUrl,
+          request
+        );
+        // The album backup can now restore these public clips even without the local preview cache.
+        const published = await readJson(path.join(directory, 'album/public-streams.json'));
+        if (
+          published ||
+          (await readAlbumStreams(path.join(root, 'album'), 'public-streams.json'))
+        ) {
+          await saveJson(path.join(root, 'album/public-streams.json'), published ?? []);
+        }
+        return siteUrl;
       } catch (error) {
         if (delay === 3000) throw error;
       }

@@ -19,6 +19,10 @@ class VariationUnavailableError extends Error {}
 
 const bodySchema = z.object({
   tracks: z.number().int().positive(),
+  setupPath: z
+    .enum(['lite', 'light', 'full'])
+    .transform(path => (path === 'lite' ? 'light' : path))
+    .optional(),
   variationRequestId: z.uuid().optional(),
   sunoModelOverride: z.string().min(1).max(120).optional(),
   prompts: z
@@ -118,7 +122,10 @@ export async function POST(request: Request) {
   const roundSettings = variation
     ? {
         ...settings,
-        sunoModel: parsed.data.sunoModelOverride ?? settings.sunoModel,
+        sunoModel:
+          parsed.data.sunoModelOverride ??
+          (variation.status === 'generating' ? variation.quotedModel : null) ??
+          settings.sunoModel,
         promptVariations: 1,
         comparison: 'off' as const,
         writerLineup: [],
@@ -206,6 +213,7 @@ export async function POST(request: Request) {
   const data = {
     snapshot: {
       settings: omitVocals(roundSettings),
+      ...(parsed.data.setupPath ? { setupPath: parsed.data.setupPath } : {}),
       capabilities: parsed.data.capabilities,
       resolvedSunoModel: estimate.sunoModel,
       prompts,

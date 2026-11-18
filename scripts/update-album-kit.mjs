@@ -35,7 +35,7 @@ const rootFiles = new Set([
 ]);
 const trees = new Map([
   ['.cursor', /^(?:commands\/[^/]+\.md|rules\/[^/]+\.mdc|skills\/[^/]+\/SKILL\.md)$/],
-  ['grokbot', /^(?:BOT|PORTABLE)\.md$/],
+  ['grokbot', /^(?:BOT|PORTABLE|INSTRUCTIONS)\.md$/],
   ['prisma', /^(?:schema\.prisma|migrations\/(?:migration_lock\.toml|[^/]+\/migration\.sql))$/],
   ['public', /^next\.svg$/],
   ['scripts', /^[^/]+\.(?:mjs|html)$/],

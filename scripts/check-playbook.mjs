@@ -17,10 +17,26 @@ const API_PATH = /\/api\/[\w\-.~/<>[\]{}$]*/g;
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 const SUNO_CDN = /cdn1\.suno\.ai/gi;
 
+const completionCard = ['Your album is ready. What’s next?', 'Share album', 'Add more tracks'];
+
+const shareEditions = [
+  'Album Bot Lite',
+  'static HTML player',
+  'Full Setup',
+  'Next.js',
+  '--ref <verified-kit-SHA>',
+];
+
 const ONBOARDING_PHRASES = [
+  {
+    file: path.join(ROOT, 'grokbot', 'PORTABLE.md'),
+    phrases: [...completionCard, ...shareEditions],
+  },
   {
     file: path.join(ROOT, 'grokbot', 'BOT.md'),
     phrases: [
+      ...completionCard,
+      ...shareEditions,
       'question widget card',
       'begin onboarding automatically',
       'explicitly start a fresh album flow',
@@ -53,6 +69,8 @@ const ONBOARDING_PHRASES = [
   {
     file: path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
     phrases: [
+      ...completionCard,
+      ...shareEditions,
       'question widget card',
       'begin onboarding automatically',
       'explicitly begin a fresh album flow',
@@ -81,10 +99,13 @@ const ONBOARDING_PHRASES = [
       'Never ask how review takes should play',
       'made public on Suno',
       'public MP4',
-      'one or two tracks',
-      'about 20 Suno credits per track',
+      'v6-mini',
+      '/refresh',
       'Sasha never hosts Album Bot for anyone.',
-      'pnpm share:album',
+      ...completionCard,
+      'Lite',
+      'Full Setup',
+      'Next.js',
       'pnpm setup:site --name <album-slug> --scope',
       'node scripts/preview-album.mjs --streams-only',
       '/share',
@@ -93,6 +114,8 @@ const ONBOARDING_PHRASES = [
   {
     file: path.join(ROOT, '.cursor', 'skills', 'suno-run', 'SKILL.md'),
     phrases: [
+      ...completionCard,
+      ...shareEditions,
       'reviewTakes',
       'downloadsPerTake',
       'Never ask how review takes should play',

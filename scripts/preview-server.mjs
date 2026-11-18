@@ -78,7 +78,7 @@ export async function servePreview({ output, catalogPath, albumKey }) {
         }
         const filename = catalog.names.find(([id]) => id === change?.take)?.[1];
         if (!filename || ![undefined, -1, 1].includes(change.vote)) return send(400);
-        persist(applyLocalVote(ballot, filename, change.vote));
+        persist(applyLocalVote(ballot, filename, change.vote, change.select !== false));
         return json(200, ballotView(catalog.names));
       }
 

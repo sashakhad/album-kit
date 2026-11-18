@@ -55,12 +55,14 @@ describe('onboarding checkpoint', () => {
     const stateFile = path.join(root, '.album-onboarding.json');
     const first = main(['status'], root, run);
     expect(first.path).toBe('light');
-    expect(nextStep(first)).toContain('Choose Album Bot Light');
+    expect(nextStep(first)).toContain('Choose Album Bot Lite');
+    expect(nextStep(first)).toContain('up to five different AI models write prompts');
+    expect(nextStep(first)).not.toContain('Cursor');
     await expect(readFile(stateFile)).rejects.toMatchObject({ code: 'ENOENT' });
     await writeFile(stateFile, JSON.stringify({ path: 'unrecognized' }));
     const unknown = main(['status'], root, run);
     expect(unknown.github).toBeUndefined();
-    expect(nextStep(unknown)).toContain('Choose Album Bot Light');
+    expect(nextStep(unknown)).toContain('Choose Album Bot Lite');
     expect(run).not.toHaveBeenCalled();
     expect(main(['path', 'full'], root, run).needsPathChoice).toBe(false);
   });
@@ -68,14 +70,14 @@ describe('onboarding checkpoint', () => {
   it('separates installed tools from verified provider capabilities', () => {
     const run = vi.fn(runner(readyCommands));
     const status = main(['path', 'studio'], root, run);
-    expect(status.cursor).toEqual({ installed: true, modelExecutionVerified: false });
+    expect(status.cursor).toMatchObject({ installed: true, modelExecutionVerified: false });
     expect(status.suno.capabilitiesVerified).toBe(false);
     expect(status.vercel).toBeUndefined();
     expect(run.mock.calls).toEqual([['cursor', ['--version']]]);
     expect(nextStep(status)).toContain('Suno connector or Free browser');
   });
 
-  it('runs Light locally without probing Cursor or any hosting service', () => {
+  it('runs Lite locally without probing Cursor or any hosting service', () => {
     const run = vi.fn(runner());
     main(['path', 'light'], root, run);
     main(['verify-suno', 'browser', 'create', 'status', 'models'], root, run);
@@ -88,24 +90,47 @@ describe('onboarding checkpoint', () => {
     );
   });
 
-  it('requires paid Suno and working Cursor writers in Full Setup while keeping hosting out of setup', () => {
+  it('connects Cursor for the Full comparison after the brief, track names, and paid Suno are ready', async () => {
     const run = vi.fn(runner(readyCommands));
     main(['path', 'full'], root, run);
     const free = main(['verify-suno', 'browser', 'create', 'status', 'models'], root, run);
     expect(free.suno.capabilitiesVerified).toBe(false);
     expect(nextStep(free)).toContain('paid Suno');
-    const connected = main(
-      ['verify-suno', 'mcp', 'create', 'status', 'models', 'credits'],
-      root,
-      run
+    const albumFile = path.join(root, 'album', 'album.json');
+    const album = JSON.parse(await readFile(albumFile, 'utf8'));
+    await writeFile(albumFile, JSON.stringify({ ...album, tracks: [{ number: 1, title: ' ' }] }));
+    main(['verify-suno', 'mcp', 'create', 'status', 'models', 'credits'], root, run);
+    expect(nextStep(main(['status'], root, run))).toContain('track titles');
+    await writeFile(albumFile, JSON.stringify(album));
+    main(['path', 'full'], root, run);
+    expect(run).not.toHaveBeenCalled();
+    expect(vi.spyOn(console, 'log').mock.calls.flat().join(' ')).not.toContain('Cursor');
+    const connected = main(['status'], root, run);
+    expect(run).toHaveBeenCalledWith('cursor', ['--version']);
+    expect(nextStep(connected)).toContain(
+      'Connect Cursor so the AI models can write their prompts'
     );
-    expect(nextStep(connected)).toContain('Cursor project');
+    expect(connected.cursor.modelExecutionVerified).toBe(false);
     main(['verify-cursor', 'observed-writer'], root, run);
     const ready = main(['status'], root, run);
-    expect(nextStep(ready)).toContain('up to five available Cursor writers');
+    expect(nextStep(ready)).toContain('up to five different AI models to write prompts');
     expect(nextStep(ready)).toContain('combined version');
     expect(new Set(run.mock.calls.map(([cmd]) => cmd))).toEqual(new Set(['cursor']));
     expect(vi.spyOn(console, 'log').mock.calls.flat().join(' ')).not.toMatch(/GitHub|Vercel/);
+  });
+
+  it('records an explicitly verified model even before automatic comparison setup is due', async () => {
+    await rm(path.join(root, 'album', 'BRIEF.md'));
+    const run = vi.fn(runner(readyCommands));
+    main(['path', 'full'], root, run);
+    const early = main(['verify-suno', 'mcp', 'create', 'status', 'models', 'credits'], root, run);
+    expect(nextStep(early)).toContain('album name');
+    expect(run).not.toHaveBeenCalled();
+    expect(main(['verify-cursor', 'observed-model'], root, run).cursor.modelExecutionVerified).toBe(
+      true
+    );
+    expect(run.mock.calls).toEqual([['cursor', ['--version']]]);
+    expect(main(['status'], root, run).cursor.checked).toBe(false);
   });
 
   it('checks hosting on explicit request and resumes local status afterward', () => {
