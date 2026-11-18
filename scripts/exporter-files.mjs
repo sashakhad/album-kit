@@ -5,6 +5,7 @@ export const exporterFiles = [
   'scripts/probe-stream.mjs',
   'scripts/preview-album.mjs',
   'scripts/live-progress.mjs',
+  'scripts/publish-quota.mjs',
   'scripts/capture-page.mjs',
   'scripts/preview-identity.mjs',
   'scripts/preview-server.mjs',

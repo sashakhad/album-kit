@@ -157,9 +157,10 @@ describe('local preview playbook', () => {
     expect(delivery).toContain(
       'before checking other takes or running whole-round playback verification'
     );
-    expect(beforeOffer).toContain('A status of `streaming` is not playable.');
-    expect(beforeOffer).toContain('node scripts/probe-stream.mjs <streamUrl>');
-    expect(beforeOffer).toContain('Range: bytes=0-31');
+    expect(beforeOffer).toContain('A status of `streaming` is the public CDN handoff.');
+    expect(beforeOffer).toContain('node scripts/preview-album.mjs --open');
+    expect(beforeOffer).toContain('mustlovellamas@mail.grokbot.com');
+    expect(beforeOffer).toContain('The handoff does not wait for it.');
     expect(beforeOffer).toMatch(/403[^.]+only that clip pending/i);
     // The opening also has an allowCustom card. Check the card attached to this question.
     const completionCard = body.slice(Math.max(0, index - 190), index + 900);
@@ -237,13 +238,13 @@ describe('local preview playbook', () => {
   ])('sends the first probed clip before the rest of the batch in %s', async file => {
     const body = await text(file);
     expect(body).toContain('Copy this sentence exactly');
-    expect(body).toContain('A status of `streaming` is not playable.');
+    expect(body).toContain('A status of `streaming` is the public CDN handoff.');
     expect(body).toContain('When `audio-create` returns clip ids');
     expect(body).toContain('Act on the first clip id');
     expect(body).toContain('keep polling each remaining clip id in the background');
     expect(body).toContain('Do not pass the full id list to `audio-wait`');
     expect(body).toContain(
-      'Before the first Create, the selected revision’s standalone exporter is already on disk.'
+      'Before the first Create, run `node scripts/preview-album.mjs --open` and send that `Open Album.html`. It lists every title. Tracks with no stream yet are placeholders. Count the takes this batch will publish and read how many public publishes are left today. Suno caps public publishes at 100 a day. Run `node scripts/publish-quota.mjs --remaining <left> --takes <count>`. Pass `unknown` when the number was not read. If it prints `ok: false`, send its `say` and do not Create. Warn up front when the quota is low. Do not discover the cap after the takes exist. Automated tests use the standing Suno Free test account mustlovellamas@mail.grokbot.com, or another test account. Never use Sasha’s Suno account for a test, a publish, or a Create. Before the first Create, the selected revision’s standalone exporter is already on disk.'
     );
     expect(body).not.toContain('A status of streaming is ready media for that clip.');
     expect(body).not.toContain('Resume the other clips only after that attachment is sent.');

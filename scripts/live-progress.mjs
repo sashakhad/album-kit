@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const generationEstimate =
-  'A short paid clip is often playable in a couple of minutes. A Free song can run about 3–4 minutes, so the first take can take longer. I’ll send each one as soon as you can tap it.';
+  'The first take usually starts playing in about 20–30 seconds.';
 
 export const tapToListen = 'Your album page is ready. Tap to listen ↓';
 
@@ -14,8 +14,11 @@ export const firstOnesIn =
 export const nextTracksLine =
   'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
 
+export const pageReady =
+  'Your album page is ready. Tap to listen ↓\nThe titles are in. The first take usually starts playing in about 20–30 seconds.';
+
 export const stillWorking =
-  'Still working. Nothing new yet. I’ll send the page as soon as a take can play.';
+  'Still working. The first take usually starts playing in about 20–30 seconds.';
 
 export const takingLonger = 'This one’s taking longer than usual. Still on it.';
 

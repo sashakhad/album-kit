@@ -421,6 +421,34 @@ describe('album preview', () => {
     expect(again.elapsedMs).toBeLessThan(10000);
   });
 
+  it('opens a titled page before any stream exists', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'album-open-'));
+    roots.push(root);
+    await mkdir(path.join(root, 'album'), { recursive: true });
+    await writeFile(
+      path.join(root, 'album', 'album.json'),
+      JSON.stringify({
+        title: 'Mirage Motel',
+        artist: 'Album Bot',
+        sets: [{ id: 'v1', name: 'First' }],
+        tracks: [
+          { number: 1, title: 'Vacancy', slug: 'vacancy' },
+          { number: 2, title: 'Ice Machine', slug: 'ice-machine' },
+        ],
+      })
+    );
+    const opened = await runPreview(root, ['--open']);
+    expect(opened.code).toBe(0);
+    const report = readReport(opened.stdout);
+    expect(report.online).toBe(0);
+    expect(report.offline).toBe(0);
+    const html = await readFile(report.page, 'utf8');
+    expect(html).toContain('Vacancy');
+    expect(html).toContain('Ice Machine');
+    expect(html).not.toContain('cdn1.suno.ai');
+    expect(opened.stdout).toContain('The titles are in.');
+  });
+
   it('rejects unknown arguments', async () => {
     const root = await writeFixture();
     const result = await runPreview(root, ['--zip', '--serve']);

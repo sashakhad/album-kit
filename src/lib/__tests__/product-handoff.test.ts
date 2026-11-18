@@ -83,7 +83,7 @@ describe('product handoff', () => {
       'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.'
     );
     expect(requirements).toContain('Copy this sentence exactly');
-    expect(requirements).toContain('A status of `streaming` is not playable.');
+    expect(requirements).toContain('A status of `streaming` is the public CDN handoff.');
     expect(requirements).toContain('200 or 206');
     expect(requirements).toContain('video/mp4');
     expect(requirements).toContain('scripts/exporter-files.mjs');
