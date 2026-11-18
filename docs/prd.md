@@ -41,6 +41,18 @@ After the idea, and before any connector or website, one card asks “How do you
 
 The Full Setup card does not mention Cursor, a website, or a sign-in time. Selecting it records the choice and continues the creative questions. Cursor is connected only after the brief and track names are settled and the comparison is about to start. If a sign-in is actually needed then, say that Cursor runs the models and paid Suno makes the music, and allow about 5–10 minutes.
 
+## Suno account
+
+After the path, and not on the greeting, ask once “Do you already have a Suno account?” with **Yes** and **Not yet**. A working session skips this question and the sign-in menu, so the first take is not delayed. Skip it when they already said whether they have an account.
+
+If they do not have an account, say exactly “Since you don't have a Suno account, this takes a few minutes to set up.” Then walk them through Suno’s own sign-up page. Recommend phone first: “Phone is the fastest. Suno texts you a code and you're in.” Also offer email, Google, Apple, Microsoft, Discord, and Facebook. The code is entered on Suno’s page, never in chat.
+
+When the form requires a birth date, fill January 1, 1995 without asking. Then say exactly “I just picked Jan 1, 1995 for the birthday so sign-up keeps moving; you can change it later in Suno settings.” Do not ask them for a birthday.
+
+If they have an account but are not signed in, or they cannot log in, use the same phone sentence. Do not wait for a failed password. Fill a birth date only if that page requires one, with the same date and the same sentence.
+
+Keep going on names and the brief while they finish the code. Do not start a Create before the session can create.
+
 Names come next, one at a time, skipping anything already answered. The album-title card asks “What do you want to call this album?” with two or three invented titles and free typing. The track card shows a numbered list, then “What should the tracks be called?” with **Keep these**, **I'll name them myself**, and **Let Album Bot decide**. Those exact strings are written to `album/album.json` before a preview, a share, or a Suno create.
 
 ## Album Bot Lite

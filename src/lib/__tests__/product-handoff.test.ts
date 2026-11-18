@@ -102,7 +102,7 @@ describe('product handoff', () => {
 
     const charts = bodies.get('docs/decision-charts.md');
     if (charts === undefined) throw new Error('Missing charts');
-    expect(mermaidCount(charts)).toBe(6);
+    expect(mermaidCount(charts)).toBe(7);
 
     const guide = await text('README.md');
     const agents = await text('AGENTS.md');

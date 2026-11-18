@@ -3,7 +3,7 @@ name: suno-run
 description: Preflight, authorize and run a track sheet's prompts through Suno; collect and upload every take without duplicate spending.
 ---
 
-# Suno run · version 12
+# Suno run · version 13
 
 Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Generate the album locally. Share it only on the owner's own account after they choose to share.
 
@@ -130,6 +130,18 @@ Backfill steps:
 3. Continue with provenance, `complete`, and `ready` as usual.
 
 For an instrumental sheet (the default when `vocals` is `instrumental`), send the Style paragraph, Title, resolved model, `instrumental: true`, and supported settings. The title you send is the track title in `album/album.json`, the same string as the sheet's Title field. Do not rename it for Suno. Do not send lyrics. When vocals are wanted, the sheet holds original lyrics from `song-prompts`. Send those in Suno's custom mode: the `lyrics` field, plus `style` (the Style paragraph) and `title`. Do not also send `description`. Mixing `description` with `lyrics` or `style` is rejected. If a required setting is missing, use the browser fallback for that prompt or stop precisely.
+
+## Suno account
+
+Before opening a Suno sign-in or sign-up page, follow **Suno account** in `start-here`. A working session skips the question and the method menu, so the first take is not delayed. Do not wait for a failed login.
+
+If they do not have an account, say exactly: "Since you don't have a Suno account, this takes a few minutes to set up." Recommend phone first, in this sentence: "Phone is the fastest. Suno texts you a code and you're in." On suno.com/sign-up and suno.com/sign-in the phone field is already on the page: country code, “Enter your phone number,” and Continue. If that layout instead shows **Continue with Phone** or **Use phone instead**, choose that. Also offer email, Google, Apple, Microsoft, Discord, and Facebook. Do not invent an email-and-password form. Email is behind **Alternative options**. They enter the code on Suno's page, never in chat. After the code, Suno may open /auth/birthday or /collect-birthday.
+
+When the form requires a birth date, fill January 1, 1995 without asking. Use January, 1, and 1995 if the form has separate month, day, and year fields. Then say exactly: "I just picked Jan 1, 1995 for the birthday so sign-up keeps moving; you can change it later in Suno settings." Do not ask them for a birthday.
+
+If they have an account but cannot log in, use the same phone sentence. Do not wait for a failed password. Fill a birth date only if that page requires one, with the same date and the same sentence.
+
+Keep writing the brief and the prompts while they finish the code. Do not start a Create before the session can create. One question widget card asks "Do you already have a Suno account?" with **Yes** and **Not yet** when that question has not already been answered.
 
 ## Suno Free / browser
 
