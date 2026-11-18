@@ -18,6 +18,8 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 const SUNO_CDN = /cdn1\.suno\.ai/gi;
 
 const completionCard = ['Your album is ready. What’s next?', 'Share album', 'Add more tracks'];
+const nextTracksLine =
+  'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
 
 const shareEditions = [
   'Album Bot Lite',
@@ -30,12 +32,13 @@ const shareEditions = [
 const ONBOARDING_PHRASES = [
   {
     file: path.join(ROOT, 'grokbot', 'PORTABLE.md'),
-    phrases: [...completionCard, ...shareEditions],
+    phrases: [...completionCard, nextTracksLine, ...shareEditions],
   },
   {
     file: path.join(ROOT, 'grokbot', 'BOT.md'),
     phrases: [
       ...completionCard,
+      nextTracksLine,
       ...shareEditions,
       'question widget card',
       'begin onboarding automatically',
@@ -70,6 +73,7 @@ const ONBOARDING_PHRASES = [
     file: path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
     phrases: [
       ...completionCard,
+      nextTracksLine,
       ...shareEditions,
       'question widget card',
       'begin onboarding automatically',
@@ -103,6 +107,7 @@ const ONBOARDING_PHRASES = [
       '/refresh',
       'Sasha never hosts Album Bot for anyone.',
       ...completionCard,
+      nextTracksLine,
       'Lite',
       'Full Setup',
       'Next.js',
@@ -115,6 +120,7 @@ const ONBOARDING_PHRASES = [
     file: path.join(ROOT, '.cursor', 'skills', 'suno-run', 'SKILL.md'),
     phrases: [
       ...completionCard,
+      nextTracksLine,
       ...shareEditions,
       'reviewTakes',
       'downloadsPerTake',

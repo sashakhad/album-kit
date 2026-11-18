@@ -15,7 +15,7 @@ ChatGPT and Claude can follow [grokbot/PORTABLE.md](grokbot/PORTABLE.md). Grok B
 
 ## Start
 
-Open Album Bot and tell it your album idea. Choose Lite for a quick listen or Full Setup to compare prompt writers. Lite prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send **Open Album.html** as soon as the first take plays. Listen while the rest finish.
+Open Album Bot and tell it your album idea. Choose Lite for a quick listen or Full Setup to compare prompt writers. Lite prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send **Open Album.html** as soon as the first take plays. When other tracks are still on the list, the line with that file is “Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.” Listen while the rest finish.
 
 In an existing Album Bot chat, type `/refresh` to load the latest instructions and keep working on the same album. To test an unmerged change, use `/refresh <branch-or-SHA>` and then `/refresh main` to return to the release. If an older chat doesn’t recognize the command, tell it to reread [the playbook on main](https://raw.githubusercontent.com/sashakhad/album-kit/main/grokbot/BOT.md) and continue the current album. Use `/listen` for existing takes, `/start` for a fresh album, or `/surprise` to let the bot pick. When configuring your own bot, use the [custom instructions](grokbot/INSTRUCTIONS.md).
 

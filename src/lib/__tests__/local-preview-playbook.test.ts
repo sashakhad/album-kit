@@ -251,6 +251,24 @@ describe('local preview playbook', () => {
     expect(body).not.toContain("once they're ready");
   });
 
+  it.each([
+    'grokbot/BOT.md',
+    'grokbot/PORTABLE.md',
+    '.cursor/skills/start-here/SKILL.md',
+    '.cursor/skills/suno-run/SKILL.md',
+  ])('offers the next tracks after a take in %s', async file => {
+    const body = await text(file);
+    const line =
+      'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
+    expect(body).toContain(line);
+    expect(body).toContain('do not wait for a reply before starting those tracks');
+    expect(body).not.toContain('will stay on this computer');
+    expect(body).not.toContain('Type /more if you want more takes');
+    expect(body).not.toContain('streams from a public Suno link');
+    expect(body).toContain('Act on the first clip id');
+    expect(body).toContain('200 or 206');
+  });
+
   it('measures the first handoff through the actual chat send', async () => {
     const run = await text('.cursor/skills/suno-run/SKILL.md');
     expect(run).toMatch(/UTC timestamps with milliseconds/i);
