@@ -108,8 +108,13 @@ it('plays a track on the first tap and advances like the album page', async () =
   const { document, HTMLElement } = dom.window;
   await viWait(() => document.querySelector('h1')?.textContent === 'First album');
   expect(errors).toEqual([]);
-  expect(document.body.textContent).toContain('First song');
-  expect(document.body.textContent).toContain('Second song');
+  const shown = shownText(document, HTMLElement);
+  expect(shown).toContain('First song');
+  expect(shown).toContain('Second song');
+  expect(shown).not.toMatch(
+    /Only negative scores|dropped before|unscored takes|streams from a public Suno link|internet required/i
+  );
+  expect(document.querySelector('[data-pass-status]')).toBeNull();
 
   const track = buttonNamed(document, /first song/i);
   track.click();
@@ -135,6 +140,15 @@ it('plays a track on the first tap and advances like the album page', async () =
   await viWait(() => document.querySelector('h2')?.textContent === 'First song');
   expect(document.querySelector('[role="slider"]')).toBeInstanceOf(HTMLElement);
 });
+
+function shownText(document: Document, elementType: typeof HTMLElement): string {
+  const clone = document.body.cloneNode(true);
+  if (!(clone instanceof elementType)) {
+    throw new Error('expected the player body');
+  }
+  for (const node of clone.querySelectorAll('script, style')) node.remove();
+  return clone.textContent ?? '';
+}
 
 function buttonNamed(document: Document, name: RegExp): HTMLButtonElement {
   const button = [...document.querySelectorAll('button')].find(

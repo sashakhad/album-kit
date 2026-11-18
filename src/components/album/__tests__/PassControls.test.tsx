@@ -7,13 +7,15 @@ import { PassControls } from '@/components/album/PassControls';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('PassControls', () => {
-  it('explains a pass with no cuts before confirmation', async () => {
+  it('waits to say that pass 1 cuts nothing until the pass is reviewed', async () => {
     const user = userEvent.setup();
-    render(<PassControls currentRound={1} remaining={6} nextCut={0} unscored={6} />);
+    render(<PassControls currentRound={1} remaining={6} nextCut={0} />);
 
-    expect(screen.getByText(/No takes will be cut when you start Pass 2/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/No takes will be cut|Only negative|unscored/)
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Review next pass' }));
-    expect(screen.getByText(/No takes will be cut; 6 will stay/)).toBeInTheDocument();
+    expect(screen.getByText('Start Pass 2? No takes will be cut.')).toBeInTheDocument();
   });
 
   it('reviews the next pass, supports cancel, and sends only one pending transition', async () => {
@@ -26,10 +28,12 @@ describe('PassControls', () => {
         })
     );
     vi.stubGlobal('fetch', fetchMock);
-    render(<PassControls currentRound={2} remaining={5} nextCut={2} unscored={1} />);
+    render(<PassControls currentRound={2} remaining={5} nextCut={2} />);
 
     await user.click(screen.getByRole('button', { name: 'Review next pass' }));
-    expect(screen.getByText(/2 takes will be cut; 3 will stay/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Start Pass 3? 2 takes will be cut. 3 takes will stay.')
+    ).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('button', { name: 'Confirm pass 3' })).not.toBeInTheDocument();
 

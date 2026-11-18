@@ -27,6 +27,7 @@ const inputRoots = [
   'src/lib/album/slug.ts',
   'src/lib/album/stream-url.ts',
   'src/lib/album/types.ts',
+  'src/lib/votes/pass-copy.ts',
   'src/lib/votes/tally.ts',
   'src/lib/votes/types.ts',
 ];

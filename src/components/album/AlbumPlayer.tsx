@@ -45,6 +45,7 @@ import { PassControls } from '@/components/album/PassControls';
 import { GenerateMoreTakes } from '@/components/album/GenerateMoreTakes';
 import { MoreLikeThis } from '@/components/album/MoreLikeThis';
 import { VoteButton } from '@/components/album/VoteButton';
+import { passStatusLine } from '@/lib/votes/pass-copy';
 import {
   choiceForTake,
   countForTake,
@@ -872,15 +873,13 @@ export function AlbumPlayer({
                 Model stats
               </Link>
             </div>
-            <p className='text-muted-foreground text-sm'>
-              {passRemaining} {passRemaining === 1 ? 'take' : 'takes'} · {unscored} unscored
-              {passSummary?.parked ? ` · ${passSummary.parked} parked` : ''}
+            <p className='text-muted-foreground text-sm' data-pass-status>
+              {passStatusLine({ visible: passRemaining, unscored, nextCut })}
             </p>
             <PassControls
               currentRound={voteSnapshot.currentRound}
               remaining={passRemaining}
               nextCut={nextCut}
-              unscored={unscored}
             />
             {currentTrack === null ? null : <ParkedCount track={currentTrack} />}
           </div>
