@@ -275,7 +275,9 @@ async function exportPreview(
 }
 
 export async function preview(root, options = {}) {
-  return withPreviewWriter(root, options.streamsOnly ? 'streams' : 'files', () => exportPreview(root, options));
+  return withPreviewWriter(root, options.streamsOnly ? 'streams' : 'files', () =>
+    exportPreview(root, options)
+  );
 }
 
 export async function recordReadyTakes(root, receipt) {
