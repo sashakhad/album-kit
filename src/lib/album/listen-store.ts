@@ -19,10 +19,11 @@ import { votesForCurrentPass } from '@/lib/votes/pass';
 import { getConsolidatedPass } from '@/lib/votes/pass-store';
 
 export const getListenConfig = cache(async function getListenConfig() {
-  const [config, selections] = await Promise.all([
-    loadAlbumConfig(),
-    getPrisma().listenSelection.findMany(),
-  ]);
+  const config = await loadAlbumConfig();
+  if (!process.env.DATABASE_URL) {
+    return applyListenSelections(config, []);
+  }
+  const selections = await getPrisma().listenSelection.findMany();
   return applyListenSelections(config, selections);
 });
 

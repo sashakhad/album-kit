@@ -1,26 +1,48 @@
 import { NextResponse } from 'next/server';
 
 import { loadStreamCatalog } from '@/lib/album/stream-catalog';
-import { verifyStreams } from '@/lib/album/verify-stream';
+import { verifyStreamsPass } from '@/lib/album/verify-stream';
 import { requireOwner } from '@/lib/owner/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300;
+// Literal on purpose. Next.js rejects a segment config that is not a static number,
+// and this plan rejects anything above 60.
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const denied = await requireOwner(request);
   if (denied !== null) {
     return denied;
   }
+  const body = await request.json().catch(() => null);
+  const attempt =
+    body !== null &&
+    typeof body === 'object' &&
+    'attempt' in body &&
+    typeof body.attempt === 'number' &&
+    Number.isInteger(body.attempt) &&
+    body.attempt >= 0 &&
+    body.attempt < 100
+      ? body.attempt
+      : 0;
   const catalog = await loadStreamCatalog();
-  const result = await verifyStreams(catalog.map(entry => entry.streamUrl));
-  return NextResponse.json({
-    ok: result.ok,
-    waiting: result.waiting,
-    failed: result.failed,
-    total: result.total,
-    retried: result.retried,
-    line: result.line,
-  });
+  const allowed = new Set(catalog.map(entry => entry.streamUrl));
+  let urls = [...allowed];
+  if (
+    body !== null &&
+    typeof body === 'object' &&
+    'pending' in body &&
+    Array.isArray(body.pending)
+  ) {
+    const pending: string[] = [];
+    for (const url of body.pending) {
+      if (typeof url === 'string' && allowed.has(url)) {
+        pending.push(url);
+      }
+    }
+    urls = pending;
+  }
+  const pass = await verifyStreamsPass(urls, attempt);
+  return NextResponse.json(pass);
 }

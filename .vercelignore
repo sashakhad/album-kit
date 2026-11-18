@@ -1,6 +1,8 @@
 # Local credentials, account checkpoints, and provider project links
 .album-key
-.env*
+.env
+.env.*
+!.env.example
 .album-onboarding.json
 .album-site.json
 .vercel/

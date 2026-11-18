@@ -17,11 +17,19 @@ export type StreamCheck = {
 /**
  * Waits between probes while a newly published Suno MP4 still returns 403.
  * The waits add up to a few minutes, which covers the usual 1–2 minute delay
- * after publish_pending is false. The route budget is 300 seconds.
+ * after publish_pending is false. A hosted call cannot hold that long: the
+ * platform cap is 60 seconds, so each call probes until VERIFY_PASS_BUDGET_MS
+ * and the caller waits, then asks again.
  */
 export const PUBLISH_PROPAGATION_DELAYS_MS: readonly number[] = [
   10_000, 20_000, 30_000, 40_000, 40_000, 40_000,
 ];
+
+export const VERIFY_MAX_DURATION_SECONDS = 60;
+
+export const VERIFY_PASS_BUDGET_MS = 40_000;
+
+const PROBE_BATCH = 8;
 
 export const PUBLISH_RETRY_NOTE = 'Retried newly published files that returned 403.';
 
@@ -177,4 +185,132 @@ export async function verifyStreams(
     retried,
     line: streamCheckLine({ ok, waiting, failed, retried }),
   };
+}
+
+export type StreamPass = {
+  ok: number;
+  waiting: number;
+  failed: number;
+  unchecked: string[];
+  retryUrls: string[];
+  nextDelayMs: number | null;
+  attempt: number;
+  retried: boolean;
+};
+
+export async function verifyStreamsPass(
+  urls: readonly string[],
+  attempt: number,
+  fetchImpl: typeof fetch = fetch,
+  options?: {
+    budgetMs?: number;
+    now?: () => number;
+    delays?: readonly number[];
+  }
+): Promise<StreamPass> {
+  const budgetMs = options?.budgetMs ?? VERIFY_PASS_BUDGET_MS;
+  const now = options?.now ?? Date.now;
+  const delays = options?.delays ?? PUBLISH_PROPAGATION_DELAYS_MS;
+  const started = now();
+  const checked: { url: string; probe: StreamProbe }[] = [];
+  const unchecked: string[] = [];
+  let index = 0;
+  while (index < urls.length) {
+    if (checked.length > 0 && now() - started >= budgetMs) {
+      for (let rest = index; rest < urls.length; rest += 1) {
+        const url = urls[rest];
+        if (url !== undefined) {
+          unchecked.push(url);
+        }
+      }
+      break;
+    }
+    const batch: string[] = [];
+    while (batch.length < PROBE_BATCH && index < urls.length) {
+      const url = urls[index];
+      index += 1;
+      if (url !== undefined) {
+        batch.push(url);
+      }
+    }
+    const probes = await Promise.all(batch.map(url => probeStream(url, fetchImpl)));
+    for (let batchIndex = 0; batchIndex < batch.length; batchIndex += 1) {
+      const url = batch[batchIndex];
+      const probe = probes[batchIndex];
+      if (url !== undefined && probe !== undefined) {
+        checked.push({ url, probe });
+      }
+    }
+  }
+
+  let ok = 0;
+  let waiting = 0;
+  let failed = 0;
+  const retryUrls: string[] = [];
+  for (const item of checked) {
+    if (item.probe.ok) {
+      ok += 1;
+    } else if (item.probe.status === 403 && attempt < delays.length) {
+      retryUrls.push(item.url);
+    } else if (
+      item.probe.status === 401 ||
+      item.probe.status === 403 ||
+      item.probe.status === 404
+    ) {
+      waiting += 1;
+    } else {
+      failed += 1;
+    }
+  }
+  const nextDelayMs = retryUrls.length > 0 ? (delays[attempt] ?? null) : null;
+  return {
+    ok,
+    waiting,
+    failed,
+    unchecked,
+    retryUrls,
+    nextDelayMs,
+    attempt,
+    retried: retryUrls.length > 0,
+  };
+}
+
+export type StreamCheckState = {
+  attempt: number;
+  pending: string[] | null;
+  ok: number;
+  waiting: number;
+  failed: number;
+  retried: boolean;
+};
+
+export function nextStreamCheck(
+  state: StreamCheckState,
+  pass: StreamPass
+): { state: StreamCheckState; sleepMs: number | null; done: boolean } {
+  const next: StreamCheckState = {
+    attempt: state.attempt,
+    pending: null,
+    ok: state.ok + pass.ok,
+    waiting: state.waiting + pass.waiting,
+    failed: state.failed + pass.failed,
+    retried: state.retried || pass.retried,
+  };
+  if (pass.unchecked.length > 0) {
+    const pending: string[] = [];
+    for (const url of pass.retryUrls) {
+      pending.push(url);
+    }
+    for (const url of pass.unchecked) {
+      pending.push(url);
+    }
+    next.pending = pending;
+    return { state: next, sleepMs: 0, done: false };
+  }
+  if (pass.retryUrls.length > 0 && pass.nextDelayMs !== null) {
+    next.pending = [...pass.retryUrls];
+    next.attempt = state.attempt + 1;
+    return { state: next, sleepMs: pass.nextDelayMs, done: false };
+  }
+  return { state: next, sleepMs: null, done: true };
 }

@@ -72,6 +72,13 @@ describe('album vercel config', () => {
       { cwd: work, encoding: 'utf8' }
     );
     expect(output.trim().split('\n')).toEqual(localFiles);
+    expect(() =>
+      execFileSync('git', ['check-ignore', '--no-index', '--', '.env.example'], {
+        cwd: work,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      })
+    ).toThrow();
   });
 
   it('keeps this kit from auto-deploying main and strips that switch for albums', () => {

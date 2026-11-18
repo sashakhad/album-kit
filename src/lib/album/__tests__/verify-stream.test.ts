@@ -1,11 +1,17 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   PUBLISH_PROPAGATION_DELAYS_MS,
   PUBLISH_RETRY_NOTE,
+  VERIFY_MAX_DURATION_SECONDS,
   mediaResponseOk,
+  nextStreamCheck,
   streamCheckLine,
   verifyStreams,
+  verifyStreamsPass,
 } from '@/lib/album/verify-stream';
 
 describe('stream media check', () => {
@@ -85,6 +91,44 @@ describe('stream media check', () => {
     expect(result.line).toBe(
       `0/1 streams returned 200. 1 is waiting to be published on Suno. ${PUBLISH_RETRY_NOTE}`
     );
+  });
+
+  it('probes one batch inside the 60 second cap and leaves the rest unchecked', async () => {
+    const urls = Array.from({ length: 10 }, (_, index) => `https://cdn1.suno.ai/${index}.mp4`);
+    const fetchImpl = (async () =>
+      new Response('x', { status: 200, headers: { 'content-type': 'video/mp4' } })) as typeof fetch;
+    const pass = await verifyStreamsPass(urls, 0, fetchImpl, { budgetMs: 0 });
+    expect(pass.ok).toBe(8);
+    expect(pass.unchecked).toEqual(urls.slice(8));
+    expect(pass.retryUrls).toEqual([]);
+    expect(VERIFY_MAX_DURATION_SECONDS).toBe(60);
+    const route = readFileSync(
+      path.join(process.cwd(), 'src/app/api/owner/streams/verify/route.ts'),
+      'utf8'
+    );
+    expect(route).toContain('export const maxDuration = 60');
+    expect(route).not.toContain('maxDuration = 300');
+  });
+
+  it('returns a 403 for a later call instead of sleeping inside this one', async () => {
+    const url = 'https://cdn1.suno.ai/fresh.mp4';
+    const fetchImpl = (async () =>
+      new Response('no', {
+        status: 403,
+        headers: { 'content-type': 'text/plain' },
+      })) as typeof fetch;
+    const pass = await verifyStreamsPass([url], 0, fetchImpl, { delays: [10_000] });
+    expect(pass.retryUrls).toEqual([url]);
+    expect(pass.nextDelayMs).toBe(10_000);
+    expect(pass.waiting).toBe(0);
+    const step = nextStreamCheck(
+      { attempt: 0, pending: null, ok: 0, waiting: 0, failed: 0, retried: false },
+      pass
+    );
+    expect(step.done).toBe(false);
+    expect(step.sleepMs).toBe(10_000);
+    expect(step.state.pending).toEqual([url]);
+    expect(step.state.attempt).toBe(1);
   });
 
   it('waits a few minutes by default, long enough for a new Suno MP4', () => {

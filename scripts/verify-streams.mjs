@@ -13,26 +13,49 @@ if (connection === null) {
   process.exit(1);
 }
 
-const response = await fetch(`${connection.siteUrl}/api/owner/streams/verify`, {
-  method: 'POST',
-  headers: { Authorization: `Bearer ${connection.key}` },
-  signal: AbortSignal.timeout(300000),
-});
-const result = await response.json().catch(() => null);
-if (!response.ok || typeof result?.line !== 'string') {
-  console.error(
-    typeof result?.error === 'string' ? result.error : `The album site returned ${response.status}.`
-  );
-  process.exit(1);
+const { nextStreamCheck, streamCheckLine } = await import('../src/lib/album/verify-stream.ts');
+
+let state = { attempt: 0, pending: null, ok: 0, waiting: 0, failed: 0, retried: false };
+let done = false;
+for (let turn = 0; turn < 40 && !done; turn += 1) {
+  const response = await fetch(`${connection.siteUrl}/api/owner/streams/verify`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${connection.key}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ attempt: state.attempt, pending: state.pending }),
+    signal: AbortSignal.timeout(70_000),
+  });
+  const pass = await response.json().catch(() => null);
+  if (!response.ok || pass === null || typeof pass.ok !== 'number') {
+    console.error(
+      typeof pass?.error === 'string' ? pass.error : `The album site returned ${response.status}.`
+    );
+    process.exit(1);
+  }
+  const step = nextStreamCheck(state, pass);
+  state = step.state;
+  done = step.done;
+  if (!done && step.sleepMs !== null && step.sleepMs > 0) {
+    await new Promise(resolve => {
+      setTimeout(resolve, step.sleepMs);
+    });
+  }
 }
-if (result.line.includes(connection.key)) {
+const line = streamCheckLine({
+  ok: state.ok,
+  waiting: state.waiting,
+  failed: state.failed,
+  retried: state.retried,
+});
+if (line.includes(connection.key)) {
   console.error('Refusing to print a stream check that contains the album key.');
   process.exit(1);
 }
-process.stdout.write(`${result.line}\n`);
-const ok = typeof result.ok === 'number' ? result.ok : 0;
-const total = typeof result.total === 'number' ? result.total : 0;
-if (total > 0 && ok !== total) {
+process.stdout.write(`${line}\n`);
+const total = state.ok + state.waiting + state.failed;
+if (total > 0 && state.ok !== total) {
   process.exit(1);
 }
 
