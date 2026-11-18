@@ -223,6 +223,25 @@ describe('local preview playbook', () => {
     expect(body).not.toContain('pnpm preview:album --serve');
   });
 
+  it.each([
+    'grokbot/BOT.md',
+    'grokbot/PORTABLE.md',
+    '.cursor/skills/start-here/SKILL.md',
+    '.cursor/skills/suno-run/SKILL.md',
+  ])('sends the first streaming clip before the rest of the batch in %s', async file => {
+    const body = await text(file);
+    expect(body).toContain('Copy this sentence exactly');
+    expect(body).toContain('A status of streaming is ready media for that clip.');
+    expect(body).toContain('Call that tool with one clip id.');
+    expect(body).toContain(
+      'If a tool says to pass every clip id and return when all of them have settled'
+    );
+    expect(body).toContain('Resume the other clips only after that attachment is sent.');
+    expect(body).not.toContain('Say this game plan in two or three short sentences');
+    expect(body).not.toContain("as soon as they're in");
+    expect(body).not.toContain("once they're ready");
+  });
+
   it('measures the first handoff through the actual chat send', async () => {
     const run = await text('.cursor/skills/suno-run/SKILL.md');
     expect(run).toMatch(/UTC timestamps with milliseconds/i);
