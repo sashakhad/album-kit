@@ -22,7 +22,9 @@ export async function withVisibleDetails(
     ...track.takes.map(take => take.filename),
     ...(track.parkedTakes ?? []).map(take => take.filename),
   ]);
-  const rows = await prisma.takeProvenance.findMany({ where: { filename: { in: filenames } } });
+  const rows = process.env.DATABASE_URL
+    ? await prisma.takeProvenance.findMany({ where: { filename: { in: filenames } } })
+    : [];
   const byFilename = new Map(rows.map(row => [row.filename, row]));
   const add = (take: AlbumTake): AlbumTake => {
     const row = byFilename.get(take.filename);

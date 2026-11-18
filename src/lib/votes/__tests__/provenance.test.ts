@@ -48,7 +48,17 @@ const version: AlbumVersion = {
 };
 
 describe('visible take provenance', () => {
-  beforeEach(() => findMany.mockReset());
+  beforeEach(() => {
+    findMany.mockReset();
+    vi.stubEnv('DATABASE_URL', 'postgresql://album.test/db');
+  });
+
+  it('plays without a database and does not read provenance', async () => {
+    vi.stubEnv('DATABASE_URL', '');
+    const visible = await withVisibleDetails(version);
+    expect(findMany).not.toHaveBeenCalled();
+    expect(visible.tracks[0]?.takes[0]?.audioUrl).toBe('/first');
+  });
 
   it('uses the recorded generation prompt for its exact file and labels sheet-only text', async () => {
     findMany.mockResolvedValue([

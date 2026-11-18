@@ -23,7 +23,7 @@ export async function getLatestRound(): Promise<number> {
 }
 
 export async function getVisitorCurrentRound(visitorId: string): Promise<number> {
-  if (visitorId.length === 0) {
+  if (visitorId.length === 0 || !process.env.DATABASE_URL) {
     return 1;
   }
 
@@ -114,7 +114,7 @@ export async function advanceVisitorRound(
 }
 
 export async function loadPassVotes(visitorId: string): Promise<PassVote[]> {
-  if (visitorId.length === 0) {
+  if (visitorId.length === 0 || !process.env.DATABASE_URL) {
     return [];
   }
 
@@ -138,6 +138,9 @@ export async function loadPassVotes(visitorId: string): Promise<PassVote[]> {
 }
 
 export async function loadParkedTakes(): Promise<ParkedTakeRef[]> {
+  if (!process.env.DATABASE_URL) {
+    return [];
+  }
   const db = getPrisma();
   const rows = await db.parkedTake.findMany({
     select: { versionSlug: true, trackNumber: true, takeLabel: true },
