@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { shellStamp } from '../../../scripts/build-player-shell.mjs';
+import { PLAYER_SHELL_CSP } from '@/lib/album/content-security';
 
 const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const previewScript = path.join(kitRoot, 'scripts', 'preview-album.mjs');
@@ -216,11 +217,12 @@ describe('album preview', () => {
   it('keeps the prebuilt listen shell aligned with the app player', () => {
     const shell = readFileSync(path.join(kitRoot, 'scripts/player-shell.html'), 'utf8');
     expect(shell).toContain(`<!-- player-shell ${shellStamp()} -->`);
+    expect(shell).toContain(PLAYER_SHELL_CSP);
     expect(shell).toContain('___ALBUM_DATA___');
     expect(shell).toContain('id="album-root"');
   });
 
-  it('bundles a local MP3, lists public and local takes without network notices, and skips private URLs', async () => {
+  it('bundles a local MP3, lists public and local takes without a public-link warning, and skips private URLs', async () => {
     const root = await writeFixture();
     const result = await runPreview(root, ['--zip']);
     expect(result.code).toBe(0);
@@ -238,7 +240,7 @@ describe('album preview', () => {
     expect(audio.toString()).toBe('local-mp3-bytes');
     expect(html).toContain(localSrc);
     expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
-    expect(html).not.toMatch(/internet required|streams from a public Suno link/i);
+    expect(html).not.toMatch(/streams from a public Suno link|anyone with that link/i);
     expect(html).not.toContain('example.com');
     expect(html).not.toContain('Parked');
     expect(html).not.toContain('other-song');

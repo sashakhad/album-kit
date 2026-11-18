@@ -138,7 +138,7 @@ describe('product handoff', () => {
       expect(first.title).toBe('Paper Lantern');
       expect(first.blurb).toContain('album in the making');
       expect(first.html).toContain('id="album-root"');
-      expect(first.html).not.toMatch(/internet required|streams from a public Suno link/i);
+      expect(first.html).not.toMatch(/streams from a public Suno link|anyone with that link/i);
       expect(first.html).not.toContain('Album Bot Light');
 
       const second = await recordTake(root, 'b');

@@ -25,7 +25,6 @@ import {
   audioUrlForTrack,
   collectPlayableIndexes,
   findTakeOnTrack,
-  isAbortError,
   isOnAlbumShortlist,
   isParkedTake,
   nextPlayableIndex,
@@ -39,7 +38,14 @@ import {
 import { indexForTrackNumber, listenHref, voteHref } from '@/lib/album/play-path';
 import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
-import { isVideoStream } from '@/lib/album/stream-url';
+import {
+  formatPlaybackFailure,
+  isSafetyCheck,
+  readMediaError,
+  startTakePlayback,
+  type BufferedTake,
+} from '@/lib/album/media-playback';
+import { isDirectSunoStream, isVideoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
@@ -135,6 +141,11 @@ export function AlbumPlayer({
   const playerSurface: PlayerSurface = surface ?? 'vote';
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const bufferRef = useRef<BufferedTake | null>(null);
+  const cancelPlayback = useRef<(() => void) | null>(null);
+  const handlingPlayback = useRef(false);
+  const holdSrc = useRef(false);
+  const recovering = useRef<string | null>(null);
   const assignMedia = useCallback((node: HTMLMediaElement | null) => {
     if (node !== null) node.setAttribute('referrerpolicy', 'no-referrer');
   }, []);
@@ -369,39 +380,46 @@ export function AlbumPlayer({
   }, [currentTake, currentTrack, playerSurface]);
 
   const playSource = useCallback((url: string) => {
-    const video = isVideoStream(url);
-    const active = video ? videoRef.current : audioRef.current;
-    const idle = video ? audioRef.current : videoRef.current;
-    if (idle !== null) {
-      idle.pause();
-      if (idle.getAttribute('src') !== null) {
-        idle.removeAttribute('src');
-        idle.load();
-      }
-    }
-    if (active === null) {
-      return;
-    }
-
-    const nextSrc = new URL(url, window.location.href).href;
-    if (active.src !== nextSrc) {
-      active.src = url;
-    }
-
+    cancelPlayback.current?.();
+    holdSrc.current = true;
+    handlingPlayback.current = true;
     setPlaybackError(null);
     setIsLoading(true);
-    if (active.error) active.load();
-    void active
-      .play()
-      .then(() => {
-        if (active.src === nextSrc) setIsLoading(false);
-      })
-      .catch((error: unknown) => {
-        if (isAbortError(error) || active.src !== nextSrc) return;
-        setIsPlaying(false);
-        setIsLoading(false);
-        setPlaybackError('Could not play this track. Try again.');
-      });
+    cancelPlayback.current = startTakePlayback({
+      url,
+      audio: audioRef.current,
+      video: videoRef.current,
+      buffered: bufferRef.current,
+      listener: {
+        onPlaying() {
+          handlingPlayback.current = false;
+          holdSrc.current = false;
+          setIsLoading(false);
+          setPlaybackError(null);
+        },
+        onFailure(message) {
+          handlingPlayback.current = false;
+          holdSrc.current = false;
+          setIsPlaying(false);
+          setIsLoading(false);
+          setPlaybackError(message);
+        },
+        onNeedsGesture(message) {
+          handlingPlayback.current = false;
+          holdSrc.current = false;
+          setIsPlaying(false);
+          setIsLoading(false);
+          setPlaybackError(message);
+        },
+      },
+      onBuffer(remote, objectUrl) {
+        const previous = bufferRef.current;
+        if (previous !== null && previous.objectUrl !== objectUrl) {
+          URL.revokeObjectURL(previous.objectUrl);
+        }
+        bufferRef.current = { remote, objectUrl };
+      },
+    });
   }, []);
 
   const playIndex = useCallback(
@@ -550,35 +568,28 @@ export function AlbumPlayer({
   }, [currentAudioUrl, volume]);
 
   useEffect(() => {
-    const media =
-      currentAudioUrl === null
-        ? null
-        : isVideoStream(currentAudioUrl)
-          ? videoRef.current
-          : audioRef.current;
-    if (media === null || currentAudioUrl === null) {
-      return;
+    recovering.current = null;
+    if (holdSrc.current || currentAudioUrl === null) return;
+    const video = isVideoStream(currentAudioUrl);
+    const active = video ? videoRef.current : audioRef.current;
+    const idle = video ? audioRef.current : videoRef.current;
+    if (idle !== null && idle.getAttribute('src') !== null) {
+      idle.removeAttribute('src');
+      idle.load();
     }
-
-    if (!isPlaying) {
-      media.pause();
-      return;
+    if (active !== null && active.getAttribute('src') !== currentAudioUrl) {
+      active.setAttribute('src', currentAudioUrl);
     }
+  }, [currentAudioUrl]);
 
-    const url = currentAudioUrl;
-
-    function playWhenReady() {
-      playSource(url);
-    }
-
-    if (media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
-      playWhenReady();
-    }
-    media.addEventListener('canplay', playWhenReady);
-    return () => {
-      media.removeEventListener('canplay', playWhenReady);
-    };
-  }, [currentAudioUrl, isPlaying, playSource]);
+  useEffect(() => {
+    if (isPlaying) return;
+    cancelPlayback.current?.();
+    cancelPlayback.current = null;
+    handlingPlayback.current = false;
+    audioRef.current?.pause();
+    videoRef.current?.pause();
+  }, [isPlaying]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -627,7 +638,11 @@ export function AlbumPlayer({
       album: version.title,
     });
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    navigator.mediaSession.setActionHandler('play', () => setIsPlaying(true));
+    navigator.mediaSession.setActionHandler('play', () => {
+      if (currentAudioUrl === null) return;
+      setIsPlaying(true);
+      playSource(currentAudioUrl);
+    });
     navigator.mediaSession.setActionHandler('pause', () => setIsPlaying(false));
     navigator.mediaSession.setActionHandler('previoustrack', playPrevious);
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext(true));
@@ -640,7 +655,16 @@ export function AlbumPlayer({
       session.setActionHandler('previoustrack', null);
       session.setActionHandler('nexttrack', null);
     };
-  }, [currentTrack, isPlaying, playNext, playPrevious, version.author, version.title]);
+  }, [
+    currentAudioUrl,
+    currentTrack,
+    isPlaying,
+    playNext,
+    playPrevious,
+    playSource,
+    version.author,
+    version.title,
+  ]);
 
   function handleSeek(seconds: number) {
     const media =
@@ -672,6 +696,9 @@ export function AlbumPlayer({
               {padTrackNumber(currentTrack.number)}
               {currentTake !== null ? ` · Take ${currentTake.label}` : ''}
               {isParkedTake(currentTrack, currentTake) ? ' · Possible rename' : ''}
+              {currentTake !== null && isDirectSunoStream(currentTake.audioUrl)
+                ? ' · Internet required'
+                : ''}
             </p>
           ) : null}
           {playerSurface === 'vote' && currentTake !== null ? (
@@ -754,7 +781,7 @@ export function AlbumPlayer({
           </div>
           <div className='min-h-6 text-sm' aria-live='polite'>
             {playbackError !== null ? (
-              <p role='alert' className='text-destructive'>
+              <p role='alert' className='text-destructive break-all'>
                 {playbackError}{' '}
                 <button
                   type='button'
@@ -1052,10 +1079,28 @@ export function AlbumPlayer({
           onWaiting={() => {
             if (isPlaying) setIsLoading(true);
           }}
-          onError={() => {
+          onError={media => {
+            if (handlingPlayback.current) return;
+            const failure = readMediaError(media) ?? {
+              code: null,
+              message: 'The media failed to load',
+            };
+            if (
+              currentAudioUrl !== null &&
+              isDirectSunoStream(currentAudioUrl) &&
+              recovering.current !== currentAudioUrl &&
+              isSafetyCheck(failure)
+            ) {
+              recovering.current = currentAudioUrl;
+              setIsPlaying(true);
+              playSource(currentAudioUrl);
+              return;
+            }
             setIsPlaying(false);
             setIsLoading(false);
-            setPlaybackError('Could not load this track. Try again.');
+            setPlaybackError(
+              formatPlaybackFailure(media.currentSrc || currentAudioUrl || '', failure)
+            );
           }}
           onEnded={() => playNext(false)}
         />
@@ -1084,7 +1129,7 @@ function PlaybackMedia({
   onDuration: (seconds: number) => void;
   onPlaying: () => void;
   onWaiting: () => void;
-  onError: () => void;
+  onError: (media: HTMLMediaElement) => void;
   onEnded: () => void;
 }) {
   const video = isVideoStream(url);
@@ -1114,7 +1159,7 @@ function PlaybackMedia({
       fromActive(event, () => onWaiting());
     },
     onError: (event: SyntheticEvent<HTMLMediaElement>) => {
-      fromActive(event, () => onError());
+      fromActive(event, onError);
     },
     onEnded: (event: SyntheticEvent<HTMLMediaElement>) => {
       fromActive(event, () => onEnded());
@@ -1128,7 +1173,6 @@ function PlaybackMedia({
           audioRef.current = node;
           onReady(node);
         }}
-        src={video ? undefined : url}
         preload='metadata'
         playsInline
         {...events}
@@ -1138,7 +1182,6 @@ function PlaybackMedia({
           videoRef.current = node;
           onReady(node);
         }}
-        src={video ? url : undefined}
         preload='metadata'
         playsInline
         disablePictureInPicture
@@ -1407,6 +1450,8 @@ function TrackRow({
 }) {
   const ready = track.audioUrl !== null;
   const showTakePills = showTakes && track.takes.length > 0;
+  const streamOnly =
+    !showTakePills && selectedTake !== null && isDirectSunoStream(selectedTake.audioUrl);
   const takes = showVotes
     ? takesInScoreOrder(track.takes, takeCounts)
     : takesInLabelOrder(track.takes);
@@ -1455,14 +1500,16 @@ function TrackRow({
               ? 'No takes in this round'
               : pendingLabel}
           </span>
-        ) : track.compareHref === undefined ? null : (
+        ) : track.compareHref !== undefined ? (
           <Link
             href={track.compareHref}
             className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-xs underline underline-offset-4'
           >
             Compare takes
           </Link>
-        )}
+        ) : streamOnly ? (
+          <span className='text-muted-foreground text-xs'>Internet required</span>
+        ) : null}
       </div>
       {showTakePills ? (
         <TakeScoreChips
@@ -1568,6 +1615,9 @@ function TakeScoreChips({
                 </span>
               ) : null}
             </div>
+            {isDirectSunoStream(take.audioUrl) ? (
+              <span className='text-muted-foreground px-1 text-xs'>Internet required</span>
+            ) : null}
             <ListenerScore
               votes={votes}
               voter={voter}
