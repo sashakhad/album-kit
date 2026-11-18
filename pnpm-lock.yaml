@@ -118,6 +118,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 5.0.5
         version: 5.0.5(vitest@5.0.5)
+      esbuild:
+        specifier: 0.27.3
+        version: 0.27.3
       eslint:
         specifier: 9.39.5
         version: 9.39.5(jiti@2.7.0)
@@ -136,6 +139,9 @@ importers:
       lint-staged:
         specifier: 17.6.0
         version: 17.6.0
+      postcss:
+        specifier: 8.5.23
+        version: 8.5.23
       prettier:
         specifier: 3.9.10
         version: 3.9.10
@@ -3671,10 +3677,6 @@ packages:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
 
-  postcss@8.5.19:
-    resolution: {integrity: sha512-Mz8SaolMd8nB+G13WkORcxQKHZ/NE4xXevtkJHVuG+guo9/wYKlIMTKAqGdEmYOXR2ijPjTYNHssizdaVSUNdQ==}
-    engines: {node: ^10 || ^12 || >=14}
-
   postcss@8.5.23:
     resolution: {integrity: sha512-g50586zr4bZmwFiTlflMu8E0bDTb5I5gertgwAKmsdUlTQIhZtunzUlD1WSzwcVWPoAVpsrA6vlfCD7oXvRwgg==}
     engines: {node: ^10 || ^12 || >=14}
@@ -6101,7 +6103,7 @@ snapshots:
       '@alloc/quick-lru': 5.2.0
       '@tailwindcss/node': 4.3.3
       '@tailwindcss/oxide': 4.3.3
-      postcss: 8.5.19
+      postcss: 8.5.23
       tailwindcss: 4.3.3
 
   '@testing-library/dom@10.4.1':
@@ -7061,7 +7063,6 @@ snapshots:
       '@esbuild/win32-arm64': 0.27.3
       '@esbuild/win32-ia32': 0.27.3
       '@esbuild/win32-x64': 0.27.3
-    optional: true
 
   escalade@3.2.0: {}
 
@@ -8063,12 +8064,6 @@ snapshots:
       pathe: 2.0.3
 
   possible-typed-array-names@1.1.0: {}
-
-  postcss@8.5.19:
-    dependencies:
-      nanoid: 3.3.16
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
 
   postcss@8.5.23:
     dependencies:

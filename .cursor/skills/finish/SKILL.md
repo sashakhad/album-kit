@@ -9,7 +9,7 @@ Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared data
 
 ## Default
 
-Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on Node 24 and attach the same Open Album.html from the printed `link` immediately. When returning picks, one line is enough, such as “Here are the takes you picked.” If playback fails, name the affected track and the next step. File scores stay in that browser. Use the optional local server for a ballot saved to the checkout, or the ZIP for offline audio files. The next-step card in `suno-run` offers **Share album** and **Add more tracks** after each new-song batch. Resume the existing choice here. The creator can still use `/share` while listening.
+Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on Node 24 and attach the same Open Album.html from the printed `link` immediately. When returning picks, one line is enough, such as “Here are the takes you picked.” If playback fails, name the affected track and the next step. The file is the Listen player. Use the optional local server for a ballot saved to the checkout, or the ZIP for offline audio files. The next-step card in `suno-run` offers **Share album** and **Add more tracks** after each new-song batch. Resume the existing choice here. The creator can still use `/share` while listening.
 
 ## When to use
 

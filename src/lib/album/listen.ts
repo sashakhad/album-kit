@@ -1,10 +1,13 @@
 import type { AlbumConfig, AlbumConfigTrack } from '@/lib/album/album-config';
+import { LISTEN_MAKING_COPY, LISTEN_READY_COPY } from '@/lib/album/listen-copy.mjs';
 import { parseCanonicalTake } from '@/lib/album/parse-filename';
 import { takeDisplayLabel } from '@/lib/album/take-label';
 import { voteHref } from '@/lib/album/play-path';
 import { resolveTrack } from '@/lib/album/play-path';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import type { TakeTallies } from '@/lib/votes/types';
+
+export { LISTEN_MAKING_COPY, LISTEN_READY_COPY };
 
 export const LISTEN_SLUG = 'listen';
 

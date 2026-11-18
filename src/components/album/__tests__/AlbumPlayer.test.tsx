@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -705,8 +705,69 @@ describe('AlbumPlayer', () => {
     expect(screen.queryByRole('button', { name: /upvote/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /downvote/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Start round/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Take / })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take A' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take B' })).toBeInTheDocument();
     expect(screen.queryByText(/Bubu C/)).not.toBeInTheDocument();
+  });
+
+  it('plays a listen track on the first tap', async () => {
+    const user = userEvent.setup();
+    render(<AlbumPlayer version={sampleVersion} surface='listen' />);
+
+    await user.click(screen.getByRole('button', { name: /^01track one/i }));
+
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    expect(audioElement().getAttribute('src')).toBe('/api/audio/v1/01-track-one.mp3');
+  });
+
+  it('plays another take on listen with one tap', async () => {
+    const user = userEvent.setup();
+    render(<AlbumPlayer version={sampleVersion} surface='listen' />);
+
+    await user.click(screen.getAllByRole('button', { name: 'Take B' })[1]!);
+
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Track Three' })).toBeInTheDocument();
+    expect(audioElement().getAttribute('src')).toBe('/api/audio/v1/03-track-three-takeb.mp3');
+  });
+
+  it('follows album media keys and arrow keys on listen', () => {
+    const handlers = new Map<string, (() => void) | null>();
+    Object.defineProperty(window.navigator, 'mediaSession', {
+      configurable: true,
+      value: {
+        metadata: null as MediaMetadata | null,
+        playbackState: 'none',
+        setActionHandler(name: string, handler: (() => void) | null) {
+          handlers.set(name, handler);
+        },
+      },
+    });
+    vi.stubGlobal(
+      'MediaMetadata',
+      class {
+        constructor(data: MediaMetadataInit) {
+          Object.assign(this, data);
+        }
+      }
+    );
+    try {
+      render(<AlbumPlayer version={sampleVersion} surface='listen' />);
+
+      expect(handlers.get('play')).toEqual(expect.any(Function));
+      expect(handlers.get('nexttrack')).toEqual(expect.any(Function));
+      fireEvent.keyDown(window, { key: ' ' });
+      expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+      act(() => {
+        handlers.get('nexttrack')?.();
+      });
+      expect(screen.getByRole('heading', { name: 'Track Three' })).toBeInTheDocument();
+      fireEvent.keyDown(window, { key: 'ArrowLeft' });
+      expect(screen.getByRole('heading', { name: 'Track One' })).toBeInTheDocument();
+    } finally {
+      Reflect.deleteProperty(window.navigator, 'mediaSession');
+    }
   });
 
   it('keeps Listen pins and the listeners corner off the track card', () => {
