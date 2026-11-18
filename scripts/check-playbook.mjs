@@ -283,6 +283,72 @@ async function checkSkillNames(skillDirs) {
   }
 }
 
+const FRESH_OPENING_FILES = [
+  path.join(ROOT, 'grokbot', 'BOT.md'),
+  path.join(ROOT, 'grokbot', 'PORTABLE.md'),
+  path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
+];
+
+const FRESH_OPENING_PHRASES = [
+  'Invent three album concepts',
+  'theme, a sound, and a mood',
+  'differ in style and in era',
+  'not a genre name',
+  'Surprise me',
+  'What do you want to call this album?',
+  'Keep these',
+  "I'll name them myself",
+  'Let Album Bot decide',
+  'before any prompt or Suno generation',
+  'Skip a step they already answered',
+];
+
+const STALE_OPENING_OPTIONS = [
+  'Rain on the windows',
+  'Windows down, loud pop',
+  'A tiny haunted dance party',
+];
+
+async function checkFreshOpenings() {
+  for (const file of FRESH_OPENING_FILES) {
+    const text = await readFile(file, 'utf8');
+    for (const phrase of FRESH_OPENING_PHRASES) {
+      if (!text.includes(phrase)) {
+        report(file, 1, `opening ideas are missing “${phrase}”`);
+      }
+    }
+  }
+
+  const bot = await readFile(path.join(ROOT, 'grokbot', 'BOT.md'), 'utf8');
+  const start = await readFile(
+    path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
+    'utf8'
+  );
+  for (const [file, text] of [
+    [path.join(ROOT, 'grokbot', 'BOT.md'), bot],
+    [path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'), start],
+  ]) {
+    if (!text.includes('allowCustom: true')) {
+      report(file, 1, 'opening ideas are missing “allowCustom: true”');
+    }
+  }
+
+  const playbookFiles = [
+    ...(await listFiles(SKILLS_DIR)),
+    path.join(ROOT, 'grokbot', 'BOT.md'),
+    path.join(ROOT, 'grokbot', 'PORTABLE.md'),
+    path.join(ROOT, 'README.md'),
+  ];
+  for (const file of playbookFiles) {
+    const text = await readFile(file, 'utf8');
+    for (const stale of STALE_OPENING_OPTIONS) {
+      if (text.includes(stale)) {
+        report(file, 1, `opening still offers the fixed idea “${stale}”`);
+      }
+    }
+  }
+}
+
 async function checkOnboardingCopy() {
   for (const entry of ONBOARDING_PHRASES) {
     let text;
@@ -305,6 +371,7 @@ async function checkOnboardingCopy() {
 
 async function main() {
   await checkOnboardingCopy();
+  await checkFreshOpenings();
   const skillDirs = await listSkillDirs();
   await checkSkillNames(skillDirs);
   if (skillDirs.length === 0) {

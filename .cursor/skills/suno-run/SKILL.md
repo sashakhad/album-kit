@@ -103,7 +103,7 @@ Backfill steps:
 2. After the site exists and the round is authorized, POST each saved operation ID to `/api/owner/rounds/<id>/jobs`, then PATCH that job `accepted` with the saved provider job ID and its takes. The POST-then-PATCH does not generate again.
 3. Continue with provenance, `complete`, and `ready` as usual.
 
-For an instrumental sheet (the default when `vocals` is `instrumental`), send the Style paragraph, Title, resolved model, `instrumental: true`, and supported settings. Do not send lyrics. When vocals are wanted, the sheet holds original lyrics from `song-prompts`. Send those in Suno's custom mode: the `lyrics` field, plus `style` (the Style paragraph) and `title`. Do not also send `description`. Mixing `description` with `lyrics` or `style` is rejected. If a required setting is missing, use the browser fallback for that prompt or stop precisely.
+For an instrumental sheet (the default when `vocals` is `instrumental`), send the Style paragraph, Title, resolved model, `instrumental: true`, and supported settings. The title you send is the track title in `album/album.json`, the same string as the sheet's Title field. Do not rename it for Suno. Do not send lyrics. When vocals are wanted, the sheet holds original lyrics from `song-prompts`. Send those in Suno's custom mode: the `lyrics` field, plus `style` (the Style paragraph) and `title`. Do not also send `description`. Mixing `description` with `lyrics` or `style` is rejected. If a required setting is missing, use the browser fallback for that prompt or stop precisely.
 
 ## Suno Free / browser
 
