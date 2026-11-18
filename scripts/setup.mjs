@@ -263,6 +263,15 @@ function parseArgs(argv) {
   return options;
 }
 
+const SASHA_ACCOUNT = /sasha-bayans-projects|\bsashabayan\b|\bsashakhad\b/i;
+
+export function assertOwnerAccount(scope, identity = '') {
+  const text = `${scope ?? ''}\n${identity ?? ''}`;
+  if (SASHA_ACCOUNT.test(text)) {
+    throw new ExitError(EXIT.failed, "Refusing to provision an album on Sasha's Vercel or Neon.");
+  }
+}
+
 export function projectName(options, root) {
   if (options.name !== undefined) {
     return options.name;
@@ -296,7 +305,11 @@ export async function setup(
 ) {
   const existing = readAlbumSite(root);
   const name = options.name ?? existing?.project ?? projectName(options, root);
+  assertOwnerAccount(options.scope, `${name}\n${existing?.orgId ?? ''}\n${existing?.scope ?? ''}`);
   if (options.dryRun) {
+    console.log(
+      `Dry run for ${name}${options.scope ? ` on ${options.scope}` : ''}. No Vercel, Neon, or GitHub call is made.`
+    );
     console.log('Verify the signed-in Vercel account and reserve or reuse the album project.');
     console.log('Provision any missing Vercel Blob, Neon and album write token.');
     console.log(
@@ -307,6 +320,7 @@ export async function setup(
   const whoami = runner.vercel(['whoami']);
   if (whoami.status !== 0)
     throw new ExitError(EXIT.notSignedIn, 'Not signed in to Vercel. Run: npx vercel login');
+  assertOwnerAccount('', whoami.stdout);
   const project = await hostedProject(
     root,
     { name, scope: options.scope, site: existing ?? options.previousStatic, create: true },
