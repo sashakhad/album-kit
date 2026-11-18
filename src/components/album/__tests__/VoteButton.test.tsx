@@ -113,4 +113,46 @@ describe('VoteButton', () => {
     expect(downvote).not.toHaveAttribute('aria-pressed');
     expect(screen.getByText('−2')).toBeInTheDocument();
   });
+
+  it('tells the server the label is still shuffled', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tallies: { 1: { v1: { F: 1 } } },
+        mine: { 1: [{ versionSlug: 'v1', takeLabel: 'F', value: 1, round: 1 }] },
+        downloads: {},
+        versionTotals: { v1: 1 },
+        currentRound: 1,
+      }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <VoteButton
+        trackNumber={1}
+        versionSlug='v1'
+        takeLabel='F'
+        trackTitle='Track One'
+        initialCount={0}
+        initialValue={0}
+        blindLabel
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: /add one to take f of track one/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/votes',
+      expect.objectContaining({
+        body: JSON.stringify({
+          trackNumber: 1,
+          versionSlug: 'v1',
+          takeLabel: 'F',
+          value: 1,
+          blindLabel: true,
+        }),
+      })
+    );
+  });
 });

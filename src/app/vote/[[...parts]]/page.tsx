@@ -53,6 +53,7 @@ export default async function VotePage({ params }: VotePageProps) {
         votes={listener.votes}
         voter='listener'
         awaitingReveal={listener.awaitingReveal}
+        blindLabels={listener.blind}
         track={trackFromParts(trackSlug, config, listener.version)}
         initialTake={takeFromParts(trackSlug, versionSlug, takeSlug, config, listener.version)}
         bannerLine={bannerLine}
@@ -126,6 +127,7 @@ export default async function VotePage({ params }: VotePageProps) {
       votes={votes}
       voter='owner'
       awaitingReveal={awaitingReveal}
+      blindLabels={blind}
       track={track}
       initialTake={initialTake}
       showListenerScores
@@ -147,6 +149,7 @@ function VoteMain({
   votes,
   voter,
   awaitingReveal,
+  blindLabels = false,
   track,
   initialTake,
   listenerVotesOnBrowser = 0,
@@ -164,6 +167,7 @@ function VoteMain({
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
   awaitingReveal: boolean;
+  blindLabels?: boolean;
   track: AlbumTrack | null;
   initialTake: { label: string } | null;
   listenerVotesOnBrowser?: number;
@@ -218,6 +222,7 @@ function VoteMain({
           surface='vote'
           voter={voter}
           awaitingReveal={awaitingReveal}
+          blindLabels={blindLabels}
           showListenerScores={showListenerScores}
           {...(listenChoices === undefined ? {} : { listenChoices })}
           {...(passSummary === undefined ? {} : { passSummary })}
