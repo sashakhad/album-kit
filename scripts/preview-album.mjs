@@ -21,6 +21,8 @@ import { isPlayableStream } from '../src/lib/album/stream-url.ts';
 
 import { servePreview } from './preview-server.mjs';
 import { previewIdentity } from './preview-identity.mjs';
+import { renderAlbumPagePng } from './page-preview.mjs';
+import { deliverySay, markPageDelivered, trackProgressLine } from './live-progress.mjs';
 
 import {
   mergeReadyTakes,
@@ -150,6 +152,20 @@ function jsonForScript(value) {
     .replaceAll('\u2029', '\\u2029');
 }
 
+function landedLabel(tracks, previous) {
+  const groups = [];
+  for (const track of tracks) {
+    const letters = [];
+    for (const take of track.takes) {
+      if (!previous.has(take.id)) letters.push(take.letter);
+    }
+    if (letters.length > 0) groups.push({ number: track.number, letters });
+  }
+  if (groups.length === 1) return trackProgressLine(groups[0].number, groups[0].letters);
+  if (groups.length > 1) return 'More takes are in.';
+  return '';
+}
+
 async function renderPreview(album, tracks, albumKey) {
   const shell = await readFile(new URL('./player-shell.html', import.meta.url), 'utf8');
   if (
@@ -258,6 +274,7 @@ async function exportPreview(
       }
     }
     if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
+    const previous = await priorLabels(root, albumKey);
     await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
     const html = await renderPreview(album, tracks, albumKey);
     await writeFile(path.join(staging, files[0]), html);
@@ -273,6 +290,28 @@ async function exportPreview(
     }
     const page = path.join(output, files[0]);
     await rename(path.join(staging, files[0]), page);
+    const previewImage = path.join(output, 'Album page.png');
+    const shown = [];
+    for (const track of tracks) {
+      if (track.takes.length === 0) continue;
+      const letters = [];
+      for (const take of track.takes) letters.push(take.letter);
+      shown.push({ title: track.title, letters });
+    }
+    await writeFile(
+      previewImage,
+      renderAlbumPagePng({
+        title: typeof album.title === 'string' ? album.title : 'Album',
+        tracks: shown,
+      })
+    );
+    const pendingTracks = tracks.some(track => track.takes.length === 0);
+    const say = deliverySay({
+      first: previous.size === 0,
+      pendingTracks,
+      landedLabel: landedLabel(tracks, previous),
+    });
+    await markPageDelivered(root);
     if (makeZip) await rename(path.join(staging, 'preview.zip'), archive);
     // The running local player reads one complete catalog per request. Keep the
     // mapping to original filenames outside both the public export and the ZIP.
@@ -288,6 +327,10 @@ async function exportPreview(
       report: {
         page,
         link: page,
+        preview: previewImage,
+        say,
+        open: page,
+        shareCard: false,
         elapsedMs: Math.round(performance.now() - startedAt),
         offline,
         online,

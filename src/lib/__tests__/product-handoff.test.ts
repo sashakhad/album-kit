@@ -78,8 +78,9 @@ describe('product handoff', () => {
       'Explicit `/start` starts a fresh album and preserves the existing album, takes, scores, and jobs.'
     );
     expect(requirements).toContain('`/help` and `/settings` work before sign-in.');
+    expect(requirements).toContain('Your album page is ready. Tap to listen ↓');
     expect(requirements).toContain(
-      'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.'
+      'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.'
     );
     expect(requirements).toContain('Copy this sentence exactly');
     expect(requirements).toContain('A status of `streaming` is not playable.');
@@ -93,7 +94,7 @@ describe('product handoff', () => {
     expect(requirements).toContain('projectId');
     expect(requirements).toContain('Review next pass');
     const nextTracks =
-      'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
+      'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
     expect(bodies.get('docs/execution-plan.md')).toContain(nextTracks);
     expect(bodies.get('docs/decision-charts.md')).toContain(nextTracks);
     expect(bodies.get('docs/tester-walkthrough.md')).toContain(nextTracks);

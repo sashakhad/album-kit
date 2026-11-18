@@ -18,8 +18,14 @@ const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/g
 const SUNO_CDN = /cdn1\.suno\.ai/gi;
 
 const completionCard = ['Your album is ready. What’s next?', 'Share album', 'Add more tracks'];
+const tapToListen = 'Your album page is ready. Tap to listen ↓';
+const firstOnesIn =
+  'Cool, the first ones are in. Spinning up your album page now. Tap here to listen.';
+const generationEstimate =
+  'About 1–2 minutes until the first take can play, then a few more minutes for the rest. I’ll send each one as soon as you can tap it.';
 const nextTracksLine =
-  'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
+  'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
+const liveLines = [tapToListen, firstOnesIn, generationEstimate, nextTracksLine];
 
 const sunoAccountPhrases = [
   'Do you already have a Suno account?',
@@ -41,13 +47,13 @@ const shareEditions = [
 const ONBOARDING_PHRASES = [
   {
     file: path.join(ROOT, 'grokbot', 'PORTABLE.md'),
-    phrases: [...completionCard, nextTracksLine, ...shareEditions],
+    phrases: [...completionCard, ...liveLines, ...shareEditions],
   },
   {
     file: path.join(ROOT, 'grokbot', 'BOT.md'),
     phrases: [
       ...completionCard,
-      nextTracksLine,
+      ...liveLines,
       ...shareEditions,
       'question widget card',
       'begin onboarding automatically',
@@ -82,7 +88,7 @@ const ONBOARDING_PHRASES = [
     file: path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
     phrases: [
       ...completionCard,
-      nextTracksLine,
+      ...liveLines,
       ...shareEditions,
       'question widget card',
       'begin onboarding automatically',
@@ -116,7 +122,7 @@ const ONBOARDING_PHRASES = [
       '/refresh',
       'Sasha never hosts Album Bot for anyone.',
       ...completionCard,
-      nextTracksLine,
+      ...liveLines,
       'Lite',
       'Full Setup',
       'Next.js',
@@ -129,7 +135,7 @@ const ONBOARDING_PHRASES = [
     file: path.join(ROOT, '.cursor', 'skills', 'suno-run', 'SKILL.md'),
     phrases: [
       ...completionCard,
-      nextTracksLine,
+      ...liveLines,
       ...shareEditions,
       'reviewTakes',
       'downloadsPerTake',
