@@ -35,26 +35,22 @@ The playbook is `.cursor/skills/`. Read a skill's `SKILL.md` before its steps. T
 
 ## Advanced: hosted voting
 
-Choose this path to collect votes from multiple listeners in one place. It uses a repository in **your** GitHub account, with this kit recorded as its upstream, plus your own Vercel project and your own Neon database. The bot can use a local or cloud checkout. If you set it up yourself, use Node 24, pnpm, a signed-in `gh` CLI, Vercel CLI and Docker for local Postgres:
+Choose this path to collect everyone’s votes in one place. Album Bot deploys the app from your album folder directly to your Vercel project. A Neon database keeps the ballots, and Vercel Blob stores uploaded audio. No GitHub account, repository or access token is required.
 
-```bash
-git clone https://github.com/sashakhad/album-kit my-album
-cd my-album
-git remote rename origin kit
-gh repo create my-album --private --source . --remote origin --push
+If you're running the kit yourself, open your album folder with Node 24 and pnpm installed. Sign in to Vercel as the creator, then run:
+
+```sh
 pnpm install
-pnpm setup:site --name my-album
+pnpm setup:site --name <album-slug> --scope <your-vercel-scope>
 ```
 
-`setup:site` creates or links your Vercel project, a public Blob store, a Neon database, and a write token. It generates `ALBUM_WRITE_TOKEN`, stores it on the Vercel project and in `.env`, and never prints it. `.album-site.json` holds the site URL. The home page plays the album. Anyone with the public `<site>/vote` link can compare takes and vote straight away. Each listener has their own ballot. Owner tools still require owner access.
+Album Bot can handle the commands. It asks you for account access only when a provider requires it. The setup command creates or reuses the project, configures storage and the database, deploys the app, and saves its URL in `.album-site.json`. It generates the album's private management credential and stores it in the project environment and local `.env`. Open the printed production URL at `/vote` to listen and score. Each browser has its own ballot. Vercel Hobby eligibility depends on how the album will be used. [Vercel fair use guidelines](https://vercel.com/docs/limits/fair-use-guidelines)
 
-On this advanced path, Album Bot connects GitHub and Vercel with the Grok Bot connectors and a one-tap card, then runs `pnpm setup:site`. The CLI commands above are the fallback when a connector cannot do a step. Neon is created on the owner's own account, with the Neon connector or Vercel Marketplace Neon. [GitHub](https://github.com/pricing) and [Vercel](https://vercel.com/pricing) Hobby are free. Vercel Hobby is for eligible [personal, non-commercial use](https://vercel.com/docs/limits/fair-use-guidelines). The hosted site also uses Vercel Blob and Postgres through Neon.
+## Kit updates and optional backup
 
-## Kit updates
+From a fresh copy of the kit, run `pnpm kit:update <existing-album-directory>` to update an album's app code. The same command works with Node alone as `node scripts/update-album-kit.mjs <existing-album-directory>`. The updater preserves the album's music, brief, track sheets and local state. To update a hosted voting app, run `pnpm publish:album "Kit update"` in that album directory and check its public `/vote` page. For a shared static player, use the existing `share:album` project and scope.
 
-`albums.json` lists album repositories. A merge to this repo's `main` branch copies the kit into each one and pushes. It does not change `album/BRIEF.md`, `album/album.json`, or `album/tracks/`. The album's Vercel project is connected to that repository, so the push deploys production. `ALBUM_SYNC_TOKEN` in this repo's GitHub secrets must be able to push to those repositories. See `grokbot/BOT.md` for the registration steps.
-
-`vercel.json` keeps production deploys of this kit's `main` branch off. Album repositories do not get that switch: `pnpm setup:site`, `pnpm album:github`, and album sync write their `vercel.json` so a push to `main` deploys production. Connect this GitHub repository in Vercel to get a preview deployment for each pull request.
+If you also want a GitHub backup, tell Album Bot which account to use and whether the repository should be public or private. The optional `pnpm album:github` helper creates a public backup.
 
 ## Settings and rounds
 
@@ -80,7 +76,7 @@ pnpm dev
 
 The local site does not need a password. With no Blob connection, put canonical MP3 files in `album/audio/`. New takes can play from a stored Suno stream URL without a file. Generate on Compare takes stores the request for Album Bot, which pulls it and makes the takes, on the official connector or on suno.com for a Free account. The site does not hold a Suno login. `pnpm owner:link` opens the owner’s browser for that button. Use `pnpm takes:upload <files...>` for hosted upload. It uses a Blob token if available, otherwise the site upload API and `ALBUM_WRITE_TOKEN` from `.env`.
 
-Run `pnpm check` for formatting, lint, types and tests. Run `pnpm publish:album "message"` after a permitted album change. Verify the deployment branch, owner, environment and working URL before sharing.
+Run `pnpm check` for formatting, lint, types and tests. Run `pnpm publish:album "message"` after a permitted album change. Verify the Vercel project, account and public URL before sharing.
 
 ## Boundaries
 

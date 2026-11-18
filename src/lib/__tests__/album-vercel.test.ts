@@ -48,6 +48,32 @@ afterEach(() => {
 });
 
 describe('album vercel config', () => {
+  it('excludes local account details and unpublished takes from a CLI deployment', () => {
+    const work = tempDir();
+    initRepo(work);
+    const ignore = readFileSync(path.join(process.cwd(), '.vercelignore'), 'utf8');
+    write(work, '.gitignore', ignore);
+    const localFiles = [
+      '.album-key',
+      '.env.local',
+      '.album-onboarding.json',
+      '.album-site.json',
+      '.vercel/project.json',
+      'local.pem',
+      '.tmp/album-preview-ledger.json',
+      '.tmp/album-preview-streams.json',
+      '.tmp/album-preview-ballot.json',
+      'diagnostics/album/local-catalog.json',
+      'album/audio/take.mp3',
+    ];
+    const output = execFileSync(
+      'git',
+      ['check-ignore', '--no-index', '--', ...localFiles, 'album/album.json', 'src/app/page.tsx'],
+      { cwd: work, encoding: 'utf8' }
+    );
+    expect(output.trim().split('\n')).toEqual(localFiles);
+  });
+
   it('keeps this kit from auto-deploying main and strips that switch for albums', () => {
     const kitFile = readFileSync(path.join(process.cwd(), 'vercel.json'), 'utf8');
     expect(JSON.parse(kitFile).git.deploymentEnabled.main).toBe(false);

@@ -81,7 +81,7 @@ Run every command from `~/album`, after `SITE=$(node -p 'require("./.album-site.
 
 7. **Rename a track.** The number stays. In this order:
    1. Agree on the new title. Get the new slug with the command in step 6.
-   2. Change the track's `title` and `slug` in `album/album.json`. Rename its sheet and synthesis note with `git mv` to the new slug, then change the sheet's heading, its Title field and every filename in its table to the new slug.
+   2. Change the track's `title` and `slug` in `album/album.json`. Rename its sheet and synthesis note to the new slug, then change the sheet's heading, its Title field and every filename in its table to the new slug.
    3. Follow the `publish` skill with the message `rename track <NN> to <title>`.
    4. Move each take from its old name to its new name with a plain move. Never add `replace` or `keepSource` to a rename. The route refuses `keepSource` on a rename with 400, because a rename always moves the file:
 

@@ -39,7 +39,7 @@
     "preview:album": "node --experimental-strip-types scripts/preview-album.mjs",
     "share:album": "node scripts/share-album.mjs",
     "publish:album": "node scripts/publish-album.mjs",
-    "sync:albums": "node scripts/sync-albums.mjs",
+    "kit:update": "node scripts/update-album-kit.mjs",
     "postinstall": "prisma generate",
     "prepare": "husky"
   },

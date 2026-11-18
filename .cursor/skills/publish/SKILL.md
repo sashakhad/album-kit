@@ -1,9 +1,9 @@
 ---
 name: publish
-description: Use after any change under album/, or when the user wants the album backed up to GitHub or Cursor Origin. It commits the album, redeploys the site and gives the site URL.
+description: Redeploy a creator’s hosted voting app directly to Vercel, update an album from a fresh kit copy, or back it up when requested.
 ---
 
-# Publish · version 7
+# Publish · version 8
 
 Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. New albums start with a local player. After the album is generated, an owner who accepts the sharing offer or later types `/share` gets the static player on their own Vercel account. Follow **Share** in `start-here`, which runs `pnpm share:album`. That path requires no GitHub repository or database. This skill applies when they have the advanced hosted site, or when they ask to back the album up to their own GitHub or Origin.
 
@@ -17,13 +17,13 @@ The hosted site is public. Review takes are made public on Suno automatically an
 
 ## You need
 
-- The album checkout, set up by `start-here`, with `.album-site.json` and the user's repository as `origin`.
+- The creator's album folder, its `.album-site.json`, and access to the Vercel project that holds the app. No GitHub account or repository is needed to deploy.
 - For a GitHub home: access to the user's GitHub account, through the GitHub plugin or a signed-in `gh` command.
 - For an Origin home: the `origin` command, or the user's help to create the repo at cursor.com/codebase, which also shows how to install it.
 
 ## Steps
 
-1. Go to the album with `cd ~/album`.
+1. Work in the creator’s album folder. Check the title and the linked Vercel account and project before publishing.
 
 2. Check `album/album.json`. Fix anything this prints before you go on:
 
@@ -66,7 +66,7 @@ The hosted site is public. Review takes are made public on Suno automatically an
    pnpm publish:album "<message>"
    ```
 
-   It commits `album/` and `.album-site.json` as `album: <message>`, pushes to `origin`, and prints the site URL. `.album-site.json` records `"deploy": "git"`. Vercel builds that push, so the change shows a minute or two later. Do not run `vercel deploy` and do not upload project files one by one. If `origin` is missing, it exits 5 and names that blocker.
+   The command deploys this folder directly to the creator’s linked Vercel project and prints its production URL. It also works for albums that previously deployed from Git. Keep the existing project and credentials on retry.
 
 4. Check that the site answers:
 
@@ -76,61 +76,20 @@ The hosted site is public. Review takes are made public on Suno automatically an
 
    Open the deployed voting app at `<site>/vote` in a signed-out browser. Confirm Compare takes opens directly, the listed takes play, and the listener scoring controls are available. Send this ordinary public link for judging. `<site>/listen` plays the chosen lineup. Verify that playback advances, seeking and next-track work, and mobile controls fit. Keep credentials for owner actions private.
 
-### Give the album a home later
+### Optional repository backup
 
-An advanced hosted album gets a repository in the owner's own GitHub account when they ask for hosted voting. Use this section for that path, or to bring an older local album under the user's own account. Use `project` from `.album-site.json` as the repo name. Never push a user's album to the upstream kit.
+Only set up GitHub or Cursor Origin if the creator asks to save the album there. Confirm the destination account and repository visibility, and review which album files the backup will include. Keep local credentials, `.env`, Vercel project credentials and private ballots out of the backup.
 
-**GitHub.** Make a private repo in the user's own account and push the album to it. Use the Grok Bot GitHub connector first. If it is not connected, show its one-tap card in one sentence: "Tap to connect GitHub so I can save your album." Never ask for an emailed code or a passkey when that connector exists. After the repo exists, run `git remote add origin <repo URL>` and `git push -u origin main`.
+**GitHub.** For a public backup explicitly requested in the creator's GitHub account, run `pnpm album:github`. For a private backup, use the signed-in GitHub connector to create a private repository and push only the approved files. Verify the destination belongs to the creator, especially if the album folder started as a copy of the upstream kit. The Vercel hosting project stays independent of this backup.
 
-Use the CLI only when the connector cannot create the repo:
-
-```bash
-gh repo create <project> --private --source . --remote origin --push
-```
-
-Set `"deploy": "git"` in `.album-site.json`. The push is the deploy. Link the Vercel project with the Grok Bot Vercel connector, including `create_git_project`, on that same person's account.
-
-**Cursor Origin.** Check whether the Origin command is on this computer with `command -v origin`.
-
-- **If it prints a path,** run these. `origin auth login` opens a sign-in, so ask the user to take over the browser for it:
-
-  ```bash
-  origin auth login
-  origin auth setup-git
-  origin repo create <project> --visibility private
-  ```
-
-  `origin repo create` prints the repo's full name, `<namespace>/<project>`. Then:
-
-  ```bash
-  git remote add origin "$(origin repo view <namespace>/<project> --json cloneUrl | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).cloneUrl')"
-  git push -u origin main
-  ```
-
-- **If it prints nothing,** open https://cursor.com/codebase in your browser and ask the user to take over, sign in, click **+New** and create a private repo named `<project>`. The page then shows the command that installs `origin` and the commands that push to the new repo. Run them exactly as the page shows them, from `~/album`. When `origin auth login` runs, ask the user to take over the browser for the sign-in.
-
-Set `"deploy": "git"`. The push is the deploy. If the install or the sign-in fails, tell the user, remove any `origin` remote you added with `git remote remove origin`, and leave the album as it was.
+**Cursor Origin.** If the creator specifically requests an Origin backup, use the signed-in `origin` CLI or their account at cursor.com/codebase. Create or select the private backup repository there. In the album folder, verify the repository URL and the files included in the backup commit. Push that commit to the verified URL. Keep the existing Vercel project and deployment settings.
 
 ### Pick up kit updates
 
-On albums that started from the kit (paths (a) and (c) in `start-here`), run `git pull --no-ff kit main`, then publish with the message `kit update`. `--no-ff` makes the newest commit a merge by the user, which Vercel's free plan needs before it deploys.
+From a fresh kit copy, run `pnpm kit:update <existing-album-directory>` or `node scripts/update-album-kit.mjs <existing-album-directory>`. It updates the kit code in that album folder while preserving its `album/` directory, ballots, environment, deployment link and custom files. Publish a requested voting app update from that album folder with `pnpm publish:album "Kit update"`. For a static page, repeat **Share** from `start-here` with the same project and scope.
 
 ## Check before you say done
 
-- `pnpm publish:album` printed the site URL.
-- `git status --short album .album-site.json` prints nothing.
-- The appropriate public or owner page responds as expected, and the change shows on the site.
-- For a new home: `git remote -v` shows `origin` at the new private repo, and the push went through.
-
-## Tell the user
-
-- What changed, and the site URL, as soon as `pnpm publish:album` prints it. Do not go silent while the deploy runs: if it is still going after the first minute, say that publishing is still in progress.
-- For a new home: the repo link, and that it's private.
-
-## Stop and ask when
-
-- The album.json check prints a problem you can't fix from what the user told you.
-- `pnpm publish:album` fails with code 1 or code 5. Show the user its last lines. Never force-push. Do not run `vercel deploy` instead.
-- A push is rejected because the remote has commits this folder doesn't have.
-- The site answers `500` after a publish.
-- Making the repo would make it public, or needs a paid plan.
+- For a hosted voting app, the public production `/vote` page shows this album’s generated takes and plays audio for a signed-out listener. Verify scoring and share that public URL.
+- For a backup, verify the files appeared in the requested account and confirm its actual visibility.
+- If publishing fails, give the creator the specific blocker, keep the local player available and retry the same Vercel project after the blocker is resolved.

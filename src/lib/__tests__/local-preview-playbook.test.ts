@@ -11,6 +11,25 @@ async function text(relativePath: string): Promise<string> {
 }
 
 describe('local preview playbook', () => {
+  it('routes creator slash commands to the album playbook and first HTML player', async () => {
+    const start = await text('.cursor/commands/start.md');
+    const setup = await text('.cursor/commands/setup.md');
+    const help = await text('.cursor/commands/help.md');
+    for (const command of [start, setup, help]) {
+      expect(command).toContain('.cursor/skills/start-here/SKILL.md');
+      expect(command).toContain('Open Album.html');
+      expect(command).not.toMatch(
+        /pnpm (?:run )?(?:dev|install|db:)|node_modules|localhost:3000|gh auth|password/i
+      );
+    }
+    expect(start).toContain('fresh album');
+    expect(start).toContain('Keep the previous album, takes and scores intact');
+    expect(start).toContain('node scripts/preview-album.mjs --streams-only');
+    expect(setup).toContain('`/setup` is optional');
+    expect(setup).toContain('Suno Free');
+    expect(help).toContain('when requested');
+  });
+
   it('keeps the first listen local on the creator’s computer', async () => {
     const files = [
       'grokbot/BOT.md',
@@ -100,6 +119,17 @@ describe('local preview playbook', () => {
     expect(body).toMatch(/signed.out/i);
     expect(body).not.toMatch(/listener voting (?:stays|is) off|paste the `Owner:` line/i);
   });
+
+  it.each(['grokbot/BOT.md', '.cursor/skills/start-here/SKILL.md', 'README.md'])(
+    'deploys hosted voting directly and leaves GitHub backup optional in %s',
+    async file => {
+      const body = await text(file);
+      expect(body).toContain('pnpm setup:site --name <album-slug> --scope');
+      expect(body).toMatch(/no GitHub account, repository or (?:access )?token/i);
+      expect(body).toMatch(/GitHub[^.]*backup|backup[^.]*GitHub/i);
+      expect(body).not.toMatch(/vercel git connect|create_git_project|gh repo create/i);
+    }
+  );
 
   it('keeps the hosted More takes pull path', async () => {
     const bot = await text('grokbot/BOT.md');
