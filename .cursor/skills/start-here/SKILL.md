@@ -108,7 +108,7 @@ Save `comparison: "originals-plus-combined"` and `writerLineup`. Post the round 
 
 Shared voting uses their own Vercel project and their own database, and only when they want listeners to vote. Listener voting stays off until they turn it on. A listener ballot is separate from the owner's scores.
 
-Match their track count. Follow `suno-run` and refresh the local preview as soon as a take is ready, and again after every batch. Never pay. On a paid plan, open Suno's upgrade page in the browser and leave the card form for them. On Free, do not add the Suno connector. Use suno.com in the browser.
+Match their track count. Follow `suno-run` and send Open Album.html as soon as the first stream URL is back, then again for each later take. Never pay. On a paid plan, open Suno's upgrade page in the browser and leave the card form for them. On Free, do not add the Suno connector. Use suno.com in the browser.
 
 ## Commands
 
@@ -120,7 +120,7 @@ A message that starts with `/` is a command. Do that command. Do not treat it as
 - `/surprise`: invent a concept, a genre, an album title, and track titles. Show them in three lines. Then run a small test of one or two tracks.
 - `/help`: say what Album Bot does in plain words, the next step, and this command list, including `/setup`, `/share`, and `/upgrade`.
 - `/settings`: Suno plan, Suno credits left when available, and the current settings. Include a site link only when one already exists. Never invent an unavailable balance.
-- `/listen`: refresh the local preview and open it, or send the ZIP when you cannot open a browser for them. If they already shared the album, include that URL too.
+- `/listen`: run `node --experimental-strip-types scripts/preview-album.mjs` and send `.tmp/album-preview/Open Album.html`. If they already shared the album, include that URL too.
 - `/share`: publish the local preview on the owner's own Vercel account. Follow **Share**. Do not do this unless they ask.
 - `/more` and an optional track: another round of takes for that track. If no track is named, ask which one.
 - `/pick`: walk through choosing winners.
@@ -161,7 +161,7 @@ Create `album/album.json` with the title, optional artist, genre, starter set an
 
 ### Open the preview
 
-Run `pnpm preview:album --serve` as soon as the first take is ready, and open the loopback URL when this session has a browser the owner can use. Leave it running. Restart it after each ready batch. The ballot in `.tmp/album-preview-ballot.json` stays. From a remote workspace, run `pnpm preview:album --zip` and attach the archive. It contains `Open Album.html` and any authorized local audio. Follow the local take catalog in `suno-run`. Let the owner listen and vote before offering a link.
+The moment the first take has a public stream URL, append it to `.tmp/album-preview-streams.json` and run `node --experimental-strip-types scripts/preview-album.mjs`. That fills the existing `.tmp/album-preview/Open Album.html` and prints `link`. Attach that file. It is the album link. Do not run `pnpm preview:album` on the way to that link. A fresh pnpm run installs the kit, including Next, then zips or starts a server. Do not install, zip, build, bundle, or start a server, and do not wait for later takes. Do not ranged-read the stream before sending. When another take's URL arrives, add it to the same JSON and run the same command again. It rewrites the same Open Album.html. Send that same page again. Follow the local take catalog in `suno-run`.
 
 ### Share
 

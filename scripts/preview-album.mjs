@@ -100,6 +100,7 @@ async function renderPreview(album, tracks, albumKey) {
 }
 
 async function preview(root, makeZip, serve) {
+  const startedAt = Date.now();
   const albumRoot = path.join(root, 'album');
   const audioRoot = path.join(albumRoot, 'audio');
   const output = path.join(root, '.tmp', 'album-preview');
@@ -183,6 +184,8 @@ async function preview(root, makeZip, serve) {
     console.log(
       JSON.stringify({
         page,
+        link: page,
+        elapsedMs: Date.now() - startedAt,
         offline,
         online,
         ...(makeZip ? { archive } : {}),
