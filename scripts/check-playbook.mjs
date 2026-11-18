@@ -437,9 +437,71 @@ async function checkOnboardingCopy() {
   }
 }
 
+const RETIRED_USER_COPY = [
+  'Album Bot Light',
+  'five Cursor models',
+  'streams from a public Suno link',
+];
+
+async function checkLiteBranding() {
+  const files = [
+    path.join(ROOT, 'grokbot', 'BOT.md'),
+    path.join(ROOT, 'grokbot', 'PORTABLE.md'),
+    path.join(ROOT, 'grokbot', 'INSTRUCTIONS.md'),
+    path.join(ROOT, 'README.md'),
+    path.join(ROOT, 'AGENTS.md'),
+    path.join(ROOT, 'scripts', 'onboarding.mjs'),
+    ...(await listFiles(SKILLS_DIR)),
+    ...(await listFiles(path.join(ROOT, '.cursor', 'commands'))),
+  ];
+  for (const file of files) {
+    const lines = (await readFile(file, 'utf8')).split(/\r?\n/);
+    for (const [index, line] of lines.entries()) {
+      for (const phrase of RETIRED_USER_COPY) {
+        if (line.includes(phrase)) {
+          report(file, index + 1, `uses retired copy “${phrase}”`);
+        }
+      }
+    }
+  }
+
+  for (const file of [
+    path.join(ROOT, 'grokbot', 'BOT.md'),
+    path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
+  ]) {
+    const lines = (await readFile(file, 'utf8')).split(/\r?\n/);
+    const full = lines.find(line => line.startsWith('- Full Setup —'));
+    if (!lines.some(line => line.startsWith('- Album Bot Lite —'))) {
+      report(file, 1, 'path card is missing Album Bot Lite');
+    }
+    if (!full) {
+      report(file, 1, 'path card is missing Full Setup');
+    } else if (!full.includes('Up to five different AI models') || full.includes('Cursor')) {
+      report(
+        file,
+        lines.indexOf(full) + 1,
+        'Full Setup card must describe up to five different AI models and leave Cursor for later'
+      );
+    }
+    if (!lines.join('\n').includes('Connect Cursor when the brief and track names are ready')) {
+      report(file, 1, 'does not say Cursor connects after the brief and track names are ready');
+    }
+  }
+
+  const onboarding = await readFile(path.join(ROOT, 'scripts', 'onboarding.mjs'), 'utf8');
+  if (!onboarding.includes("args[0] === 'lite' ? 'light'")) {
+    report(
+      path.join(ROOT, 'scripts', 'onboarding.mjs'),
+      1,
+      'does not keep a saved light value when the command says lite'
+    );
+  }
+}
+
 async function main() {
   await checkOnboardingCopy();
   await checkSessionSplit();
+  await checkLiteBranding();
   await checkFreshOpenings();
   const skillDirs = await listSkillDirs();
   await checkSkillNames(skillDirs);
