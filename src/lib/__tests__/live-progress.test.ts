@@ -36,6 +36,16 @@ it('prints the measured estimate and refuses the share card until a later messag
     expect(page).toContain(firstOnesIn);
     expect(page).toContain('Track 1, takes A and B are in.');
     expect(page).toContain(nextTracksLine);
+    expect(page).not.toContain('files so each one');
+
+    const split = deliverySay({
+      first: false,
+      pendingTracks: false,
+      landedLabel: '',
+      parts: 2,
+    });
+    expect(split.startsWith(tapToListen)).toBe(true);
+    expect(split).toContain('The album is in 2 files so each one can be attached. Open each file.');
 
     const cli = execFileSync(
       process.execPath,

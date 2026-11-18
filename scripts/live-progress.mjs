@@ -3,8 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const generationEstimate =
-  'The first take usually starts playing in about 20–30 seconds.';
+export const generationEstimate = 'The first take usually starts playing in about 20–30 seconds.';
 
 export const tapToListen = 'Your album page is ready. Tap to listen ↓';
 
@@ -79,13 +78,18 @@ export function trackProgressLine(number, letters) {
   return `Track ${number}, ${noun} ${list} ${verb} in.`;
 }
 
-export function deliverySay({ first, pendingTracks, landedLabel }) {
+export function deliverySay({ first, pendingTracks, landedLabel, parts = 1 }) {
   const lines = [tapToListen];
   if (first) lines.push(firstOnesIn);
   if (typeof landedLabel === 'string' && landedLabel.length > 0) lines.push(landedLabel);
   else if (!first) lines.push(pageUpdated);
   if (pendingTracks) lines.push(nextTracksLine);
   else if (!first) lines.push(restAreIn);
+  if (Number.isInteger(parts) && parts > 1) {
+    lines.push(
+      `The album is in ${String(parts)} files so each one can be attached. Open each file.`
+    );
+  }
   return lines.join('\n');
 }
 

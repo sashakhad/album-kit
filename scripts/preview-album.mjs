@@ -15,7 +15,15 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { embedPublicAudio } from '../src/lib/album/embed-public-audio.ts';
+import { embedPublicAudio, loadPublicSource } from '../src/lib/album/embed-public-audio.ts';
+import {
+  PAGE_BYTE_BUDGET,
+  UNKNOWN_TAKE_SECONDS,
+  albumPageName,
+  lowerReviewBitrate,
+  packPagesBySize,
+  reviewBitrateKbps,
+} from '../src/lib/album/embed-budget.ts';
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { previewListenBlurb, previewListenVersion } from '../src/lib/album/preview-listen.ts';
 import { albumListenUrl, takeFromStreamUrl } from '../src/lib/album/link-fragment.ts';
@@ -85,19 +93,25 @@ function labelsInPage(html) {
   return labels;
 }
 
+function isAlbumPage(name) {
+  return name === 'Open Album.html' || /^Open Album \d+\.html$/.test(name);
+}
+
 async function priorLabels(root, albumKey) {
   const labels = new Map();
   for (const directory of ['album-preview', 'album-preview-online']) {
-    const html = await readFile(
-      path.join(root, '.tmp', directory, 'Open Album.html'),
-      'utf8'
-    ).catch(error => {
-      if (error.code === 'ENOENT') return '';
+    const folder = path.join(root, '.tmp', directory);
+    const names = await readdir(folder).catch(error => {
+      if (error.code === 'ENOENT') return [];
       throw error;
     });
-    if (!html.includes(`const albumKey = "${albumKey}";`)) continue;
-    for (const [id, letter] of labelsInPage(html)) {
-      if (!labels.has(id)) labels.set(id, letter);
+    for (const name of names) {
+      if (!isAlbumPage(name)) continue;
+      const html = await readFile(path.join(folder, name), 'utf8');
+      if (!html.includes(`const albumKey = "${albumKey}";`)) continue;
+      for (const [id, letter] of labelsInPage(html)) {
+        if (!labels.has(id)) labels.set(id, letter);
+      }
     }
   }
   return labels;
@@ -181,7 +195,7 @@ function landedLabel(tracks, previous) {
   return '';
 }
 
-async function renderPreview(album, tracks, albumKey) {
+async function renderPreview(album, tracks, albumKey, title = album.title) {
   const shell = await readFile(new URL('./player-shell.html', import.meta.url), 'utf8');
   if (
     !shell.includes('___ALBUM_DATA___') ||
@@ -192,7 +206,7 @@ async function renderPreview(album, tracks, albumKey) {
   }
   const artist = typeof album.artist === 'string' ? album.artist : '';
   const version = previewListenVersion(
-    { title: album.title, artist },
+    { title, artist },
     tracks.map(track => ({
       number: track.number,
       title: track.title,
@@ -206,11 +220,11 @@ async function renderPreview(album, tracks, albumKey) {
     }))
   );
   return shell
-    .replaceAll('___ALBUM_TITLE___', escapeHtml(album.title))
+    .replaceAll('___ALBUM_TITLE___', escapeHtml(title))
     .replaceAll(
       '___ALBUM_DATA___',
       jsonForScript({
-        title: album.title,
+        title,
         artist,
         blurb: previewListenBlurb(version),
         version,
@@ -227,6 +241,8 @@ async function exportPreview(
     streamsOnly = false,
     allowEmpty = false,
     output = path.join(root, '.tmp', streamsOnly ? 'album-preview-online' : 'album-preview'),
+    pageBudgetBytes,
+    ffmpegBin,
   } = {}
 ) {
   const startedAt = performance.now();
@@ -299,21 +315,59 @@ async function exportPreview(
     }
     const previous = await priorLabels(root, albumKey);
     await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
-    await embedOnlineTakes(root, tracks);
-    const html = await renderPreview(album, tracks, albumKey);
-    await writeFile(path.join(staging, files[0]), html);
+    const budgetBytes = resolvePageBudget(pageBudgetBytes);
+    let embedded = await embedOnlineTakes(root, tracks, { budgetBytes, ffmpegBin });
+    let bitrate = embedded.bitrateKbps;
+    let html = await renderPreview(album, tracks, albumKey);
+    if (ffmpegBin !== null) {
+      let guard = 0;
+      while (bitrate !== null && Buffer.byteLength(html) > budgetBytes && guard < 8) {
+        const lower = lowerReviewBitrate(bitrate);
+        if (lower === null) break;
+        bitrate = lower;
+        embedded = await embedOnlineTakes(root, tracks, {
+          budgetBytes,
+          ffmpegBin,
+          bitrateKbps: bitrate,
+        });
+        html = await renderPreview(album, tracks, albumKey);
+        guard += 1;
+      }
+    }
+    const attachment = await attachmentPages(album, tracks, albumKey, html, budgetBytes);
+    for (const part of attachment.parts) {
+      await writeFile(path.join(staging, part.name), part.html);
+    }
     const archive = path.join(parent, 'album-preview.zip');
     if (makeZip) {
-      execFileSync('zip', ['-q', '-0', path.join(staging, 'preview.zip'), ...files], {
-        cwd: staging,
-      });
+      execFileSync(
+        'zip',
+        [
+          '-q',
+          '-0',
+          path.join(staging, 'preview.zip'),
+          ...attachment.parts.map(part => part.name),
+          ...files.slice(1),
+        ],
+        { cwd: staging }
+      );
     }
     for (const file of files.slice(1)) {
       await mkdir(path.join(output, 'audio'), { recursive: true });
       await rename(path.join(staging, file), path.join(output, file));
     }
-    const page = path.join(output, files[0]);
-    await rename(path.join(staging, files[0]), page);
+    const partPaths = [];
+    for (const part of attachment.parts) {
+      const destination = path.join(output, part.name);
+      await rename(path.join(staging, part.name), destination);
+      partPaths.push(destination);
+    }
+    await removeStalePages(
+      output,
+      attachment.parts.map(part => part.name)
+    );
+    const page = partPaths[0];
+    if (page === undefined) throw new Error('The album page was not written.');
     const artist = typeof album.artist === 'string' ? album.artist : '';
     const link = albumListenUrl({
       albumId: albumKey,
@@ -334,6 +388,7 @@ async function exportPreview(
             first: previous.size === 0,
             pendingTracks,
             landedLabel: landedLabel(tracks, previous),
+            parts: partPaths.length,
           });
     await markPageDelivered(root);
     if (makeZip) await rename(path.join(staging, 'preview.zip'), archive);
@@ -350,6 +405,7 @@ async function exportPreview(
     return {
       report: {
         page,
+        pages: partPaths,
         link,
         ...(previewImage ? { preview: previewImage } : {}),
         say,
@@ -360,6 +416,9 @@ async function exportPreview(
         online,
         ...(makeZip ? { archive } : {}),
         ...(url ? { url } : {}),
+        ...(ffmpegBin !== null && bitrate !== null && embeddedAudioIsAac(tracks)
+          ? { audioBitrateKbps: bitrate }
+          : {}),
       },
       sources: tracks.flatMap(track => track.takes.map(take => take.src)),
     };
@@ -368,7 +427,55 @@ async function exportPreview(
   }
 }
 
-async function embedOnlineTakes(root, tracks) {
+function resolvePageBudget(override) {
+  if (typeof override === 'number' && override > 0) return override;
+  const fromEnv = Number(process.env.ALBUM_PREVIEW_PAGE_BUDGET);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return PAGE_BYTE_BUDGET;
+}
+
+function letterRank(letter) {
+  if (typeof letter !== 'string' || !/^[A-Z]+$/.test(letter)) return 0;
+  let value = 0;
+  for (const char of letter) value = value * 26 + (char.charCodeAt(0) - 64);
+  return value;
+}
+
+function embeddedAudioIsAac(tracks) {
+  let found = false;
+  for (const track of tracks) {
+    for (const take of track.takes) {
+      if (take.embeddedAudio === undefined) continue;
+      found = true;
+      if (take.embeddedAudio.mime !== 'audio/mp4') return false;
+    }
+  }
+  return found;
+}
+
+async function mapPool(items, limit, task) {
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      const item = items[index];
+      if (item === undefined) continue;
+      await task(item);
+    }
+  }
+  const workers = [];
+  const count = Math.min(Math.max(limit, 1), items.length);
+  for (let index = 0; index < count; index += 1) workers.push(worker());
+  await Promise.all(workers);
+}
+
+async function playerShellBytes() {
+  const shell = await readFile(new URL('./player-shell.html', import.meta.url));
+  return shell.length;
+}
+
+function onlineUrls(tracks) {
   const urls = [];
   const seen = new Set();
   for (const track of tracks) {
@@ -378,30 +485,137 @@ async function embedOnlineTakes(root, tracks) {
       urls.push(take.src);
     }
   }
-  if (urls.length === 0) return;
+  return urls;
+}
+
+async function embedOnlineTakes(root, tracks, { budgetBytes, ffmpegBin, bitrateKbps } = {}) {
+  const urls = onlineUrls(tracks);
+  if (urls.length === 0) return { bitrateKbps: null };
   const cacheDir = path.join(root, '.tmp', 'album-preview-embedded');
   const allowNetwork = process.env.ALBUM_PREVIEW_EMBED !== '0';
-  const embedded = new Map();
-  let cursor = 0;
-  async function worker() {
-    while (cursor < urls.length) {
-      const url = urls[cursor];
-      cursor += 1;
-      if (typeof url !== 'string') continue;
-      const audio = await embedPublicAudio({ url, cacheDir, allowNetwork });
-      if (audio !== null) embedded.set(url, audio);
-    }
+  let bitrate = typeof bitrateKbps === 'number' ? bitrateKbps : null;
+  if (bitrate === null) {
+    const durations = [];
+    await mapPool(urls, 3, async url => {
+      const source = await loadPublicSource({ url, cacheDir, allowNetwork });
+      if (source === null) return;
+      durations.push(
+        source.durationSeconds !== null && source.durationSeconds > 0
+          ? source.durationSeconds
+          : UNKNOWN_TAKE_SECONDS
+      );
+    });
+    if (durations.length === 0) return { bitrateKbps: null };
+    bitrate = reviewBitrateKbps({
+      durationsSeconds: durations,
+      shellBytes: await playerShellBytes(),
+      budgetBytes,
+    });
   }
-  const workers = [];
-  const count = Math.min(3, urls.length);
-  for (let index = 0; index < count; index += 1) workers.push(worker());
-  await Promise.all(workers);
+  const embedded = new Map();
+  await mapPool(urls, 3, async url => {
+    const request = { url, cacheDir, allowNetwork, bitrateKbps: bitrate };
+    if (ffmpegBin !== undefined) request.ffmpegBin = ffmpegBin;
+    const audio = await embedPublicAudio(request);
+    if (audio !== null) embedded.set(url, audio);
+  });
   for (const track of tracks) {
     for (const take of track.takes) {
       if (take.online !== true || typeof take.src !== 'string') continue;
       const audio = embedded.get(take.src);
       if (audio !== undefined) take.embeddedAudio = audio;
+      else delete take.embeddedAudio;
     }
+  }
+  return { bitrateKbps: bitrate };
+}
+
+function subsetTracks(tracks, ids, includeUnpackaged) {
+  const want = new Set(ids);
+  const selected = [];
+  for (const track of tracks) {
+    const takes = [];
+    for (const take of track.takes) {
+      const packed = take.online === true && take.embeddedAudio !== undefined;
+      if (want.has(take.id) || (includeUnpackaged && !packed)) takes.push(take);
+    }
+    if (takes.length > 0) selected.push({ ...track, takes });
+  }
+  return selected;
+}
+
+async function attachmentPages(album, tracks, albumKey, fullHtml, budgetBytes) {
+  if (Buffer.byteLength(fullHtml) <= budgetBytes) {
+    return { parts: [{ name: albumPageName(0), html: fullHtml }] };
+  }
+  const sized = [];
+  let audioChars = 0;
+  for (const track of tracks) {
+    for (const take of track.takes) {
+      if (take.online !== true || take.embeddedAudio === undefined) continue;
+      const pageBytes = take.embeddedAudio.base64.length;
+      audioChars += pageBytes;
+      sized.push({
+        id: take.id,
+        trackNumber: track.number,
+        order: letterRank(take.letter),
+        pageBytes,
+      });
+    }
+  }
+  const shellBytes = Math.max(0, Buffer.byteLength(fullHtml) - audioChars);
+  const packed = packPagesBySize(sized, shellBytes, budgetBytes);
+  const fitted = [];
+  const pending = packed.map(group => [...group]);
+  let index = 0;
+  let guard = 0;
+  while (index < pending.length && guard < sized.length + pending.length + 2) {
+    guard += 1;
+    const ids = pending[index];
+    if (ids === undefined || ids.length === 0) {
+      index += 1;
+      continue;
+    }
+    const html = await renderPreview(album, subsetTracks(tracks, ids, index === 0), albumKey);
+    // The titled part name adds a few bytes after this check.
+    if (Buffer.byteLength(html) <= budgetBytes - 64 || ids.length === 1) {
+      fitted.push(ids);
+      index += 1;
+      continue;
+    }
+    const moved = ids.pop();
+    if (moved === undefined) {
+      index += 1;
+      continue;
+    }
+    const next = pending[index + 1];
+    if (next) next.unshift(moved);
+    else pending.push([moved]);
+  }
+  if (fitted.length === 0) return { parts: [{ name: albumPageName(0), html: fullHtml }] };
+  const parts = [];
+  for (let part = 0; part < fitted.length; part += 1) {
+    const ids = fitted[part] ?? [];
+    const title =
+      fitted.length > 1
+        ? `${album.title} (${String(part + 1)} of ${String(fitted.length)})`
+        : album.title;
+    parts.push({
+      name: albumPageName(part),
+      html: await renderPreview(album, subsetTracks(tracks, ids, part === 0), albumKey, title),
+    });
+  }
+  return { parts };
+}
+
+async function removeStalePages(output, keep) {
+  const kept = new Set(keep);
+  const names = await readdir(output).catch(error => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const name of names) {
+    if (isAlbumPage(name) && !kept.has(name)) await rm(path.join(output, name));
   }
 }
 
