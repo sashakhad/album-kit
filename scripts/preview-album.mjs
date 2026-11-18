@@ -290,7 +290,7 @@ async function exportPreview(
     }
     const page = path.join(output, files[0]);
     await rename(path.join(staging, files[0]), page);
-    const previewImage = path.join(output, 'Album page.png');
+    const previewImage = path.join(root, '.tmp', 'Album page.png');
     const shown = [];
     for (const track of tracks) {
       if (track.takes.length === 0) continue;

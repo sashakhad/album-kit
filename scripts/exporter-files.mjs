@@ -2,7 +2,6 @@
 // Node runs this set with the album directory as the working directory.
 export const exporterFiles = [
   'scripts/exporter-files.mjs',
-  'scripts/playbook-rev.mjs',
   'scripts/probe-stream.mjs',
   'scripts/preview-album.mjs',
   'scripts/live-progress.mjs',
