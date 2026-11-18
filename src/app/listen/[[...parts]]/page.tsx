@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { AlbumPlayer } from '@/components/album/AlbumPlayer';
-import { RoundProgressBanner } from '@/components/album/RoundProgressBanner';
-import { TakeAvailability } from '@/components/album/TakeAvailability';
-import { findListenTrack } from '@/lib/album/listen';
+import { ListenMain } from '@/components/album/ListenMain';
+import { findListenTrack, LISTEN_MAKING_COPY, LISTEN_READY_COPY } from '@/lib/album/listen';
 import { getListenConfig, getPublicListenVersion } from '@/lib/album/listen-store';
 import { loadSettings } from '@/lib/settings/store';
 import { withVisibleDetails } from '@/lib/votes/provenance';
@@ -38,49 +36,29 @@ export default async function ListenPage({ params }: ListenPageProps) {
   const hasPreviews = listen.tracks.some(track => track.status === 'preview');
   const unavailable = hasAudio ? null : emptyTakeMessage(progress);
   const pending = pendingTakeLabel(progress);
+  const blurb =
+    unavailable !== null ? unavailable : hasPreviews ? LISTEN_MAKING_COPY : LISTEN_READY_COPY;
   return (
-    <main className='mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6 sm:py-10'>
-      <RoundProgressBanner line={progressBannerLine(progress)} />
-      <header className='flex flex-wrap items-end justify-between gap-4'>
-        <div>
-          <h1 className='font-display text-3xl tracking-tight sm:text-4xl'>{config.title}</h1>
-          {config.artist.length > 0 ? (
-            <p className='text-muted-foreground mt-1'>{config.artist}</p>
-          ) : null}
-          <p className='text-muted-foreground mt-3 max-w-xl text-sm'>
-            {unavailable !== null
-              ? unavailable
-              : hasPreviews
-                ? 'An album in the making. Press play to listen, or compare takes to help choose your favorites.'
-                : 'Press play and enjoy the album.'}
-          </p>
-        </div>
-      </header>
-      {hasAudio ? (
-        <AlbumPlayer
-          version={listen}
-          surface='listen'
-          voter='listener'
-          {...(selected === undefined
-            ? {}
-            : { initialTrackNumber: selected.number, initialTrackTitle: selected.title })}
-        />
-      ) : (
-        <TakeAvailability
-          message=''
-          pendingLabel={pending}
-          tracks={
-            listen.tracks.length > 0
-              ? listen.tracks.map(track => ({
-                  trackNumber: track.number,
-                  title: track.title,
-                  ready: 0,
-                  expected: 0,
-                }))
-              : progress.tracks
-          }
-        />
-      )}
-    </main>
+    <ListenMain
+      title={config.title}
+      artist={config.artist}
+      blurb={blurb}
+      version={listen}
+      progressLine={progressBannerLine(progress)}
+      pendingLabel={pending}
+      availabilityTracks={
+        listen.tracks.length > 0
+          ? listen.tracks.map(track => ({
+              trackNumber: track.number,
+              title: track.title,
+              ready: 0,
+              expected: 0,
+            }))
+          : progress.tracks
+      }
+      {...(selected === undefined
+        ? {}
+        : { initialTrackNumber: selected.number, initialTrackTitle: selected.title })}
+    />
   );
 }

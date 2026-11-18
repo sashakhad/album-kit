@@ -16,7 +16,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
-import { isPlayableStream, isVideoStream } from '../src/lib/album/stream-url.ts';
+import { previewListenBlurb, previewListenVersion } from '../src/lib/album/preview-listen.ts';
+import { isPlayableStream } from '../src/lib/album/stream-url.ts';
 
 import { servePreview } from './preview-server.mjs';
 import { previewIdentity } from './preview-identity.mjs';
@@ -49,6 +50,37 @@ function takeLabel(number) {
     : takeLabel(Math.floor((number - 1) / 26)) + takeLabel(((number - 1) % 26) + 1);
 }
 
+function labelsInPage(html) {
+  const labels = new Map();
+  const raw = /<script type="application\/json" id="album-data">([\s\S]*?)<\/script>/.exec(
+    html
+  )?.[1];
+  if (raw && raw !== '___ALBUM_DATA___') {
+    try {
+      const payload = JSON.parse(raw);
+      for (const track of payload.version?.tracks ?? []) {
+        for (const take of track.takes ?? []) {
+          if (
+            typeof take.filename === 'string' &&
+            /^[A-Z]+$/.test(take.label) &&
+            !labels.has(take.filename)
+          ) {
+            labels.set(take.filename, take.label);
+          }
+        }
+      }
+    } catch {
+      // A page from before the listen shell keeps its letters on the buttons.
+    }
+  }
+  for (const [button] of html.matchAll(/<button\b[^>]*>/g)) {
+    const id = / data-id="([a-f0-9]{24})"/.exec(button)?.[1];
+    const letter = / data-label="Take ([A-Z]+)"/.exec(button)?.[1];
+    if (id && letter && !labels.has(id)) labels.set(id, letter);
+  }
+  return labels;
+}
+
 async function priorLabels(root, albumKey) {
   const labels = new Map();
   for (const directory of ['album-preview', 'album-preview-online']) {
@@ -60,10 +92,8 @@ async function priorLabels(root, albumKey) {
       throw error;
     });
     if (!html.includes(`const albumKey = "${albumKey}";`)) continue;
-    for (const [button] of html.matchAll(/<button\b[^>]*>/g)) {
-      const id = / data-id="([a-f0-9]{24})"/.exec(button)?.[1];
-      const letter = / data-label="Take ([A-Z]+)"/.exec(button)?.[1];
-      if (id && letter && !labels.has(id)) labels.set(id, letter);
+    for (const [id, letter] of labelsInPage(html)) {
+      if (!labels.has(id)) labels.set(id, letter);
     }
   }
   return labels;
@@ -111,49 +141,46 @@ async function assignLabels(root, albumKey, tracks) {
   }
 }
 
-async function renderPreview(album, tracks, albumKey, legacyAlbumKey) {
-  const [template, styles] = await Promise.all([
-    readFile(new URL('./album-preview.html', import.meta.url), 'utf8'),
-    readFile(new URL('../src/app/globals.css', import.meta.url), 'utf8'),
-  ]);
-  const theme = /^\.dark \{[^}]+\}/m.exec(styles)?.[0];
-  if (!theme) throw new Error('The app’s dark theme is missing.');
+function jsonForScript(value) {
+  return JSON.stringify(value)
+    .replaceAll('<', '\\u003c')
+    .replaceAll('>', '\\u003e')
+    .replaceAll('&', '\\u0026')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
+}
 
-  const sections = tracks
-    .map(track => {
-      const title = escapeHtml(track.title);
-      const number = String(track.number).padStart(2, '0');
-      const takes = track.takes
-        .map(take => {
-          const label = `Take ${take.letter}`;
-          const name = `${title}, ${label}`;
-          return `<div class="take-row" data-take-id="${take.id}" role="group" aria-label="${name}">
-            <button type="button" data-take aria-label="${name}" aria-pressed="false"
-              data-src="${escapeHtml(take.src)}" data-id="${take.id}" data-title="${title}" data-label="${label}"
-              data-online="${take.online}" data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${take.letter}</button>
-            <button type="button" data-delta="-1" disabled aria-label="Lower score for ${name}">−</button>
-            <output class="take-score" aria-label="Score for ${name}">0</output>
-            <button type="button" data-delta="1" disabled aria-label="Raise score for ${name}">+</button>
-          </div>`;
-        })
-        .join('');
-      return `<section class="track"><h2><span class="track-number">${number}</span>${title}</h2>
-      ${takes ? `<div class="takes">${takes}</div><p class="muted" data-pass-empty hidden>No takes left in this pass.</p>` : '<p class="muted">No takes ready yet.</p>'}</section>`;
-    })
-    .join('');
-
-  const replacements = {
-    title: escapeHtml(album.title),
-    artist: album.artist ? `<p class="artist">${escapeHtml(album.artist)}</p>` : '',
-    tracks: sections || '<p class="muted">No tracks yet.</p>',
-    theme,
-    albumKey: JSON.stringify(albumKey),
-    legacyAlbumKey: JSON.stringify(legacyAlbumKey),
-  };
-  return template.replace(
-    /\{\{(title|artist|tracks|theme|albumKey|legacyAlbumKey)\}\}/g,
-    (_, key) => replacements[key]
+async function renderPreview(album, tracks, albumKey) {
+  const shell = await readFile(new URL('./player-shell.html', import.meta.url), 'utf8');
+  if (
+    !shell.includes('___ALBUM_DATA___') ||
+    !shell.includes('___ALBUM_TITLE___') ||
+    !shell.includes('___ALBUM_KEY___')
+  ) {
+    throw new Error('The listen player shell is missing. Run pnpm player:shell.');
+  }
+  const artist = typeof album.artist === 'string' ? album.artist : '';
+  const version = previewListenVersion(
+    { title: album.title, artist },
+    tracks.map(track => ({
+      number: track.number,
+      title: track.title,
+      slug: track.slug,
+      takes: track.takes.map(take => ({ id: take.id, src: take.src, label: take.letter })),
+    }))
   );
+  return shell
+    .replaceAll('___ALBUM_TITLE___', escapeHtml(album.title))
+    .replaceAll(
+      '___ALBUM_DATA___',
+      jsonForScript({
+        title: album.title,
+        artist,
+        blurb: previewListenBlurb(version),
+        version,
+      })
+    )
+    .replaceAll('___ALBUM_KEY___', jsonForScript(albumKey));
 }
 
 async function exportPreview(
@@ -232,7 +259,7 @@ async function exportPreview(
     }
     if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
     await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
-    const html = await renderPreview(album, tracks, albumKey, legacyAlbumKey);
+    const html = await renderPreview(album, tracks, albumKey);
     await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
     if (makeZip) {

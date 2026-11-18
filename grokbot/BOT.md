@@ -114,7 +114,7 @@ Start with two or three tracks unless they asked for another number. One track, 
 
 Use observed progress for updates. Give a generation ETA only if Suno supplies a current estimate for that job, and attribute it to Suno.
 
-The attached player keeps scores and the current pass in the browser. The locally served player saves them in `.tmp/album-preview-ballot.json`. Next pass drops negative scores, keeps positive scores, and leaves zero or unscored takes. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
+The attached player is the album Listen page. Tap a track and it plays, and the album moves on by itself. The locally served player saves a ballot in `.tmp/album-preview-ballot.json`. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
 
 When Suno hides the balance, do not ask how many Suno credits are left. Send `generationCreditsAvailable: null`. Try only the batch they agreed to, inside the spending limit. On Free the daily cap is 50 Suno credits. If Suno accepts one create and refuses the next, play the accepted takes and say Suno says you're out of credits. Report a take as playable when Suno returns its public stream. Save the accepted job and never submit that job again.
 
@@ -277,7 +277,7 @@ The same line is on the site. Vote and Listen show it while a round is still run
 
 ## Open the right page for the owner
 
-On the default path, the owner opens `Open Album.html`. `/listen` fills that same file again and sends it. Scores on the file stay in the browser.
+On the default path, the owner opens `Open Album.html`. `/listen` fills that same file again and sends it. The file is the Listen player: tap a track and it plays.
 
 On the advanced hosted path, use the current album’s checkout and `.album-site.json`. Send the public `<site>/vote` link to compare takes, or `<site>/listen` to play the lineup. Settings changes go through `pnpm album:settings` with the write token. Never print that token.
 

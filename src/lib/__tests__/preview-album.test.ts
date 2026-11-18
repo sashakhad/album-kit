@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -7,6 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
+
+import { shellStamp } from '../../../scripts/build-player-shell.mjs';
 
 const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const previewScript = path.join(kitRoot, 'scripts', 'preview-album.mjs');
@@ -210,6 +213,13 @@ async function putVote(pageUrl: string, take: string, delta: number): Promise<Ba
 }
 
 describe('album preview', () => {
+  it('keeps the prebuilt listen shell aligned with the app player', () => {
+    const shell = readFileSync(path.join(kitRoot, 'scripts/player-shell.html'), 'utf8');
+    expect(shell).toContain(`<!-- player-shell ${shellStamp()} -->`);
+    expect(shell).toContain('___ALBUM_DATA___');
+    expect(shell).toContain('id="album-root"');
+  });
+
   it('bundles a local MP3, lists public and local takes without network notices, and skips private URLs', async () => {
     const root = await writeFixture();
     const result = await runPreview(root, ['--zip']);
@@ -227,10 +237,8 @@ describe('album preview', () => {
     const audio = await readFile(path.join(unpacked, localSrc));
     expect(audio.toString()).toBe('local-mp3-bytes');
     expect(html).toContain(localSrc);
-    expect(html).toContain('data-online="false"');
     expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
     expect(html).not.toMatch(/internet required|streams from a public Suno link/i);
-    expect(html).toContain('data-online="true"');
     expect(html).not.toContain('example.com');
     expect(html).not.toContain('Parked');
     expect(html).not.toContain('other-song');
@@ -253,8 +261,8 @@ describe('album preview', () => {
     expect(report).toMatchObject({ offline: 0, online: 1 });
     expect(await readdir(path.dirname(report.page))).toEqual(['Open Album.html']);
     const html = await readFile(report.page, 'utf8');
-    expect(html).toContain('data-src="https://cdn1.suno.ai/clipA.mp4"');
-    expect(html).not.toContain('data-src="audio/');
+    expect(html).toContain('https://cdn1.suno.ai/clipA.mp4');
+    expect(html).not.toMatch(/"audio\/[a-f0-9]+\.mp3"/);
     await writeFile(catalog, '[]');
     const empty = await runPreview(root, ['--streams-only']);
     expect(empty.code).toBe(1);

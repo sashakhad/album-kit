@@ -117,7 +117,7 @@ Start with two or three tracks unless they asked for another number. One track, 
 
 Use observed progress for updates. Give a generation ETA only if Suno supplies a current estimate for that job, and attribute it to Suno.
 
-The attached player keeps scores and the current pass in the browser. The locally served player saves them in `.tmp/album-preview-ballot.json`. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
+The attached player is the album Listen page. Tap a track and it plays, and the album moves on by itself. The locally served player saves a ballot in `.tmp/album-preview-ballot.json`. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
 
 When Suno hides the balance, do not ask how many Suno credits are left. Send `generationCreditsAvailable: null`. Try only the batch they agreed to, inside the spending limit. On Free the daily cap is 50 Suno credits. If Suno accepts one create and refuses the next, play the accepted takes and say Suno says you're out of credits. Save the accepted job and never submit that job again.
 

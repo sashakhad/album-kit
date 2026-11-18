@@ -21,10 +21,22 @@ function record(name: string, data: unknown) {
   writeFileSync(file, JSON.stringify(data));
   return run(process.execPath, [script, '--record', file], { cwd: root, timeout: 8000 });
 }
-const label = (html: string, filename: string) => {
+function label(html: string, filename: string): string | undefined {
   const id = createHash('sha256').update(filename).digest('hex').slice(0, 24);
-  return html.match(new RegExp(`data-id="${id}"[^>]+data-label="Take ([A-Z]+)"`))?.[1];
-};
+  const raw = html.match(
+    /<script type="application\/json" id="album-data">([\s\S]*?)<\/script>/
+  )?.[1];
+  if (raw === undefined) return undefined;
+  const payload = JSON.parse(raw) as {
+    version: { tracks: { takes: { filename: string; label: string }[] }[] };
+  };
+  for (const track of payload.version.tracks) {
+    for (const take of track.takes) {
+      if (take.filename === id) return take.label;
+    }
+  }
+  return undefined;
+}
 
 beforeEach(() => {
   root = mkdtempSync(path.join(tmpdir(), 'clip-delivery-'));

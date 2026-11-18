@@ -595,7 +595,11 @@ export function AlbumPlayer({
   }, [playNext, playPrevious, togglePlay]);
 
   useEffect(() => {
-    if (!('mediaSession' in navigator) || currentTrack === null) {
+    if (
+      !('mediaSession' in navigator) ||
+      typeof MediaMetadata !== 'function' ||
+      currentTrack === null
+    ) {
       return;
     }
 
@@ -611,10 +615,12 @@ export function AlbumPlayer({
     navigator.mediaSession.setActionHandler('nexttrack', () => playNext(true));
 
     return () => {
-      navigator.mediaSession.setActionHandler('play', null);
-      navigator.mediaSession.setActionHandler('pause', null);
-      navigator.mediaSession.setActionHandler('previoustrack', null);
-      navigator.mediaSession.setActionHandler('nexttrack', null);
+      const session = navigator.mediaSession;
+      if (session === undefined || session === null) return;
+      session.setActionHandler('play', null);
+      session.setActionHandler('pause', null);
+      session.setActionHandler('previoustrack', null);
+      session.setActionHandler('nexttrack', null);
     };
   }, [currentTrack, isPlaying, playNext, playPrevious, version.author, version.title]);
 
@@ -945,8 +951,9 @@ export function AlbumPlayer({
                   votes={displayedVotes}
                   showVotes={playerSurface !== 'listen'}
                   showTakes={
-                    playerSurface !== 'listen' &&
-                    (playerSurface !== 'vote' || index === currentIndex)
+                    playerSurface === 'listen'
+                      ? track.takes.length > 1
+                      : playerSurface !== 'vote' || index === currentIndex
                   }
                   listenChoice={choice}
                   pendingLabel={pendingLabel}
@@ -1449,6 +1456,7 @@ function TrackRow({
           votes={votes}
           voter={voter}
           voting={showVotes && track.kind === 'album'}
+          showScore={showVotes}
           onSelect={onSelectTake}
           onVoteSnapshot={onVoteSnapshot}
         />
@@ -1465,6 +1473,7 @@ function TakeScoreChips({
   votes,
   voter,
   voting,
+  showScore,
   onSelect,
   onVoteSnapshot,
 }: {
@@ -1475,6 +1484,7 @@ function TakeScoreChips({
   votes: VoteSnapshot;
   voter: 'owner' | 'listener';
   voting: boolean;
+  showScore: boolean;
   onSelect: (label: string) => void;
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
 }) {
@@ -1525,7 +1535,7 @@ function TakeScoreChips({
                   )}
                   onSnapshot={onVoteSnapshot}
                 />
-              ) : (
+              ) : showScore ? (
                 <span
                   aria-label={`Score ${formatSignedScore(count)}`}
                   className={cn(
@@ -1535,7 +1545,7 @@ function TakeScoreChips({
                 >
                   {formatCompactScore(count)}
                 </span>
-              )}
+              ) : null}
             </div>
             <ListenerScore
               votes={votes}
