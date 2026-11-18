@@ -27,6 +27,8 @@ const voteBodySchema = z.object({
   versionSlug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/),
   takeLabel: z.string().refine(isTakeLabel),
   value: z.union([z.literal(1), z.literal(-1)]),
+  /** The page is still showing shuffled labels. Resolve them even after reveal. */
+  blindLabel: z.literal(true).optional(),
 });
 
 function withListenerCookie(response: NextResponse, voter: ResolvedVoter): NextResponse {
@@ -123,17 +125,19 @@ async function ownerVote(
 
   const settings = await loadSettings();
   const before = await safeVoteSnapshot(OWNER_VISITOR_ID);
+  const round = await getVisitorCurrentRound(OWNER_VISITOR_ID);
   const blind = await isBlindForSnapshot(OWNER_VISITOR_ID, settings.listeningDetails, before);
-  if (!blind) await markExposed(OWNER_VISITOR_ID, before.currentRound);
-  const take = blind
-    ? await realTakeForAlias({
-        round: await getVisitorCurrentRound(OWNER_VISITOR_ID),
-        trackNumber: track.number,
-        versionSlug: version.slug,
-        alias: body.takeLabel,
-        takes: track.takes,
-      })
-    : track.takes.find(item => item.voteLabel === body.takeLabel || item.label === body.takeLabel);
+  if (!blind && body.blindLabel !== true) await markExposed(OWNER_VISITOR_ID, before.currentRound);
+  const take =
+    blind || body.blindLabel === true
+      ? await realTakeForAlias({
+          round,
+          trackNumber: track.number,
+          versionSlug: version.slug,
+          alias: body.takeLabel,
+          takes: track.takes,
+        })
+      : track.takes.find(item => item.voteLabel === body.takeLabel || item.label === body.takeLabel);
   if (take === undefined || take === null) {
     return NextResponse.json({ error: 'Unknown take' }, { status: 400 });
   }
@@ -151,7 +155,7 @@ async function ownerVote(
     snapshot
   );
   if (!stillBlind) await markExposed(OWNER_VISITOR_ID, snapshot.currentRound);
-  return stillBlind ? await blindSnapshot(snapshot) : snapshot;
+  return stillBlind || body.blindLabel === true ? await blindSnapshot(snapshot) : snapshot;
 }
 
 async function listenerSnapshot(visitorId: string): Promise<VoteSnapshot> {
@@ -199,16 +203,17 @@ async function listenerVote(
     before,
     pass
   );
-  if (!blind) await markExposed(visitorId, round);
-  const take = blind
-    ? await realTakeForAlias({
-        round,
-        trackNumber: track.number,
-        versionSlug: body.versionSlug,
-        alias: body.takeLabel,
-        takes,
-      })
-    : (takes.find(item => item.voteLabel === body.takeLabel) ?? null);
+  if (!blind && body.blindLabel !== true) await markExposed(visitorId, round);
+  const take =
+    blind || body.blindLabel === true
+      ? await realTakeForAlias({
+          round,
+          trackNumber: track.number,
+          versionSlug: body.versionSlug,
+          alias: body.takeLabel,
+          takes,
+        })
+      : (takes.find(item => item.voteLabel === body.takeLabel) ?? null);
   if (take === null) {
     return NextResponse.json({ error: 'Unknown take' }, { status: 400 });
   }
@@ -221,7 +226,9 @@ async function listenerVote(
     value: body.value,
     round,
   });
-  return listenerBallot(blind ? await blindSnapshot(snapshot) : snapshot);
+  return listenerBallot(
+    blind || body.blindLabel === true ? await blindSnapshot(snapshot) : snapshot
+  );
 }
 
 function listenerBallot(snapshot: VoteSnapshot): VoteSnapshot {

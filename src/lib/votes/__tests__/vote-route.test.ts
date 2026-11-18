@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   budget: true,
   casts: [] as { visitorId: string; round?: number; takeLabel: string }[],
+  alias: null as string | null,
 }));
 
 vi.mock('server-only', () => ({}));
@@ -96,27 +97,34 @@ vi.mock('@/lib/votes/exposure', () => ({
 }));
 vi.mock('@/lib/votes/blind', () => ({
   blindSnapshot: async (snapshot: unknown) => snapshot,
-  realTakeForAlias: async () => ({
-    versionSlug: 'v1',
-    voteLabel: 'A',
-    label: 'A',
-    filename: 'v1-01-track-one-p1-takea.mp3',
-    audioUrl: '/api/blind-audio/2/token',
-  }),
+  realTakeForAlias: async (args: { alias: string }) => {
+    state.alias = args.alias;
+    return {
+      versionSlug: 'v1',
+      voteLabel: 'E',
+      label: 'E',
+      filename: 'v1-01-track-one-p3-takee.mp3',
+      audioUrl: '/api/blind-audio/2/token',
+    };
+  },
 }));
 
 import { POST } from '@/app/api/votes/route';
 
-function voteRequest(headers: Record<string, string> = {}) {
+function voteRequest(
+  headers: Record<string, string> = {},
+  body: Record<string, unknown> = {}
+) {
   return new Request('http://localhost/api/votes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify({ trackNumber: 1, versionSlug: 'v1', takeLabel: 'A', value: 1 }),
+    body: JSON.stringify({ trackNumber: 1, versionSlug: 'v1', takeLabel: 'A', value: 1, ...body }),
   });
 }
 
 beforeEach(() => {
   state.casts.length = 0;
+  state.alias = null;
   state.budget = true;
   vi.stubEnv('ALBUM_WRITE_TOKEN', 'test-write-token');
 });
@@ -124,6 +132,18 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe('POST /api/votes', () => {
+  it('keeps a shuffled label on the take that was on screen after reveal', async () => {
+    const response = await POST(
+      voteRequest(
+        { authorization: 'Bearer test-write-token' },
+        { takeLabel: 'F', blindLabel: true }
+      )
+    );
+    expect(response.status).toBe(200);
+    expect(state.alias).toBe('F');
+    expect(state.casts[0]?.takeLabel).toBe('E');
+  });
+
   it('records an owner vote on the owner ballot', async () => {
     const response = await POST(voteRequest({ authorization: 'Bearer test-write-token' }));
     expect(response.status).toBe(200);

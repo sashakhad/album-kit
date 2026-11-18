@@ -75,6 +75,7 @@ export function AlbumPlayer({
   initialTakeLabel,
   surface,
   awaitingReveal = false,
+  blindLabels = false,
   voter = 'owner',
   showListenerScores = true,
   listenChoices,
@@ -92,6 +93,8 @@ export function AlbumPlayer({
   initialTakeLabel?: string;
   surface?: PlayerSurface;
   awaitingReveal?: boolean;
+  /** Shuffled labels are on screen. Keep resolving them after the revealing vote. */
+  blindLabels?: boolean;
   voter?: 'owner' | 'listener';
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
@@ -801,6 +804,7 @@ export function AlbumPlayer({
               takeLabel={currentTake.voteLabel}
               displayLabel={currentTake.label}
               trackTitle={currentTrack.title}
+              blindLabel={blindLabels}
               initialCount={activeCount}
               initialValue={choiceForTake(
                 voteSnapshot,
@@ -973,6 +977,7 @@ export function AlbumPlayer({
                   variationStatus={variationStatusByTrack?.[track.number]}
                   {...(scoreLabel === undefined ? {} : { scoreLabel })}
                   voter={voter}
+                  blindLabels={blindLabels}
                   onVoteSnapshot={setVoteSnapshot}
                   onSelect={() => {
                     const selected = takeForTrack(track, selectedTakeByTrack, preferredTakeLabel);
@@ -1380,6 +1385,7 @@ function TrackRow({
   variationStatus,
   scoreLabel,
   voter,
+  blindLabels,
   onSelect,
   onSelectTake,
   onVoteSnapshot,
@@ -1397,6 +1403,7 @@ function TrackRow({
   variationStatus?: VariationTrackStatus | undefined;
   scoreLabel?: string;
   voter: 'owner' | 'listener';
+  blindLabels: boolean;
   onSelect: () => void;
   onSelectTake: (label: string) => void;
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
@@ -1470,6 +1477,7 @@ function TrackRow({
           voter={voter}
           voting={showVotes && track.kind === 'album'}
           showScore={showVotes}
+          blindLabels={blindLabels}
           onSelect={onSelectTake}
           onVoteSnapshot={onVoteSnapshot}
         />
@@ -1487,6 +1495,7 @@ function TakeScoreChips({
   voter,
   voting,
   showScore,
+  blindLabels,
   onSelect,
   onVoteSnapshot,
 }: {
@@ -1498,6 +1507,7 @@ function TakeScoreChips({
   voter: 'owner' | 'listener';
   voting: boolean;
   showScore: boolean;
+  blindLabels: boolean;
   onSelect: (label: string) => void;
   onVoteSnapshot: (snapshot: VoteSnapshot) => void;
 }) {
@@ -1539,6 +1549,7 @@ function TakeScoreChips({
                   takeLabel={take.voteLabel}
                   displayLabel={take.label}
                   trackTitle={track.title}
+                  blindLabel={blindLabels}
                   initialCount={count}
                   initialValue={choiceForTake(
                     votes,

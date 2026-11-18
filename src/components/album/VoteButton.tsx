@@ -18,6 +18,7 @@ export function VoteButton({
   initialValue,
   onSnapshot,
   variant = 'panel',
+  blindLabel = false,
 }: {
   trackNumber: number;
   versionSlug: string;
@@ -28,6 +29,7 @@ export function VoteButton({
   initialValue: number;
   onSnapshot?: (snapshot: VoteSnapshot) => void;
   variant?: 'panel' | 'inline';
+  blindLabel?: boolean;
 }) {
   const [count, setCount] = useState(initialCount);
   const [myScore, setMyScore] = useState(initialValue);
@@ -51,7 +53,13 @@ export function VoteButton({
       const response = await fetch('/api/votes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackNumber, versionSlug, takeLabel, value }),
+        body: JSON.stringify({
+          trackNumber,
+          versionSlug,
+          takeLabel,
+          value,
+          ...(blindLabel ? { blindLabel: true } : {}),
+        }),
       });
       if (!response.ok) {
         setError(true);
