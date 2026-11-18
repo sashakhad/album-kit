@@ -115,7 +115,7 @@ Start with two or three tracks unless they asked for another number. One track, 
 
 The first songs take about 3 to 5 minutes. A later round of takes is about 1 to 3 minutes. Use those timings. For anything over about 2 minutes, keep them posted without being asked. In Grok Bot, create a one-off or short-interval routine, a timer, to check back every 3 to 5 minutes. Post one short, upbeat line at each real milestone: songs written, takes generating, preview ready. Delete the timer when the work is done. If you cannot set a timer, still send a status update at each milestone while you work. Never leave silence for more than about 5 minutes during generation.
 
-When a take on that page streams from a public Suno URL, say so. Scores and the current pass stay in `.tmp/album-preview-ballot.json` and survive a restart. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
+Scores and the current pass stay in `.tmp/album-preview-ballot.json` and survive a restart. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
 
 When Suno hides the balance, do not ask how many Suno credits are left. Send `generationCreditsAvailable: null`. Try only the batch they agreed to, inside the spending limit. On Free the daily cap is 50 Suno credits. If Suno accepts one create and refuses the next, play the accepted takes and say Suno says you're out of credits. Save the accepted job and never submit that job again.
 

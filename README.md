@@ -16,7 +16,7 @@ The bot still checks Suno generation credits, plus external prompt models when a
 
 ## Preview before sharing
 
-When Suno returns the first playable stream, the bot sends **Open Album.html** directly in chat. Open the file and press Play while the remaining tracks generate. The page streams public Suno audio and needs an internet connection.
+When Suno returns the first playable stream, the bot sends **Open Album.html** directly in chat. Open the file and press Play while the remaining tracks generate. The page needs an internet connection.
 
 From a checkout with Node 24, run `node scripts/preview-album.mjs --streams-only`. Open the file named by `link`. Run the command again as more takes arrive and send the same Open Album.html. Scores stay in the listener’s browser. For a ballot saved to the checkout, run `node scripts/preview-album.mjs --serve` and open its local URL. Refresh it with `node scripts/preview-album.mjs` and reload that URL. For offline playback with local audio files, use `node scripts/preview-album.mjs --zip`.
 

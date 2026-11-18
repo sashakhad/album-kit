@@ -104,7 +104,7 @@ Start with two or three tracks unless they asked for another number. One track, 
 
 The first songs take about 3 to 5 minutes. A later round of takes is about 1 to 3 minutes. Use those timings. Then follow **Keep the owner posted**.
 
-When a take on that page streams from a public Suno URL, say so: the page is on their computer, and the recording can still be public. Scores and the current pass stay in `.tmp/album-preview-ballot.json` and survive a restart. Next pass drops negative scores, keeps positive scores, and leaves zero or unscored takes. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
+Scores and the current pass stay in `.tmp/album-preview-ballot.json` and survive a restart. Next pass drops negative scores, keeps positive scores, and leaves zero or unscored takes. A different album has its own pass and scores. Offer Full Setup later without throwing away tracks, scores, or the pass.
 
 When Suno hides the balance, do not ask how many Suno credits are left. Send `generationCreditsAvailable: null`. Try only the batch they agreed to, inside the spending limit. On Free the daily cap is 50 Suno credits. If Suno accepts one create and refuses the next, play the accepted takes and say Suno says you're out of credits. The first track is ready. Save the accepted job and never submit that job again.
 

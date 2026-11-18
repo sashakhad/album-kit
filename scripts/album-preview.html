@@ -68,7 +68,6 @@
             <input id="seek" type="range" min="0" max="0" value="0" step="0.1" aria-label="Seek" />
             <span id="duration">0:00</span>
           </label>
-          <p id="stream-notice" class="muted"></p>
           <section id="ballot" aria-label="Compare takes" hidden>
             <p id="pass-label" class="muted">Pass 1</p>
             <p id="vote-progress" class="muted"></p>
@@ -245,10 +244,6 @@
           document.querySelector('#track-title').textContent = title;
           document.querySelector('#take-label').textContent =
             label + (online === 'true' ? ' · Internet required' : '');
-          document.querySelector('#stream-notice').textContent =
-            online === 'true'
-              ? 'This take streams from a public Suno link. Anyone with that link can play it.'
-              : '';
           buttons[current].setAttribute('aria-pressed', 'true');
           previous.disabled = nextVisible(0) === current;
           next.disabled = nextVisible(current + 1) < 0;
