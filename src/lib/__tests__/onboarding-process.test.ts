@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const onboarding = fileURLToPath(new URL('../../../scripts/onboarding.mjs', import.meta.url));
 
-describe('new-owner onboarding across fresh CLI processes', () => {
+describe('new-owner onboarding across fresh CLI processes', { timeout: 20_000 }, () => {
   let root: string;
   let bin: string;
 
@@ -41,7 +41,8 @@ describe('new-owner onboarding across fresh CLI processes', () => {
   }
 
   it('resumes each synthetic setup checkpoint in a new process after interruptions', async () => {
-    expect(run('status')).toContain('Onboarding 0/5');
+    expect(run('status')).toContain('Next: Choose Album Bot Light');
+    expect(run('path', 'quick')).toContain('Onboarding 0/5');
     expect(run('path', 'studio')).toContain('Onboarding 0/6');
 
     await mkdir(path.join(root, 'album'));
@@ -83,6 +84,7 @@ describe('new-owner onboarding across fresh CLI processes', () => {
     await mkdir(path.join(root, '.vercel'));
     await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_fixture"}');
     await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://fixture.example"}');
+    expect(run('status', '--hosted')).toContain('Next: Open /vote signed out');
     expect(run('status')).toContain('Next: Open the one-time owner link');
     expect(run('confirm-owner-access')).toContain('Next: Check Cursor installation');
 

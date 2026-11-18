@@ -44,51 +44,32 @@ export default async function VotePage({ params }: VotePageProps) {
   }
 
   const [trackSlug, versionSlug, takeSlug] = parts;
-  const [config, owner, settings, variationStatusByTrack] = await Promise.all([
-    getListenConfig(),
-    isOwner(),
-    loadSettings(),
-    loadVariationTrackStatus(),
-  ]);
+  const [config, owner] = await Promise.all([getListenConfig(), isOwner()]);
   if (!owner) {
-    if (!settings.listenerVoting) {
-      return (
-        <main className='mx-auto max-w-xl space-y-4 px-6 py-16'>
-          <h1 className='text-2xl font-semibold'>Compare takes</h1>
-          <p className='text-muted-foreground text-sm leading-relaxed'>
-            The owner scores takes from the owner link. Listeners play the album on Listen.
-          </p>
-          <Link
-            href='/listen'
-            className='inline-flex min-h-11 items-center text-sm underline underline-offset-4'
-          >
-            Open Listen
-          </Link>
-        </main>
-      );
-    }
-    const listener = await listenerJudgingView(settings);
+    const listener = await listenerJudgingView(await loadSettings());
     return (
       <VoteMain
         version={listener.version}
         votes={listener.votes}
         voter='listener'
-        signInHref='/key'
         awaitingReveal={listener.awaitingReveal}
         track={trackFromParts(trackSlug, config, listener.version)}
         initialTake={takeFromParts(trackSlug, versionSlug, takeSlug, config, listener.version)}
-        variationStatusByTrack={variationStatusByTrack}
         bannerLine={bannerLine}
         progress={progress}
         roundNumber={progress.roundNumber}
-        {...(listener.blind ? { variationBlindRound: listener.votes.currentRound } : {})}
       />
     );
   }
   const [
     { version, originalVersion, votes, blind, awaitingReveal, passSummary },
     listenerVotesOnBrowser,
-  ] = await Promise.all([ownerJudgingView(), countBrowserListenerVotes()]);
+    variationStatusByTrack,
+  ] = await Promise.all([
+    ownerJudgingView(),
+    countBrowserListenerVotes(),
+    loadVariationTrackStatus(),
+  ]);
   const listenChoices: Record<number, ListenChoice> = Object.fromEntries(
     config.tracks.map(item => {
       const original = trackByNumber(originalVersion, item.number);
@@ -168,7 +149,6 @@ function VoteMain({
   awaitingReveal,
   track,
   initialTake,
-  signInHref,
   listenerVotesOnBrowser = 0,
   showListenerScores = false,
   listenChoices,
@@ -186,7 +166,6 @@ function VoteMain({
   awaitingReveal: boolean;
   track: AlbumTrack | null;
   initialTake: { label: string } | null;
-  signInHref?: string;
   listenerVotesOnBrowser?: number;
   showListenerScores?: boolean;
   listenChoices?: Record<number, ListenChoice>;
@@ -216,10 +195,10 @@ function VoteMain({
           </span>
         </p>
         <Link
-          href={signInHref ?? '/listen'}
+          href='/listen'
           className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-sm underline underline-offset-4'
         >
-          {voter === 'owner' ? 'Open Listen' : 'Sign in as owner'}
+          Open Listen
         </Link>
       </div>
       {voter === 'owner' && listenerVotesOnBrowser > 0 ? (

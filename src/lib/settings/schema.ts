@@ -17,7 +17,8 @@ export const settingsSchema = z.object({
   mood: z.string().max(200).default(''),
   vocals: z.enum(['instrumental', 'sung', 'chops']).default('instrumental'),
   musicalConstraints: z.string().max(2000).default(''),
-  listenerVoting: z.boolean().default(false),
+  // Kept for older clients. All public albums accept independent listener ballots.
+  listenerVoting: z.boolean().default(true),
   // Public review takes stream a Suno MP4. Private ones are downloaded.
   reviewTakes: z.enum(['public', 'private']).default('public'),
   generationCreditLimit: z.number().int().min(0).nullable().default(null),
@@ -82,7 +83,7 @@ export function resolveSettings(stored: StoredSettings): AlbumSettingsValue {
   if (stored.version !== SETTINGS_VERSION) {
     throw new Error(`Unsupported settings version ${stored.version}`);
   }
-  return settingsSchema.parse({ ...stored.defaults, ...stored.overrides });
+  return settingsSchema.parse({ ...stored.defaults, ...stored.overrides, listenerVoting: true });
 }
 
 export function presetSettings(preset: AlbumSettingsValue['preset']): Partial<AlbumSettingsValue> {
@@ -158,5 +159,5 @@ export function exportPreset(settings: AlbumSettingsValue) {
 
 export function importPreset(raw: unknown): Partial<AlbumSettingsValue> {
   const parsed = portableSchema.parse(raw);
-  return { ...parsed.settings, preset: 'imported', listenerVoting: false };
+  return { ...parsed.settings, preset: 'imported' };
 }

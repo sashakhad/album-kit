@@ -41,13 +41,22 @@ describe('settings and portable presets', () => {
     expect(resolveSettings(stored).promptVariations).toBe(2);
   });
 
+  it('keeps listener ballots available on new and existing albums', () => {
+    expect(DEFAULT_SETTINGS.listenerVoting).toBe(true);
+    const legacy = {
+      version: 1,
+      defaults: { ...DEFAULT_SETTINGS, listenerVoting: false },
+      overrides: { listenerVoting: false },
+    };
+    expect(resolveSettings(legacy).listenerVoting).toBe(true);
+  });
+
   it('omits listener voting from a portable preset', () => {
     const preset = exportPreset({
       ...DEFAULT_SETTINGS,
       generationCreditLimit: 100,
     });
     expect(importPreset(preset)).toMatchObject({
-      listenerVoting: false,
       preset: 'imported',
       generationCreditLimit: 100,
     });

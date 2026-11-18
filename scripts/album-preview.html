@@ -72,6 +72,7 @@
           <section id="ballot" aria-label="Compare takes" hidden>
             <p id="pass-label" class="muted">Pass 1</p>
             <p id="vote-progress" class="muted"></p>
+            <p id="vote-storage" class="muted">Scores stay in this browser.</p>
             <div class="controls">
               <button id="upvote" type="button" aria-label="Add one point">+</button>
               <output id="take-score" aria-label="Take score">0</output>
@@ -109,13 +110,15 @@
         const unrated = document.querySelector('#next-unrated');
         const nextPass = document.querySelector('#next-pass');
         const voteStatus = document.querySelector('#vote-status');
+        const voteStorage = document.querySelector('#vote-storage');
         const albumKey = {{albumKey}};
         let votes = {};
         let pass = 1;
         let retired = [];
         let writes = Promise.resolve();
-        const fromDisk = location.protocol === 'file:';
+        const localServer = location.protocol === 'http:' && location.hostname === '127.0.0.1';
         const storageKey = 'album-kit-preview-ballot-' + albumKey;
+        const temporaryScores = 'Scores last until you close or reload this page.';
 
         function showVotes() {
           const selected = buttons[current];
@@ -168,7 +171,7 @@
           const take = buttons[current].dataset.id;
           writes = writes
             .then(async () => {
-              if (fromDisk) {
+              if (!localServer) {
                 const nextBallot = { albumKey, pass, selected: take, votes: { ...votes }, retired };
                 if (vote === 'next-pass') {
                   const kept = {};
@@ -184,12 +187,17 @@
                 } else if (vote !== undefined) {
                   nextBallot.votes[take] = (votes[take] ?? 0) + vote;
                 }
-                localStorage.setItem(storageKey, JSON.stringify(nextBallot));
+                try {
+                  localStorage.setItem(storageKey, JSON.stringify(nextBallot));
+                  voteStorage.textContent = 'Scores stay in this browser.';
+                } catch {
+                  voteStorage.textContent = temporaryScores;
+                }
                 votes = nextBallot.votes;
                 pass = nextBallot.pass;
                 applyRetired(nextBallot.retired);
                 voteStatus.textContent =
-                  vote === 'next-pass' ? 'Pass ' + pass : vote === undefined ? '' : 'Score saved in this browser';
+                  vote === 'next-pass' ? 'Pass ' + pass : vote === undefined ? '' : 'Score updated';
                 stayOnVisible();
                 return;
               }
@@ -239,7 +247,7 @@
             label + (online === 'true' ? ' · Internet required' : '');
           document.querySelector('#stream-notice').textContent =
             online === 'true'
-              ? 'This take streams from a public Suno link. Anyone with that link can play it, even though this page is on your computer.'
+              ? 'This take streams from a public Suno link. Anyone with that link can play it.'
               : '';
           buttons[current].setAttribute('aria-pressed', 'true');
           previous.disabled = nextVisible(0) === current;
@@ -313,14 +321,16 @@
           error.textContent = 'Could not load local votes. Reload to retry.';
         };
 
-        if (fromDisk) {
+        if (!localServer) {
           try {
             const saved = JSON.parse(localStorage.getItem(storageKey));
             restore(saved ?? { selected: null, votes: {} });
           } catch {
-            loadError();
+            voteStorage.textContent = temporaryScores;
+            restore({ votes: {} });
           }
-        } else if (location.hostname === '127.0.0.1' && location.protocol === 'http:') {
+        } else {
+          voteStorage.textContent = 'Scores save to this album on your computer.';
           fetch('/ballot')
             .then(response => {
               if (!response.ok) throw new Error('Load failed');

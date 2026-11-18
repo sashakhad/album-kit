@@ -15,7 +15,6 @@ export function SiteHeader({
   showVote?: boolean;
   showListen?: boolean;
   showSettings?: boolean;
-  listenerVoting?: boolean;
 }) {
   const pathname = usePathname();
 

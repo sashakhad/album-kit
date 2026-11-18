@@ -1,9 +1,8 @@
 import { serveAudio } from '@/app/api/audio/[set]/[file]/route';
 import { parseCanonicalTake } from '@/lib/album/parse-filename';
 import { filenameForOpaqueId, opaqueAudioId } from '@/lib/votes/blind';
-import { isOwnerRequest, OWNER_VISITOR_ID } from '@/lib/owner/auth';
+import { albumKey, isOwnerRequest, OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
-import { canPlayBlindTake } from '@/lib/votes/voter';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -12,8 +11,7 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ round: string; token: string }> }
 ) {
-  if (!(await canPlayBlindTake(request)))
-    return Response.json({ error: 'Owner password required' }, { status: 401 });
+  if (albumKey() === null) return Response.json({ error: 'Audio unavailable' }, { status: 503 });
   const { round: rawRound, token } = await context.params;
   const round = Number(rawRound);
   if (!Number.isSafeInteger(round) || round < 1 || !/^[0-9a-f]{32}$/.test(token))

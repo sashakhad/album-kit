@@ -215,22 +215,9 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserv
         <fieldset disabled={saving} className='min-w-0 space-y-5'>
           <Section
             title='Sharing'
-            description='The album site is public. Listeners can score only if you turn that on.'
+            description='Anyone with the album link can play and score takes. Each browser keeps its own scores.'
           >
-            <Field
-              label='Who can vote'
-              hint='Listener scores stay on a separate ballot. They do not change your picks.'
-            >
-              <select
-                value={draft.listenerVoting ? 'listeners' : 'owner'}
-                onChange={e => change('listenerVoting', e.target.value === 'listeners')}
-                className={inputClass}
-              >
-                <option value='owner'>Only Album Bot records picks</option>
-                <option value='listeners'>Listeners can score too</option>
-              </select>
-            </Field>
-            <ShareControls listenerVoting={saved.listenerVoting} />
+            <ShareControls />
           </Section>
 
           <Section

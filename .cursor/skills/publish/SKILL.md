@@ -3,15 +3,15 @@ name: publish
 description: Use after any change under album/, or when the user wants the album backed up to GitHub or Cursor Origin. It commits the album, redeploys the site and gives the site URL.
 ---
 
-# Publish · version 6
+# Publish · version 7
 
-Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. The default album is the local preview. Do not create a GitHub repo, connect Vercel, or run `pnpm setup:site` from a new album. `/share` publishes that preview as a static site on the owner's own Vercel account, with no database. This skill applies when they have the advanced hosted site, or when they ask to back the album up to their own GitHub or Origin.
+Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. New albums start with a local player. After the album is generated, an owner who accepts the sharing offer or later types `/share` gets the static player on their own Vercel account. Follow **Share** in `start-here`, which runs `pnpm share:album`. That path requires no GitHub repository or database. This skill applies when they have the advanced hosted site, or when they ask to back the album up to their own GitHub or Origin.
 
 The hosted site is public. Review takes are made public on Suno automatically and silently and play from stored public MP4 stream URLs. Never ask how review takes should play. Do not download a review take. Only a final pick is downloaded, and that download is silent.
 
 ## When to use
 
-- After any change under `album/`: a new track, a sheet, a title, a pin, the brief or the generation log.
+- After an album change on an existing advanced hosted site, such as a new track, sheet, title, pin, brief or generation log.
 - When the user wants the album backed up, or given a GitHub or Origin home.
 - When you pick up kit updates.
 
@@ -74,7 +74,7 @@ The hosted site is public. Review takes are made public on Suno automatically an
    curl -sS -o /dev/null -w '%{http_code}\n' "$(node -p 'require("./.album-site.json").siteUrl')"
    ```
 
-   A signed-out request to `/` returns `200` only for a public album; it returns `404` while visibility is unset or private. `/key` must return `200`. Public visibility opens the home page and `/listen`. It does not open `/vote`. A signed-out `/vote` redirects to `/key` unless `listenerVoting` is true. When listener voting is on, a signed-out visitor of a public album can open `/vote`; a private album still needs an invitation. Check the actual listening page with the appropriate owner or invite session before sharing. A `500` needs investigation. Start shared links on `/listen`: it plays the owner’s chosen takes or highest positive scores, including ties. Tracks without a choice or positive score can play as previews when listener voting grants access. Unpinned listener playback uses the authorized opaque audio route; canonical unpinned audio remains protected. Verify actual playback time advances, seeking and next-track work, and mobile controls fit before calling a deployment done.
+   Open the deployed voting app at `<site>/vote` in a signed-out browser. Confirm Compare takes opens directly, the listed takes play, and the listener scoring controls are available. Send this ordinary public link for judging. `<site>/listen` plays the chosen lineup. Verify that playback advances, seeking and next-track work, and mobile controls fit. Keep credentials for owner actions private.
 
 ### Give the album a home later
 
@@ -119,7 +119,7 @@ On albums that started from the kit (paths (a) and (c) in `start-here`), run `gi
 
 - `pnpm publish:album` printed the site URL.
 - `git status --short album .album-site.json` prints nothing.
-- The appropriate public, owner or invited-listener page responds as expected, and the change shows on the site.
+- The appropriate public or owner page responds as expected, and the change shows on the site.
 - For a new home: `git remote -v` shows `origin` at the new private repo, and the push went through.
 
 ## Tell the user

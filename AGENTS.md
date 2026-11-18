@@ -6,12 +6,12 @@ This repo makes one album with Suno and gives it a site where the owner judges e
 
 The playbook is in `.cursor/skills/`. Read a skill's whole `SKILL.md` before you start its steps.
 
-- `start-here`: first run. Copies the kit, sets up the album site, gets the user signed in to Suno and writes the album brief.
+- `start-here`: first run. Prepares the local album, gets the user signed in to Suno and writes the album brief.
 - `album-track`: frames a new track and ships its sheet; runs a prompt arena when requested.
 - `song-prompts`: writes or revises track-specific Suno prompts, keeping source context, model choices and provenance in the sheet.
 - `suno-run`: runs a sheet's prompts in Suno, names the takes and stores their stream URLs.
 - `judge`: rounds on `/vote`, and parking, promoting, extracting or renaming takes.
-- `finish`: pins the chosen takes to `/listen` and shares the link.
+- `finish`: pins the chosen takes to `/listen` on a hosted voting site.
 - `publish`: commits and deploys album changes, and gives the album a GitHub or Origin home.
 
 For any new album, run `start-here` first.
@@ -19,7 +19,7 @@ For any new album, run `start-here` first.
 ## Rules
 
 - Never call full mixes stems. A take is a full mix. Stems are the separate files a split makes, several per song.
-- Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. Each owner uses the local preview, or that owner's own accounts.
+- Sasha never hosts Album Bot for anyone. In Light and Full Setup, send the local player as soon as the first take is playable. Once the entire requested album is playable, ask once whether to share it. Yes deploys a listening page on the owner’s Vercel account and returns the verified public link. Later keeps the player local.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
 - Ship completed kit changes to production: merge the upstream PR, update the user-owned album repository without replacing its `album/` content, and verify the linked Vercel production deployment and listening URL. A merged kit PR alone is not done.

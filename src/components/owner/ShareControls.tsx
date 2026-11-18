@@ -17,25 +17,18 @@ function originServerSnapshot() {
   return '';
 }
 
-export function ShareControls({ listenerVoting }: { listenerVoting: boolean }) {
+export function ShareControls() {
   const origin = useSyncExternalStore(subscribeOrigin, originSnapshot, originServerSnapshot);
 
   return (
     <div className='space-y-2 rounded-xl border border-white/8 bg-white/3 p-4'>
-      <p className='text-sm font-medium'>Listener link</p>
-      <p className='text-muted-foreground text-sm leading-relaxed'>
-        {listenerVoting
-          ? 'Anyone with this link can hear the chosen takes and previews, then compare takes. Their scores stay separate from yours.'
-          : 'Anyone with this link can hear your highest-scored or chosen takes. Allow listener voting to share previews for tracks you haven’t scored yet.'}
-      </p>
-      {origin.length > 0 ? (
-        <CopyableValue value={`${origin}/listen`} label='Listener link' />
-      ) : null}
+      <p className='text-sm font-medium'>Album link</p>
+      {origin.length > 0 ? <CopyableValue value={`${origin}/vote`} label='Album link' /> : null}
       <Link
-        href='/listen'
+        href='/vote'
         className='text-muted-foreground hover:text-foreground inline-flex min-h-11 items-center text-sm underline underline-offset-4'
       >
-        Open Listen
+        Open Compare takes
       </Link>
     </div>
   );
