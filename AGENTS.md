@@ -12,7 +12,7 @@ The playbook is in `.cursor/skills/`. Read a skill's whole `SKILL.md` before you
 - `suno-run`: runs a sheet's prompts in Suno, names the takes and stores their stream URLs.
 - `judge`: rounds on `/vote`, and parking, promoting, extracting or renaming takes.
 - `finish`: pins the chosen takes to `/listen` on a hosted voting site.
-- `publish`: commits and deploys album changes, and gives the album a GitHub or Origin home.
+- `publish`: redeploys a shared voting app on the creator’s Vercel project. A GitHub or Origin backup is available on request.
 
 For any new album, run `start-here` first.
 
@@ -22,7 +22,8 @@ For any new album, run `start-here` first.
 - Sasha never hosts Album Bot for anyone. In Light and Full Setup, send the local player as soon as the first take is playable. Once the entire requested album is playable, ask once whether to share it. Yes deploys a listening page on the owner’s Vercel account and returns the verified public link. Later keeps the player local.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
-- Ship completed kit changes to production: merge the upstream PR, update the user-owned album repository without replacing its `album/` content, and verify the linked Vercel production deployment and listening URL. A merged kit PR alone is not done.
+- For a kit release, check the changes and merge the upstream PR. To update a creator's existing album, run the fresh kit’s `pnpm kit:update <existing-album-directory>`. Preserve the creator’s entire `album/` directory, local scores, settings, credentials and Vercel project link. For a requested production update, publish from that album directory to its linked project and verify its public listening and voting pages.
+- A creator can make, host and update an album without GitHub. Set up a repository only for an explicitly requested backup.
 
 ## Other assistants
 

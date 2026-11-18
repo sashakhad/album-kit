@@ -1,21 +1,5 @@
-# Start Development Server
+# Start a fresh album
 
-Start the app so you can see it in your browser.
+Read `.cursor/skills/start-here/SKILL.md` in full and follow its **Begin** section. An explicit `/start` begins a fresh album even if another is in progress. Keep the previous album, takes and scores intact by using a separate album folder.
 
-## Steps
-
-1. **Check if setup was run** - Look for `node_modules` folder
-   - If missing, tell the user: "Let's set things up first! Run `/setup` and come back here."
-
-2. **Start the server** - Run `pnpm run dev` as a background process
-
-3. **Tell the user**:
-   - Your app is starting!
-   - Open **http://localhost:3000** in your browser to see it
-   - Changes you make will automatically refresh in the browser
-   - The demo UI does not require a database
-   - To stop the server, press Ctrl+C in the terminal or close it
-
-## Tone
-
-Be enthusiastic! This is exciting - they're about to see their app running. Keep it simple and clear.
+Greet the creator and ask about their album idea. Follow their choice of Album Bot Light or Full Setup. Use the existing Suno connection when available. As soon as Suno returns the first playable stream, follow `suno-run` to run `node scripts/preview-album.mjs --streams-only` and send `Open Album.html` directly in chat. Offer to publish after the requested album is playable.

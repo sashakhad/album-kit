@@ -1,6 +1,12 @@
-# vercel deploy uploads this folder and skips only its own defaults, not .gitignore.
-# The album key never leaves this computer, and the site gets takes from Blob.
+# Local credentials, account checkpoints, and provider project links
 .album-key
 .env*
+.album-onboarding.json
+.album-site.json
+.vercel/
+*.pem
+
+# Raw audio, generation ledgers, preview ballots and diagnostic catalogs
 album/audio/
 .tmp/
+diagnostics/

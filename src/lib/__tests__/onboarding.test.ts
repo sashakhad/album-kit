@@ -66,15 +66,12 @@ describe('onboarding checkpoint', () => {
   });
 
   it('separates installed tools from verified provider capabilities', () => {
-    main(['path', 'quick'], root, runner());
-    const status = probeReadiness(root, runner(readyCommands));
+    const run = vi.fn(runner(readyCommands));
+    const status = main(['path', 'studio'], root, run);
     expect(status.cursor).toEqual({ installed: true, modelExecutionVerified: false });
     expect(status.suno.capabilitiesVerified).toBe(false);
-    expect(status.vercel).toEqual({
-      cliSignedIn: true,
-      siteProvisioned: true,
-      connectorVerified: false,
-    });
+    expect(status.vercel).toBeUndefined();
+    expect(run.mock.calls).toEqual([['cursor', ['--version']]]);
     expect(nextStep(status)).toContain('Suno connector or Free browser');
   });
 
@@ -115,7 +112,9 @@ describe('onboarding checkpoint', () => {
     const run = vi.fn(runner(readyCommands));
     main(['path', 'light'], root, run);
     const hosted = main(['status', '--hosted'], root, run);
-    expect(hosted.github?.albumRemote).toBe(true);
+    expect(hosted.github).toBeUndefined();
+    expect(run).not.toHaveBeenCalled();
+    expect(hosted.vercel?.siteUrl).toBe('https://album.example');
     expect(nextStep(hosted)).toContain('Open /vote signed out');
     expect(nextStep(hosted)).toContain('public link');
     expect(vi.spyOn(console, 'log').mock.calls.flat().join(' ')).not.toMatch(
@@ -128,6 +127,26 @@ describe('onboarding checkpoint', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it.each(['quick', 'studio', 'light', 'full'])(
+    'deploys directly for %s only when sharing is requested',
+    async pathName => {
+      await rm(path.join(root, '.album-site.json'));
+      const run = vi.fn(runner());
+      main(['path', pathName], root, run);
+      const music = main(
+        ['verify-suno', 'mcp', 'create', 'status', 'models', 'credits'],
+        root,
+        run
+      );
+      expect(nextStep(music)).not.toMatch(/Vercel|GitHub|deploy|owner link/i);
+      expect(run.mock.calls.every(([cmd]) => cmd === 'cursor')).toBe(true);
+      run.mockClear();
+      const hosted = main(['status', '--hosted'], root, run);
+      expect(nextStep(hosted)).toContain('Deploy the album files directly');
+      expect(hosted.github).toBeUndefined();
+      expect(run).not.toHaveBeenCalled();
+    }
+  );
   it('keeps status idempotent and lets the owner return from Studio to Quick start', async () => {
     const run = runner(readyCommands);
     main(['status'], root, run);
@@ -141,10 +160,12 @@ describe('onboarding checkpoint', () => {
     expect(saved).toEqual({ path: 'quick' });
   });
 
+  function checkBackup(run: ReturnType<typeof runner>) {
+    return probeReadiness(root, run, Date.now(), { githubBackup: true });
+  }
+
   it('requires distinct user-owned and kit remotes', () => {
-    main(['path', 'quick'], root, runner());
-    const status = probeReadiness(
-      root,
+    const status = checkBackup(
       runner({
         ...readyCommands,
         'git remote get-url origin': {
@@ -157,9 +178,7 @@ describe('onboarding checkpoint', () => {
   });
 
   it('requires the origin owner to match the signed-in GitHub account', () => {
-    main(['path', 'quick'], root, runner());
-    const wrongAccount = probeReadiness(
-      root,
+    const wrongAccount = checkBackup(
       runner({
         ...readyCommands,
         'gh api user --hostname github.com --jq .login': {
@@ -173,33 +192,20 @@ describe('onboarding checkpoint', () => {
       account: 'someone-else',
       albumRemote: false,
     });
-    expect(
-      nextStep({
-        ...wrongAccount,
-        suno: { ...wrongAccount.suno, capabilitiesVerified: true },
-      })
-    ).toContain('owned by someone-else');
+    expect(nextStep(wrongAccount)).toContain('owned by someone-else');
 
-    const unverifiedAccount = probeReadiness(
-      root,
+    const unverifiedAccount = checkBackup(
       runner({
         ...readyCommands,
         'gh api user --hostname github.com --jq .login': { ready: false, output: '' },
       })
     );
     expect(unverifiedAccount.github?.albumRemote).toBe(false);
-    expect(
-      nextStep({
-        ...unverifiedAccount,
-        suno: { ...unverifiedAccount.suno, capabilitiesVerified: true },
-      })
-    ).toContain('connector or gh');
+    expect(nextStep(unverifiedAccount)).toContain('connector or gh');
   });
 
   it('rejects non-GitHub origins and accepts the signed-in owner over SSH', () => {
-    main(['path', 'quick'], root, runner());
-    const nonGithub = probeReadiness(
-      root,
+    const nonGithub = checkBackup(
       runner({
         ...readyCommands,
         'git remote get-url origin': {
@@ -210,8 +216,7 @@ describe('onboarding checkpoint', () => {
     );
     expect(nonGithub.github?.albumRemote).toBe(false);
 
-    const ssh = probeReadiness(
-      root,
+    const ssh = checkBackup(
       runner({
         ...readyCommands,
         'git remote get-url origin': {
@@ -224,9 +229,7 @@ describe('onboarding checkpoint', () => {
   });
 
   it('does not count an owner-named origin until GitHub confirms the repository exists', () => {
-    main(['path', 'quick'], root, runner());
-    const missingRepo = probeReadiness(
-      root,
+    const missingRepo = checkBackup(
       runner({
         ...readyCommands,
         'gh api repos/owner/album --hostname github.com --jq .full_name': {
@@ -238,7 +241,7 @@ describe('onboarding checkpoint', () => {
     expect(missingRepo.github?.albumRemote).toBe(false);
   });
 
-  it('resumes in one step after recorded live checks and invalidates a changed site', async () => {
+  it('resumes music setup from saved Studio checks and reads the latest URL when sharing', async () => {
     const run = runner(readyCommands);
     main(['path', 'studio'], root, run);
     main(['verify-suno', 'mcp', 'create', 'status', 'download', 'models', 'credits'], root, run);
@@ -260,7 +263,9 @@ describe('onboarding checkpoint', () => {
     expect(nextStep(status)).toContain('preflight');
     expect(nextStep(status)).not.toContain('Verify download capability');
     await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://other.example"}');
-    expect(nextStep(probeReadiness(root, run))).toContain('one-time owner link');
+    const hosted = main(['status', '--hosted'], root, run);
+    expect(hosted.vercel?.siteUrl).toBe('https://other.example');
+    expect(nextStep(hosted)).toContain('Open /vote signed out');
   });
 
   it('accepts public-streaming capabilities without a download check', async () => {
@@ -325,31 +330,32 @@ describe('onboarding checkpoint', () => {
       'git remote get-url origin': readyCommands['git remote get-url origin'],
       'git remote get-url kit': readyCommands['git remote get-url kit'],
     });
-    main(['verify-github', 'owner', 'owner/album'], root, connectorOnly);
-    main(['verify-vercel', 'owner-album', 'https://album.example'], root, connectorOnly);
-    const ready = probeReadiness(root, connectorOnly);
-    expect(ready.github).toMatchObject({
+    const backup = main(['verify-github', 'owner', 'owner/album'], root, connectorOnly);
+    expect(backup.github).toMatchObject({
       signedIn: true,
       account: 'owner',
       albumRemote: true,
       connectorVerified: true,
     });
-    expect(ready.vercel).toMatchObject({
-      cliSignedIn: false,
-      siteProvisioned: true,
+    const run = vi.fn(runner());
+    const ready = main(['verify-vercel', 'owner-album', 'https://album.example'], root, run);
+    expect(ready.vercel).toEqual({
+      siteUrl: 'https://album.example',
       connectorVerified: true,
     });
+    expect(ready.github).toBeUndefined();
+    expect(run).not.toHaveBeenCalled();
 
     await writeFile(
       path.join(root, '.album-site.json'),
       '{"siteUrl":"https://different.example","project":"owner-album"}'
     );
-    expect(probeReadiness(root, connectorOnly).vercel?.siteProvisioned).toBe(false);
+    expect(main(['status', '--hosted'], root, run).vercel?.connectorVerified).toBe(false);
     const changedRemote = runner({
       'git remote get-url origin': { ready: true, output: 'https://github.com/other/album.git' },
       'git remote get-url kit': readyCommands['git remote get-url kit'],
     });
-    expect(probeReadiness(root, changedRemote).github?.albumRemote).toBe(false);
+    expect(checkBackup(changedRemote).github?.albumRemote).toBe(false);
 
     expect(() => main(['verify-github', 'owner', 'other/album'], root, connectorOnly)).toThrow(
       'Usage'

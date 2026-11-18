@@ -1,18 +1,13 @@
 #!/usr/bin/env node
-// pnpm setup:site [--name <project>] [--dry-run]
-// Links this album to a Vercel project, provisions a public Blob store, Neon,
-// and ALBUM_WRITE_TOKEN. Setup generates the token. It never prints it.
-// Exit codes: 0 done, 1 failed, 2 not signed in to Vercel, 3 the Neon step
-// needs the browser, 4 the Vercel account's email can't be read, 5 the site
-// exists but no GitHub repo could be created. A push deploys. This command
-// does not run vercel deploy.
+// Provision the creator's Vercel voting app and publish it directly from local files.
+// Exit codes: 0 done, 1 failed, 2 Vercel sign-in needed, 3 finish Neon in the browser.
 import { randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { enableAlbumProductionDeploys } from './album-vercel.mjs';
+import { checkVotingApp, deployHostedApp, hostedProject, saveJson } from './hosted-app.mjs';
 
 export const VERCEL_CLI = 'vercel@65.11.0';
 
@@ -32,7 +27,7 @@ export class ExitError extends Error {
   }
 }
 
-export function createRunner({ dryRun }) {
+export function createRunner({ dryRun, scope }) {
   function run(command, args, options = {}) {
     const shown = [command, ...args.map((arg, index) => maskArg(args, index, arg, options))]
       .map(quote)
@@ -59,7 +54,8 @@ export function createRunner({ dryRun }) {
   }
 
   function vercel(args, options) {
-    return run('npx', ['--yes', VERCEL_CLI, ...args], options);
+    const globalScope = scope && !args.includes('--scope') ? ['--scope', scope] : [];
+    return run('npx', ['--yes', VERCEL_CLI, ...args, ...globalScope], options);
   }
 
   function must(result) {
@@ -73,11 +69,11 @@ export function createRunner({ dryRun }) {
 }
 
 const GITHUB_SIGNED_OUT =
-  'GitHub CLI is not signed in, so no private repo was created. This album only has the kit remote. Run gh auth login, then run pnpm album:github.';
+  'GitHub CLI is not signed in, so no GitHub backup was created. This album only has the kit remote. Run gh auth login, then run pnpm album:github.';
 const GITHUB_MISSING =
-  'GitHub CLI (gh) is not installed, so no private repo was created. This album only has the kit remote. Install gh, run gh auth login, then run pnpm album:github.';
+  'GitHub CLI (gh) is not installed, so no GitHub backup was created. This album only has the kit remote. Install gh, run gh auth login, then run pnpm album:github.';
 
-/** Create or confirm a user-owned private GitHub repo as origin. */
+/** Create a public GitHub backup or confirm its existing origin. */
 export function ensureGitHubRepo(runner, { project }) {
   const kit = runner.run('git', ['remote', 'get-url', 'kit']);
   const origin = runner.run('git', ['remote', 'get-url', 'origin']);
@@ -93,7 +89,7 @@ export function ensureGitHubRepo(runner, { project }) {
   }
   if (origin.status === 0) {
     const originRepo = repoPath(origin.stdout);
-    if (originRepo !== null && kitRepo !== null && originRepo === kitRepo) {
+    if (originRepo === 'sashakhad/album-kit' || (originRepo !== null && originRepo === kitRepo)) {
       return {
         ok: false,
         blocker:
@@ -101,7 +97,17 @@ export function ensureGitHubRepo(runner, { project }) {
         url: null,
       };
     }
-    return confirmPrivateRepo(runner, origin.stdout.trim());
+    if (
+      !originRepo ||
+      !/^(?:https?:\/\/(?:[^/]*@)?|(?:ssh:\/\/)?git@)github\.com[/:]/i.test(origin.stdout.trim())
+    ) {
+      return {
+        ok: false,
+        blocker: 'The origin remote does not name a GitHub repository.',
+        url: null,
+      };
+    }
+    return confirmBackupRepo(runner, originRepo);
   }
   const auth = runner.run('gh', ['auth', 'status']);
   if (auth.status !== 0) {
@@ -122,21 +128,27 @@ export function ensureGitHubRepo(runner, { project }) {
     const detail = firstLine(`${created.stderr}\n${created.stdout}`);
     return {
       ok: false,
-      blocker: `Could not create a private GitHub repo named ${project}. ${detail}`.trim(),
+      blocker: `Could not create a public GitHub repo named ${project}. ${detail}`.trim(),
       url: null,
     };
   }
-  return confirmPrivateRepo(runner, null);
+  return confirmBackupRepo(runner, null);
 }
 
-function confirmPrivateRepo(runner, originUrl) {
-  const view = runner.run('gh', ['repo', 'view', '--json', 'url,isPrivate,nameWithOwner']);
+function confirmBackupRepo(runner, originRepo) {
+  const view = runner.run('gh', [
+    'repo',
+    'view',
+    ...(originRepo ? [originRepo] : []),
+    '--json',
+    'url,isPrivate,nameWithOwner',
+  ]);
   if (view.status !== 0) {
     const detail = firstLine(`${view.stderr}\n${view.stdout}`);
-    const where = originUrl === null ? 'the new repo' : originUrl;
+    const where = originRepo ?? 'the new repo';
     return {
       ok: false,
-      blocker: `GitHub could not confirm ${where} is a private repo you own. ${detail}`.trim(),
+      blocker: `GitHub could not confirm ${where} as the album backup. ${detail}`.trim(),
       url: null,
     };
   }
@@ -149,10 +161,11 @@ function confirmPrivateRepo(runner, originUrl) {
       url: null,
     };
   }
-  const url = typeof info?.url === 'string' ? info.url : originUrl;
-  if (typeof url === 'string' && url.length > 0) {
-    console.log(`GitHub: ${url} (private)`);
+  const url = info?.url;
+  if (typeof url !== 'string' || !url.startsWith('https://github.com/')) {
+    return { ok: false, blocker: 'GitHub did not return the backup repository URL.', url: null };
   }
+  console.log(`GitHub: ${url} (${info.isPrivate ? 'private' : 'public'})`);
   return { ok: true, blocker: null, url };
 }
 
@@ -170,67 +183,6 @@ function firstLine(text) {
     .map(item => item.trim())
     .find(item => item.length > 0);
   return line ?? '';
-}
-
-// A project that `vercel link` creates gets connected to the folder's git remote, and on a fresh
-// copy that remote is the public kit. Left connected, every push to the kit would redeploy this
-// album's site from the kit's empty album.json.
-export function disconnectKitRepo(runner, root = process.cwd()) {
-  const kit = runner.run('git', ['remote', 'get-url', 'kit']);
-  if (runner.dryRun) {
-    runner.vercel(['api', '/v9/projects/<project id>', '--raw'], {
-      when: 'if a kit remote exists',
-    });
-    runner.vercel(['git', 'disconnect', '--yes'], {
-      when: 'if the project is connected to the kit remote',
-    });
-    return;
-  }
-
-  const kitRepo = kit.status === 0 ? repoPath(kit.stdout) : null;
-  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
-  if (kitRepo === null || typeof projectId !== 'string') {
-    return;
-  }
-  const project = runner.must(runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']));
-  const link = parseJson(project.stdout)?.link;
-  const linkedRepo =
-    typeof link?.org === 'string' && typeof link?.repo === 'string'
-      ? `${link.org}/${link.repo}`.toLowerCase()
-      : null;
-  if (linkedRepo === kitRepo) {
-    runner.must(runner.vercel(['git', 'disconnect', '--yes']));
-  }
-}
-
-/** Link the Vercel project to origin so a push deploys. Does not run vercel deploy. */
-export function connectAlbumRepo(runner, root = process.cwd()) {
-  const origin = runner.run('git', ['remote', 'get-url', 'origin']);
-  if (runner.dryRun) {
-    runner.vercel(['git', 'connect', '--yes'], {
-      when: 'if origin exists and the project is not already linked to it',
-    });
-    return { connected: true };
-  }
-  if (origin.status !== 0) return { connected: false };
-  const originRepo = repoPath(origin.stdout);
-  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
-  if (originRepo === null || typeof projectId !== 'string') return { connected: false };
-  const project = runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']);
-  const link = parseJson(project.stdout)?.link;
-  const linked =
-    typeof link?.org === 'string' && typeof link?.repo === 'string'
-      ? `${link.org}/${link.repo}`.toLowerCase()
-      : null;
-  if (linked === originRepo) return { connected: true };
-  const connect = runner.vercel(['git', 'connect', '--yes']);
-  if (connect.status !== 0) {
-    console.log(
-      'NEXT: Call the Vercel connector create_git_project for this repository so every push deploys. Do not run vercel deploy.'
-    );
-    return { connected: false };
-  }
-  return { connected: true };
 }
 
 export function readAlbumSite(root = process.cwd()) {
@@ -280,20 +232,22 @@ export function readEnvFile(filePath) {
 }
 
 function parseArgs(argv) {
-  const options = { name: undefined, dryRun: false, passwordStdin: false };
+  const options = { name: undefined, scope: undefined, dryRun: false, passwordStdin: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--dry-run') {
       options.dryRun = true;
     } else if (arg === '--password-stdin') {
       options.passwordStdin = true;
+    } else if (arg === '--scope' && argv[index + 1]) {
+      options.scope = argv[++index];
     } else if (arg === '--name') {
       options.name = argv[index + 1];
       index += 1;
       if (options.name === undefined || options.name.length === 0) {
         throw new ExitError(
           EXIT.failed,
-          'Usage: pnpm setup:site [--name <project>] [--password-stdin] [--dry-run]'
+          'Usage: pnpm setup:site [--name <project>] [--scope <owner-scope>] [--password-stdin] [--dry-run]'
         );
       }
     } else if (arg.startsWith('--name=')) {
@@ -301,14 +255,14 @@ function parseArgs(argv) {
     } else {
       throw new ExitError(
         EXIT.failed,
-        `Unknown option ${arg}. Usage: pnpm setup:site [--name <project>] [--password-stdin] [--dry-run]`
+        `Unknown option ${arg}. Usage: pnpm setup:site [--name <project>] [--scope <owner-scope>] [--password-stdin] [--dry-run]`
       );
     }
   }
   return options;
 }
 
-function projectName(options, root) {
+export function projectName(options, root) {
   if (options.name !== undefined) {
     return options.name;
   }
@@ -333,53 +287,35 @@ function productionEnvKeys(runner) {
   return keys;
 }
 
-function linkedProductionUrl(runner, root) {
-  const projectId = parseJson(readText(path.join(root, '.vercel', 'project.json')))?.projectId;
-  if (typeof projectId !== 'string' || runner.dryRun) {
-    return null;
-  }
-  const project = runner.vercel(['api', `/v9/projects/${projectId}`, '--raw']);
-  const aliases = parseJson(project.stdout)?.targets?.production?.alias;
-  const domain = Array.isArray(aliases) ? aliases.find(item => typeof item === 'string') : null;
-  if (typeof domain !== 'string' || domain.length === 0) {
-    return null;
-  }
-  return domain.startsWith('https://') ? domain : `https://${domain}`;
-}
-
-function setup(options) {
-  const root = process.cwd();
-  const runner = createRunner({ dryRun: options.dryRun });
+export async function setup(
+  options,
+  root = process.cwd(),
+  runner = createRunner(options),
+  request = fetch
+) {
+  const existing = readAlbumSite(root);
+  const name = options.name ?? existing?.project ?? projectName(options, root);
   if (options.dryRun) {
-    console.log('Dry run. These are the commands pnpm setup:site runs, in order:');
-  }
-
-  const whoami = runner.vercel(['whoami']);
-  if (!options.dryRun && whoami.status !== 0) {
-    throw new ExitError(EXIT.notSignedIn, 'Not signed in to Vercel. Run: npx vercel login');
-  }
-
-  const name = projectName(options, root);
-  const linked = existsSync(path.join(root, '.vercel', 'project.json'));
-  if (options.dryRun || !linked) {
-    runner.must(
-      runner.vercel(['link', '--yes', '--project', name], {
-        when: 'if .vercel/project.json is missing',
-      })
+    console.log('Verify the signed-in Vercel account and reserve or reuse the album project.');
+    console.log('Provision any missing Vercel Blob, Neon and album write token.');
+    console.log(
+      'Deploy the voting app directly to Vercel and check its public comparison page and ballot.'
     );
+    return;
   }
-  disconnectKitRepo(runner, root);
-
-  const keys = options.dryRun ? new Set() : productionEnvKeys(runner);
-  const kitHead = runner.run('git', ['rev-parse', '--verify', 'refs/remotes/kit/main']);
-  const kitRevision =
-    kitHead.status === 0 && /^[0-9a-f]{40}$/.test(kitHead.stdout.trim())
-      ? kitHead.stdout.trim()
-      : null;
-  if (options.dryRun) {
-    runner.vercel(['env', 'ls', 'production', '--json']);
-  }
-
+  const whoami = runner.vercel(['whoami']);
+  if (whoami.status !== 0)
+    throw new ExitError(EXIT.notSignedIn, 'Not signed in to Vercel. Run: npx vercel login');
+  const project = await hostedProject(
+    root,
+    { name, scope: options.scope, site: existing, create: true },
+    runner
+  );
+  const keys = productionEnvKeys(runner);
+  const environmentReady =
+    (keys.has('BLOB_READ_WRITE_TOKEN') || keys.has('BLOB_STORE_ID')) &&
+    keys.has('DATABASE_URL') &&
+    keys.has('ALBUM_WRITE_TOKEN');
   if (!keys.has('BLOB_READ_WRITE_TOKEN') && !keys.has('BLOB_STORE_ID')) {
     runner.must(
       runner.vercel(['blob', 'create-store', `${name}-audio`, '--access', 'public', '--yes'], {
@@ -392,7 +328,7 @@ function setup(options) {
     const neon = runner.vercel(['integration', 'add', 'neon'], {
       when: 'if DATABASE_URL is missing',
     });
-    if (!options.dryRun && (neon.status !== 0 || !productionEnvKeys(runner).has('DATABASE_URL'))) {
+    if (neon.status !== 0 || !productionEnvKeys(runner).has('DATABASE_URL')) {
       const output = `${neon.stdout}${neon.stderr}`.trim();
       throw new ExitError(
         EXIT.neonNeedsBrowser,
@@ -401,84 +337,42 @@ function setup(options) {
     }
   }
 
-  if (kitRevision !== null && !keys.has('ALBUM_KIT_REVISION')) {
-    runner.must(
-      runner.vercel([
-        'env',
-        'add',
-        'ALBUM_KIT_REVISION',
-        'production',
-        '--value',
-        kitRevision,
-        '--yes',
-      ])
-    );
-  }
-
   const envPath = path.join(root, '.env');
   let writeToken =
     usableWriteToken(readEnvFile(envPath).ALBUM_WRITE_TOKEN) ??
     usableWriteToken(readEnvFile(path.join(root, '.env.local')).ALBUM_WRITE_TOKEN);
   if (!keys.has('ALBUM_WRITE_TOKEN')) {
-    if (writeToken === null && !options.dryRun) writeToken = generateWriteToken();
-    const value = options.dryRun ? '<write token>' : writeToken;
+    writeToken ??= generateWriteToken();
     runner.must(
-      runner.vercel(['env', 'add', 'ALBUM_WRITE_TOKEN', 'production', '--value', value, '--yes'], {
-        when: 'if ALBUM_WRITE_TOKEN is missing; generated locally and never printed',
-        secretAfter: '--value',
-      })
+      runner.vercel(
+        ['env', 'add', 'ALBUM_WRITE_TOKEN', 'production', '--value', writeToken, '--yes'],
+        {
+          when: 'if ALBUM_WRITE_TOKEN is missing; generated locally and never printed',
+          secretAfter: '--value',
+        }
+      )
     );
-    if (!options.dryRun && writeToken !== null)
-      writeEnvKey(envPath, 'ALBUM_WRITE_TOKEN', writeToken);
+    writeEnvKey(envPath, 'ALBUM_WRITE_TOKEN', writeToken);
   }
 
   runner.must(runner.vercel(['env', 'pull', '.env.local', '--environment', 'production', '--yes']));
 
-  const existing = readAlbumSite(root);
-  const linkedUrl = linkedProductionUrl(runner, root);
-  const siteUrl =
-    typeof existing?.siteUrl === 'string' && existing.siteUrl.startsWith('https://')
-      ? existing.siteUrl
-      : linkedUrl;
-  const site = {
-    siteUrl,
-    project: name,
-    deploy: 'git',
-    kitSource: 'https://github.com/sashakhad/album-kit',
-    kitRevision: existing?.kitRevision ?? kitRevision,
-  };
-  if (!options.dryRun) {
-    writeFileSync(path.join(root, '.album-site.json'), `${JSON.stringify(site, null, 2)}\n`);
+  const { aliases, ...identity } = project;
+  let siteUrl;
+  if (
+    environmentReady &&
+    existing?.deploy === 'direct' &&
+    existing.siteUrl &&
+    aliases.includes(new URL(existing.siteUrl).hostname)
+  ) {
+    siteUrl = await checkVotingApp(existing.siteUrl, request).catch(() => null);
   }
-
-  if (typeof siteUrl === 'string' && siteUrl.startsWith('https://')) {
-    console.log(`Milestone: Site created. ${siteUrl}`);
-  } else if (!options.dryRun) {
-    console.log(
-      'No production URL yet. A push deploys after the repository is linked in Vercel. Do not run vercel deploy and do not upload project files one by one.'
-    );
-  }
-  if (options.dryRun) {
-    console.log(
-      '# rewrite vercel.json so this album deploys from main, unless this checkout is the kit'
-    );
-  } else {
-    enableAlbumProductionDeploys(root);
-  }
-  const github = ensureGitHubRepo(runner, { project: name });
-  if (!github.ok) {
-    throw new ExitError(EXIT.noGitHub, `BLOCKER: ${github.blocker}`);
-  }
-  const gitLink = connectAlbumRepo(runner, root);
-  console.log(
-    JSON.stringify({
-      siteUrl,
-      project: name,
-      deploy: 'git',
-      gitLinked: gitLink.connected,
-      writeToken: writeToken === null && options.dryRun ? 'generated' : 'set',
-    })
-  );
+  siteUrl ??= await deployHostedApp(root, project, runner, request);
+  const site = { ...existing, ...identity, siteUrl, deploy: 'direct' };
+  await saveJson(path.join(root, '.album-site.json'), site);
+  console.log(`Milestone: Site created. ${siteUrl}`);
+  console.log(JSON.stringify({ siteUrl, project: name, deploy: 'direct' }));
+  return site;
 }
 
 function writeEnvKey(filePath, key, value) {
@@ -529,7 +423,7 @@ function readText(filePath) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   try {
-    setup(parseArgs(process.argv.slice(2)));
+    await setup(parseArgs(process.argv.slice(2)));
   } catch (error) {
     if (error instanceof ExitError) {
       console.error(error.message);

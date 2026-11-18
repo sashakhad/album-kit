@@ -42,8 +42,8 @@ describe('new-owner onboarding across fresh CLI processes', { timeout: 20_000 },
 
   it('resumes each synthetic setup checkpoint in a new process after interruptions', async () => {
     expect(run('status')).toContain('Next: Choose Album Bot Light');
-    expect(run('path', 'quick')).toContain('Onboarding 0/5');
-    expect(run('path', 'studio')).toContain('Onboarding 0/6');
+    expect(run('path', 'quick')).toContain('Onboarding 0/2');
+    expect(run('path', 'studio')).toContain('Onboarding 0/3');
 
     await mkdir(path.join(root, 'album'));
     await writeFile(
@@ -62,45 +62,26 @@ describe('new-owner onboarding across fresh CLI processes', { timeout: 20_000 },
     expect(run('verify-suno', 'mcp', 'create', 'status', 'models', 'credits')).toContain(
       'download unverified'
     );
-    expect(run('status')).toContain('Next: Connect GitHub');
-
-    await fakeCommand(
-      'git',
-      "if (process.argv.slice(2).join(' ') === 'remote get-url origin') console.log('https://github.com/owner/album.git'); else console.log('https://github.com/sashakhad/album-kit.git');"
-    );
-    await fakeCommand(
-      'gh',
-      "if (process.argv.slice(2).join(' ') === 'api user --hostname github.com --jq .login') console.log('other-owner'); if (process.argv.slice(2).join(' ') === 'api repos/owner/album --hostname github.com --jq .full_name') console.log('owner/album');"
-    );
-    expect(run('status')).toContain('owned by other-owner');
-    await fakeCommand(
-      'gh',
-      "if (process.argv.slice(2).join(' ') === 'api user --hostname github.com --jq .login') console.log('owner'); if (process.argv.slice(2).join(' ') === 'api repos/owner/album --hostname github.com --jq .full_name') console.log('owner/album');"
-    );
-    expect(run('status')).toContain('Next: Verify the Vercel project');
-
-    await fakeCommand('vercel', 'process.exit(0);');
-    expect(run('status')).toContain('Next: Verify the Vercel project');
-    await mkdir(path.join(root, '.vercel'));
-    await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_fixture"}');
-    await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://fixture.example"}');
-    expect(run('status', '--hosted')).toContain('Next: Open /vote signed out');
-    expect(run('status')).toContain('Next: Open the one-time owner link');
-    expect(run('confirm-owner-access')).toContain('Next: Check Cursor installation');
-
+    expect(run('status')).toContain('Next: Check Cursor installation');
     await fakeCommand('cursor', 'console.log("Cursor fixture");');
     expect(run('status')).toContain('connected model execution unverified');
     expect(run('verify-cursor', 'observed-fixture-model')).toContain(
       'Next: Run the Suno preflight'
     );
 
-    // An interrupted site setup and a changed URL each reopen their own checkpoint.
-    await rm(path.join(root, '.vercel', 'project.json'));
-    expect(run('status')).toContain('Next: Verify the Vercel project');
-    await writeFile(path.join(root, '.vercel', 'project.json'), '{"projectId":"prj_fixture"}');
+    expect(run('status', '--hosted')).toContain('Deploy the album files directly');
+    await writeFile(
+      path.join(root, '.album-site.json'),
+      '{"siteUrl":"https://fixture.example","project":"fixture"}'
+    );
+    expect(run('verify-vercel', 'fixture', 'https://fixture.example')).toContain(
+      'Next: Open /vote signed out'
+    );
+    expect(run('status', '--hosted')).toContain('Public site: https://fixture.example');
     await writeFile(path.join(root, '.album-site.json'), '{"siteUrl":"https://new.example"}');
-    expect(run('status')).toContain('Next: Open the one-time owner link');
-    expect(run('confirm-owner-access')).toContain('Next: Run the Suno preflight');
+    expect(run('status', '--hosted')).toContain('Public site: https://new.example');
+    expect(run('confirm-owner-access')).toContain('Next: Open /vote signed out');
+    expect(run('status')).toContain('Next: Run the Suno preflight');
 
     const saved = JSON.parse(await readFile(path.join(root, '.album-onboarding.json'), 'utf8'));
     expect(saved).toMatchObject({
