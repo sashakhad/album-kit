@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { embedPublicAudio } from '../src/lib/album/embed-public-audio.ts';
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { previewListenBlurb, previewListenVersion } from '../src/lib/album/preview-listen.ts';
+import { albumListenUrl, takeFromStreamUrl } from '../src/lib/album/link-fragment.ts';
 import { isPlayableStream } from '../src/lib/album/stream-url.ts';
 
 import { servePreview } from './preview-server.mjs';
@@ -151,6 +152,19 @@ function jsonForScript(value) {
     .replaceAll('&', '\\u0026')
     .replaceAll('\u2028', '\\u2028')
     .replaceAll('\u2029', '\\u2029');
+}
+
+function takesForLink(takes) {
+  const ordered = [...takes].sort((left, right) =>
+    left.letter < right.letter ? -1 : left.letter > right.letter ? 1 : 0
+  );
+  const ready = [];
+  for (const take of ordered) {
+    const parsed = takeFromStreamUrl(take.src);
+    if (parsed === null) continue;
+    ready.push({ id: parsed.id, letter: take.letter, media: parsed.media });
+  }
+  return ready;
 }
 
 function landedLabel(tracks, previous) {
@@ -300,6 +314,17 @@ async function exportPreview(
     }
     const page = path.join(output, files[0]);
     await rename(path.join(staging, files[0]), page);
+    const artist = typeof album.artist === 'string' ? album.artist : '';
+    const link = albumListenUrl({
+      albumId: albumKey,
+      title: album.title,
+      ...(artist.length > 0 ? { artist } : {}),
+      tracks: tracks.map(track => ({
+        number: track.number,
+        title: track.title,
+        takes: takesForLink(track.takes),
+      })),
+    });
     const previewImage = await captureAlbumPage(page, path.join(root, '.tmp', 'Album page.png'));
     const pendingTracks = tracks.some(track => track.takes.length === 0);
     const say =
@@ -325,7 +350,7 @@ async function exportPreview(
     return {
       report: {
         page,
-        link: page,
+        link,
         ...(previewImage ? { preview: previewImage } : {}),
         say,
         open: page,

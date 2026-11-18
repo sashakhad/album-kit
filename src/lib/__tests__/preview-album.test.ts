@@ -461,7 +461,9 @@ describe('album preview', () => {
     const report = readReport(first.stdout);
     expect(report.archive).toBeUndefined();
     expect(report.url).toBeUndefined();
-    expect(report.link).toBe(report.page);
+    if (report.link === undefined) throw new Error('preview JSON has no link');
+    expect(report.link.startsWith('https://album-bot-site.vercel.app/a#')).toBe(true);
+    expect(report.link).not.toBe(report.page);
     expect(report.page.endsWith(`${path.sep}Open Album.html`)).toBe(true);
     expect(report.elapsedMs).toBeLessThan(10000);
     const html = await readFile(report.page, 'utf8');

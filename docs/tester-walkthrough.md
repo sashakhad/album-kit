@@ -14,7 +14,7 @@ The test builds a disposable album outside the checkout. It records one fixture 
 
 ### Expected screen
 
-`Open Album.html` is the file named by `link`.
+`link` is the tappable player URL. `Open Album.html` is the offline fallback named by `page`.
 
 | On the page      | After the first take                   | After the second take             |
 | ---------------- | -------------------------------------- | --------------------------------- |

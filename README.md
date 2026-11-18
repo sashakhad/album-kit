@@ -15,7 +15,7 @@ ChatGPT and Claude can follow [grokbot/PORTABLE.md](grokbot/PORTABLE.md). Grok B
 
 ## Start
 
-Open Album Bot and tell it your album idea. Choose Lite for a quick listen or Full Setup to compare prompt writers. Lite prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send a time estimate when generation starts, then **Open Album.html**, and a screenshot of that page when the command prints one, as soon as the first take plays. The line leads with “Your album page is ready. Tap to listen ↓” and “Cool, the first ones are in. Spinning up your album page now. Tap here to listen.” When other tracks are still on the list, it includes “I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.” The opening estimate is “The first take usually starts playing in about 20–30 seconds.” Listen while the rest finish. The share card comes after that page, on a later message.
+Open Album Bot and tell it your album idea. Choose Lite for a quick listen or Full Setup to compare prompt writers. Lite prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send a time estimate when generation starts, then the printed **link**, and a screenshot of that page when the command prints one, as soon as the first take plays. The line leads with “Your album page is ready. Tap to listen ↓” and “Cool, the first ones are in. Spinning up your album page now. Tap here to listen.” When other tracks are still on the list, it includes “I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.” The opening estimate is “The first take usually starts playing in about 20–30 seconds.” Listen while the rest finish. The share card comes after that page, on a later message.
 
 In an existing Album Bot chat, type `/refresh` to load the latest instructions and keep working on the same album. To test an unmerged change, use `/refresh <branch-or-SHA>` and then `/refresh main` to return to the release. If an older chat doesn’t recognize the command, tell it to reread [the playbook on main](https://raw.githubusercontent.com/sashakhad/album-kit/main/grokbot/BOT.md) and continue the current album. Use `/listen` for existing takes, `/start` for a fresh album, or `/surprise` to let the bot pick. When configuring your own bot, use the [custom instructions](grokbot/INSTRUCTIONS.md).
 
@@ -25,7 +25,7 @@ The bot still checks Suno generation credits, plus external prompt models when a
 
 ## Preview before sharing
 
-Open **Open Album.html** from the chat. Tap a track and it plays, the same way Listen does in the album app.
+Open the printed **link** from the chat. Tap a track and it plays, the same way Listen does in the album app. **Open Album.html** is the offline fallback.
 
 When a take becomes playable, pass its canonical filename, clip ID and public stream URL as a JSON record to `node scripts/preview-album.mjs --record <ready-take.json>` (Node 24). Send the file named by `link` in the album chat. Each subsequent record produces an updated player with the previous takes included. To reopen an existing catalog, run `node scripts/preview-album.mjs --streams-only`. The file is the Listen player. For a ballot saved to the checkout, run `node scripts/preview-album.mjs --serve` and open its local URL. Refresh it with `node scripts/preview-album.mjs` and reload that URL. For offline playback with local audio files, use `node scripts/preview-album.mjs --zip`.
 
