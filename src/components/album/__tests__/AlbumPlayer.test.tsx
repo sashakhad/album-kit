@@ -471,6 +471,119 @@ describe('AlbumPlayer', () => {
     expect(screen.queryByRole('button', { name: 'Confirm pass 3' })).not.toBeInTheDocument();
   });
 
+  it('states only the pass count, then a cut when a score is negative', async () => {
+    const user = userEvent.setup();
+    const labels = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+    const takes = labels.map(label => ({
+      label,
+      filename: `v1-01-six-p1-take${label.toLowerCase()}.mp3`,
+      audioUrl: `/api/audio/${label}.mp3`,
+      versionSlug: 'v1',
+      voteLabel: label,
+    }));
+    const six: AlbumVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          number: 1,
+          title: 'First song',
+          kind: 'album',
+          filename: takes[0]?.filename ?? null,
+          audioUrl: takes[0]?.audioUrl ?? null,
+          takes: [...takes],
+          prompt: null,
+        },
+      ],
+    };
+    const choice = (takeLabel: string, value: number, round: number) => ({
+      versionSlug: 'v1',
+      takeLabel,
+      value,
+      round,
+    });
+    const { rerender } = render(
+      <AlbumPlayer key='pass-1' version={six} votes={EMPTY_VOTE_SNAPSHOT} />
+    );
+
+    expect(screen.getByText('6 unscored takes')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Only negative|dropped|Positive scores|parked takes/i)
+    ).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-inline-vote]')).toHaveLength(6);
+    await user.click(screen.getByRole('button', { name: 'Review next pass' }));
+    expect(screen.getByText('Start Pass 2? No takes will be cut.')).toBeInTheDocument();
+
+    rerender(
+      <AlbumPlayer
+        key='mixed'
+        version={six}
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: -1, B: -1, C: 2, D: 0 } } },
+          mine: {
+            1: [choice('A', -1, 1), choice('B', -1, 1), choice('C', 2, 1), choice('D', 0, 1)],
+          },
+        }}
+      />
+    );
+    expect(screen.getByText('2 takes will be cut · 2 unscored takes')).toBeInTheDocument();
+    expect(screen.getByText('Cut when next pass starts')).toBeInTheDocument();
+
+    const kept = takes.filter(take => take.label !== 'A' && take.label !== 'B');
+    const track = six.tracks[0];
+    if (track === undefined) {
+      throw new Error('expected the six-take track');
+    }
+    rerender(
+      <AlbumPlayer
+        key='pass-2'
+        version={{ ...six, tracks: [{ ...track, takes: kept }] }}
+        votes={{
+          ...EMPTY_VOTE_SNAPSHOT,
+          currentRound: 2,
+          tallies: { 1: { v1: { C: 2, D: 0, E: 1, F: 0 } } },
+          mine: {
+            1: [choice('C', 2, 2), choice('D', 0, 2), choice('E', 1, 2), choice('F', 0, 2)],
+          },
+        }}
+      />
+    );
+    expect(screen.getByRole('heading', { name: 'Pass 2' })).toBeInTheDocument();
+    expect(screen.getByText('4 scored takes')).toBeInTheDocument();
+    expect(screen.queryByText(/public Suno|internet required/i)).not.toBeInTheDocument();
+  });
+
+  it('scores another take without stopping the one that is playing', async () => {
+    const user = userEvent.setup();
+    const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ...EMPTY_VOTE_SNAPSHOT,
+          tallies: { 1: { v1: { A: 0, B: 1 } } },
+          mine: { 1: [{ versionSlug: 'v1', takeLabel: 'B', value: 1, round: 1 }] },
+        }),
+      })
+    );
+    render(<AlbumPlayer version={sampleVersion} votes={EMPTY_VOTE_SNAPSHOT} />);
+    await user.click(screen.getByRole('button', { name: 'Play' }));
+    pause.mockClear();
+    const chip = document.querySelector('[data-take-chip] [data-inline-vote]');
+    const addB = [...document.querySelectorAll('[data-inline-vote] button')].find(button =>
+      button.getAttribute('aria-label')?.includes('take B')
+    );
+    expect(chip).toBeTruthy();
+    if (!(addB instanceof HTMLButtonElement)) {
+      throw new Error('expected an inline score for take B');
+    }
+    await user.click(addB);
+    expect(pause).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Track One' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+  });
+
   it('keeps voting beside the selected player and labels its model and cut status', async () => {
     const user = userEvent.setup();
     const track = sampleVersion.tracks[0]!;

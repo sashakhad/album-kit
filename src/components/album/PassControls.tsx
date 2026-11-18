@@ -5,17 +5,16 @@ import { useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { voteHref } from '@/lib/album/play-path';
+import { passDecisionCopy } from '@/lib/votes/pass-copy';
 
 export function PassControls({
   currentRound,
   remaining,
   nextCut,
-  unscored,
 }: {
   currentRound: number;
   remaining: number;
   nextCut: number;
-  unscored: number;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -55,23 +54,10 @@ export function PassControls({
 
   return (
     <div className='space-y-3 pb-2'>
-      <p className='text-muted-foreground text-sm leading-relaxed'>
-        {nextCut === 0
-          ? 'No takes will be cut'
-          : `${nextCut} ${nextCut === 1 ? 'take' : 'takes'} will be cut`}{' '}
-        when you start Pass {currentRound + 1}. Only negative scores are cut; everything else stays.
-      </p>
       {reviewing ? (
         <div className='space-y-3 rounded-xl border border-amber-400/25 bg-amber-400/5 p-3'>
           <p className='text-sm'>
-            Start Pass {currentRound + 1}?{' '}
-            {nextCut === 0
-              ? 'No takes will be cut'
-              : `${nextCut} ${nextCut === 1 ? 'take' : 'takes'} will be cut`}
-            ; {remaining - nextCut} will stay.
-            {unscored > 0
-              ? ` You can score ${unscored} ${unscored === 1 ? 'take' : 'takes'} first.`
-              : ''}
+            {passDecisionCopy({ pass: currentRound, visible: remaining, nextCut })}
           </p>
           <div className='flex flex-wrap gap-2'>
             <Button
