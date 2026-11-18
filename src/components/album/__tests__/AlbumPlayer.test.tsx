@@ -1025,6 +1025,169 @@ describe('AlbumPlayer', () => {
     expect(screen.queryByRole('button', { name: /Show score controls/i })).not.toBeInTheDocument();
   });
 
+  it('keeps a shuffled take’s prompt, stream and score when letters are revealed', async () => {
+    const user = userEvent.setup();
+    const trap = 'G minor, 128 BPM, trap drums and a wide EDM lead.';
+    const ballad = 'A major, 90 BPM, acoustic ballad.';
+    const trapUrl = 'https://cdn1.suno.ai/clip-trap-recording.mp4';
+    const siblingUrl = 'https://cdn1.suno.ai/clip-sibling-recording.mp4';
+    const hidden: AlbumVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          number: 1,
+          title: 'krillAF',
+          kind: 'album',
+          filename: 'trap-recording',
+          audioUrl: trapUrl,
+          prompt: null,
+          takes: [
+            {
+              label: 'H',
+              voteLabel: 'H',
+              stableId: 'trap-recording',
+              filename: 'trap-recording',
+              audioUrl: trapUrl,
+              versionSlug: 'v1',
+            },
+            {
+              label: 'A',
+              voteLabel: 'A',
+              stableId: 'sibling-recording',
+              filename: 'sibling-recording',
+              audioUrl: siblingUrl,
+              versionSlug: 'v1',
+            },
+          ],
+        },
+      ],
+    };
+    const shown: AlbumVersion = {
+      ...hidden,
+      tracks: [
+        {
+          ...hidden.tracks[0]!,
+          filename: 'v1-01-krillaf-p4-takec.mp3',
+          takes: [
+            {
+              label: 'C',
+              voteLabel: 'C',
+              stableId: 'trap-recording',
+              filename: 'v1-01-krillaf-p4-takec.mp3',
+              audioUrl: trapUrl,
+              versionSlug: 'v1',
+              prompt: trap,
+              details: {
+                style: trap,
+                writer: 'Cursor · grok-4.7-high',
+                sunoModel: 'v6',
+                promptSource: 'generation',
+              },
+            },
+            {
+              label: 'H',
+              voteLabel: 'H',
+              stableId: 'sibling-recording',
+              filename: 'v1-01-krillaf-p1-takeh.mp3',
+              audioUrl: siblingUrl,
+              versionSlug: 'v1',
+              prompt: ballad,
+              details: {
+                style: ballad,
+                writer: 'Cursor · other-model',
+                sunoModel: 'v6',
+                promptSource: 'generation',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const votes = {
+      ...EMPTY_VOTE_SNAPSHOT,
+      tallies: { 1: { v1: { H: 1, A: 0 } } },
+      mine: { 1: [{ versionSlug: 'v1', takeLabel: 'H', value: 1, round: 1 }] },
+    };
+    const view = render(<AlbumPlayer version={hidden} votes={votes} />);
+
+    await user.click(screen.getByRole('button', { name: 'Take H' }));
+    expect(document.querySelector('video')).toHaveAttribute('src', trapUrl);
+    expect(screen.getByText('Score take H')).toBeInTheDocument();
+    expect(screen.queryByText(trap)).not.toBeInTheDocument();
+
+    view.rerender(<AlbumPlayer version={shown} votes={votes} />);
+
+    expect(screen.getByText('Prompt · Take C')).toBeInTheDocument();
+    expect(screen.getByText(trap)).toBeInTheDocument();
+    expect(screen.getByText('Cursor · grok-4.7-high · Suno v6')).toBeInTheDocument();
+    expect(screen.queryByText(ballad)).not.toBeInTheDocument();
+    expect(document.querySelector('video')).toHaveAttribute('src', trapUrl);
+    expect(screen.getByText('Score take C')).toBeInTheDocument();
+    expect(screen.getByText(/Vote here while you listen\. Score \+1/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Take H' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Take C' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('keeps each sibling stream when both takes share a style prompt', async () => {
+    const user = userEvent.setup();
+    const style = 'G minor, 128 BPM, trap drums and a wide EDM lead.';
+    const firstUrl = 'https://cdn1.suno.ai/clip-sibling-a.mp4';
+    const secondUrl = 'https://cdn1.suno.ai/clip-sibling-b.mp4';
+    const version: AlbumVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          number: 1,
+          title: 'krillAF',
+          kind: 'album',
+          filename: 'v1-01-krillaf-p1-takea.mp3',
+          audioUrl: firstUrl,
+          prompt: style,
+          takes: [
+            {
+              label: 'A',
+              voteLabel: 'A',
+              stableId: 'sibling-a',
+              filename: 'v1-01-krillaf-p1-takea.mp3',
+              audioUrl: firstUrl,
+              versionSlug: 'v1',
+              prompt: style,
+              details: {
+                style,
+                writer: 'Cursor · grok-4.7-high',
+                sunoModel: 'v6',
+                promptSource: 'generation',
+              },
+            },
+            {
+              label: 'B',
+              voteLabel: 'B',
+              stableId: 'sibling-b',
+              filename: 'v1-01-krillaf-p1-takeb.mp3',
+              audioUrl: secondUrl,
+              versionSlug: 'v1',
+              prompt: style,
+              details: {
+                style,
+                writer: 'Cursor · grok-4.7-high',
+                sunoModel: 'v6',
+                promptSource: 'generation',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    render(<AlbumPlayer version={version} />);
+
+    expect(document.querySelector('video')).toHaveAttribute('src', firstUrl);
+    expect(screen.getByText('Prompt · Take A')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Take B' }));
+    expect(document.querySelector('video')).toHaveAttribute('src', secondUrl);
+    expect(screen.getByText('Prompt · Take B')).toBeInTheDocument();
+    expect(screen.getByText('Cursor · grok-4.7-high · Suno v6')).toBeInTheDocument();
+  });
+
   it('sorts owner take chips by score and keeps the selected take', async () => {
     const user = userEvent.setup();
     const labels = ['J', 'C', 'A', 'B'] as const;

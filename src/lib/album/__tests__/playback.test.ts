@@ -9,6 +9,7 @@ import {
   nextVariation,
   previousPlayableIndex,
   previousVariation,
+  selectionKey,
   takeForTrack,
 } from '@/lib/album/playback';
 import type { AlbumTrack } from '@/lib/album/types';
@@ -145,6 +146,68 @@ describe('playback', () => {
     expect(takeForTrack(withParked, {}, 'A')?.label).toBe('A');
     expect(takeForTrack(withParked, { 'album-1': 'Bubu D' }, 'A')?.audioUrl).toBe('/one-d.mp3');
     expect(withParked.takes.map(take => take.label)).toEqual(['A', 'B']);
+  });
+
+  it('keeps the same recording when shuffled letters are revealed', () => {
+    const one = tracks[0];
+    if (one === undefined) {
+      throw new Error('expected track 1');
+    }
+    const trap = 'G minor, 128 BPM, trap drums and a wide EDM lead.';
+    const shuffled: AlbumTrack = {
+      ...one,
+      audioUrl: '/trap.mp4',
+      takes: [
+        {
+          label: 'H',
+          stableId: 'trap-recording',
+          filename: 'trap-recording',
+          audioUrl: '/trap.mp4',
+          versionSlug: 'v1',
+          voteLabel: 'H',
+        },
+        {
+          label: 'A',
+          stableId: 'sibling-recording',
+          filename: 'sibling-recording',
+          audioUrl: '/sibling.mp4',
+          versionSlug: 'v1',
+          voteLabel: 'A',
+        },
+      ],
+    };
+    const revealed: AlbumTrack = {
+      ...one,
+      audioUrl: '/trap.mp4',
+      takes: [
+        {
+          label: 'C',
+          stableId: 'trap-recording',
+          filename: 'v1-01-krillaf-p4-takec.mp3',
+          audioUrl: '/trap.mp4',
+          versionSlug: 'v1',
+          voteLabel: 'C',
+          prompt: trap,
+        },
+        {
+          label: 'H',
+          stableId: 'sibling-recording',
+          filename: 'v1-01-krillaf-p1-takeh.mp3',
+          audioUrl: '/sibling.mp4',
+          versionSlug: 'v1',
+          voteLabel: 'H',
+          prompt: 'A major, 90 BPM, acoustic ballad.',
+        },
+      ],
+    };
+
+    const playing = takeForTrack(revealed, { 'album-1': selectionKey(shuffled.takes[0]!) }, 'A');
+    expect(playing?.label).toBe('C');
+    expect(playing?.audioUrl).toBe('/trap.mp4');
+    expect(playing?.prompt).toBe(trap);
+    expect(audioUrlForTrack(revealed, { 'album-1': 'sibling-recording' }, 'A')).toBe(
+      '/sibling.mp4'
+    );
   });
 
   it('keeps a per-track take over the album take', () => {

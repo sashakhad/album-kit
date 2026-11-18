@@ -12,6 +12,7 @@ vi.mock('@/lib/votes/blind', () => ({
   blindSnapshot: async (snapshot: unknown) => snapshot,
   blindVersion: async (version: unknown) => version,
   opaqueAudioId: () => 'a'.repeat(32),
+  withStableTakeIds: (version: unknown) => version,
 }));
 vi.mock('@/lib/votes/pass-store', () => ({
   getConsolidatedPassVersion: async () => ({ tracks: [] }),

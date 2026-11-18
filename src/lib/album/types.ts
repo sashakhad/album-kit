@@ -12,6 +12,8 @@ export type AlbumTake = {
   audioUrl: string;
   versionSlug: string;
   voteLabel: string;
+  /** Same value before and after reveal. Display letters are not stable. */
+  stableId?: string;
   prompt?: string;
   details?: {
     style: string;

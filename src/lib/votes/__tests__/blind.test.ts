@@ -43,7 +43,13 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-import { blindVersion, blindSnapshot, filenameForOpaqueId, realTakeForAlias } from '../blind';
+import {
+  blindVersion,
+  blindSnapshot,
+  filenameForOpaqueId,
+  realTakeForAlias,
+  withStableTakeIds,
+} from '../blind';
 
 const first = 'v1-01-track-one-p1-takea.mp3';
 const second = 'v1-01-track-one-p2-takeb.mp3';
@@ -97,6 +103,11 @@ describe('blind voting', () => {
     const token = hidden.tracks[0]?.takes[0]?.filename;
     expect(token).toMatch(/^[0-9a-f]{32}$/);
     expect(await filenameForOpaqueId(1, token!)).not.toBeNull();
+    const stamped = withStableTakeIds(version, 1);
+    const hiddenIds = hidden.tracks[0]?.takes.map(take => take.stableId) ?? [];
+    const realIds = stamped.tracks[0]?.takes.map(take => take.stableId) ?? [];
+    expect(hiddenIds.every(id => id !== undefined && realIds.includes(id))).toBe(true);
+    expect(hidden.tracks[0]?.takes.every(take => take.stableId === take.filename)).toBe(true);
   });
 
   it('maps displayed votes back to the saved take without sending the real letter', async () => {

@@ -3,7 +3,7 @@ import { OWNER_VISITOR_ID } from '@/lib/owner/auth';
 import { listenerAudioUrl } from '@/lib/album/stream-url';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
 import { getVoteSnapshot } from '@/lib/votes/board';
-import { blindSnapshot, blindVersion, opaqueAudioId } from '@/lib/votes/blind';
+import { blindSnapshot, blindVersion, opaqueAudioId, withStableTakeIds } from '@/lib/votes/blind';
 import { getConsolidatedPassVersion, getVisitorCurrentRound } from '@/lib/votes/pass-store';
 import { isBlindForListenerSnapshot, markExposed } from '@/lib/votes/exposure';
 import { withVisibleDetails } from '@/lib/votes/provenance';
@@ -56,8 +56,11 @@ export async function listenerJudgingView(
   if (!blind && visitorId.length > 0) await markExposed(visitorId, round);
   const version = blind
     ? await blindVersion(originalVersion, round)
-    : withListenerPlayback(
-        await withVisibleDetails(originalVersion, settings.maskPromptModels),
+    : withStableTakeIds(
+        withListenerPlayback(
+          await withVisibleDetails(originalVersion, settings.maskPromptModels),
+          round
+        ),
         round
       );
   return {
