@@ -74,6 +74,13 @@ describe('completion card', () => {
     expect(completionStatus(opened, streams)).toMatchObject({
       phase: 'ready',
       hosting: false,
+      card: null,
+      shareCard: false,
+    });
+    expect(completionStatus(opened, streams, { heard: true })).toMatchObject({
+      phase: 'ready',
+      hosting: false,
+      shareCard: true,
       card: {
         question: completionQuestion,
         choices: completionChoices,

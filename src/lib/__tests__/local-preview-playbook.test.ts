@@ -221,7 +221,9 @@ describe('local preview playbook', () => {
     expect(body).toContain('node scripts/preview-album.mjs --streams-only');
     expect(body).toContain('same Open Album.html');
     expect(body).toContain(
-      file.includes('/finish/') ? 'Here are the takes you picked.' : 'Here’s your first take.'
+      file.includes('/finish/')
+        ? 'Here are the takes you picked.'
+        : 'Your album page is ready. Tap to listen ↓'
     );
     expect(body).not.toContain('pnpm preview:album --zip');
     expect(body).not.toContain('pnpm preview:album --serve');
@@ -285,7 +287,11 @@ describe('local preview playbook', () => {
   ])('offers the next tracks after a take in %s', async file => {
     const body = await text(file);
     const line =
-      'Here’s your first take. I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
+      'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
+    expect(body).toContain('Your album page is ready. Tap to listen ↓');
+    expect(body).toContain(
+      'Cool, the first ones are in. Spinning up your album page now. Tap here to listen.'
+    );
     expect(body).toContain(line);
     expect(body).toContain('do not wait for a reply before starting those tracks');
     expect(body).not.toContain('will stay on this computer');

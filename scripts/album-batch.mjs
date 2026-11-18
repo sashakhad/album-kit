@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 
 import { slugifyTrackTitle } from '../src/lib/album/slug.ts';
 import { publicStreamEntries } from '../src/lib/album/stream-url.ts';
+import { readLiveProgress, shareHeard } from './live-progress.mjs';
 
 export const completionQuestion = 'Your album is ready. What’s next?';
 export const completionChoices = ['Share album', 'Add more tracks'];
@@ -215,17 +216,20 @@ function cardFor(phase) {
   };
 }
 
-export function completionStatus(ledger, streams) {
+export function completionStatus(ledger, streams, options = {}) {
   const playable = playableClipIds(streams);
   const batch = activeSongs(ledger, playable);
   const phase = batch ? songPhase(batch, playable) : 'empty';
   const more = ledger.completion.batches.find(
     item => item.kind === 'more' && batchIsOpen(item, playable)
   );
+  const heard = options.heard === true;
+  const ready = phase === 'ready';
   return {
     phase,
     hosting: phase === 'recorded' && batch?.reply?.choice === 'share',
-    card: cardFor(phase),
+    card: heard && ready ? cardFor(phase) : null,
+    shareCard: heard && ready,
     batchId: batch?.id ?? null,
     pendingOperationIds: pendingIds(batch, playable),
     reply: batch?.reply ?? null,
@@ -518,9 +522,13 @@ function numbers(values) {
   });
 }
 
+const SHARE_WAITS =
+  'The share card waits for the owner’s next message after the album page. Do not show it with the file.';
+
 async function run(root, command, values) {
   const state = await load(root);
-  if (command === 'status') return completionStatus(state.ledger, state.streams);
+  const heard = shareHeard(await readLiveProgress(root));
+  if (command === 'status') return completionStatus(state.ledger, state.streams, { heard });
   if (command === 'open') {
     const ledger = openSongBatch(state.ledger, state.album, {
       id: values.id,
@@ -528,7 +536,7 @@ async function run(root, command, values) {
       operationIds: values.operation,
     });
     await writeJson(state.file.ledger, ledger);
-    return completionStatus(ledger, state.streams);
+    return completionStatus(ledger, state.streams, { heard });
   }
   if (command === 'more') {
     const [trackNumber] = numbers(values.track);
@@ -539,7 +547,7 @@ async function run(root, command, values) {
       operationIds: values.operation,
     });
     await writeJson(state.file.ledger, ledger);
-    return completionStatus(ledger, state.streams);
+    return completionStatus(ledger, state.streams, { heard });
   }
   if (command === 'clips') {
     if (values.operation?.length !== 1) throw new Error('Expected one operation id.');
@@ -549,7 +557,7 @@ async function run(root, command, values) {
       clipIds: values.clip,
     });
     await writeJson(state.file.ledger, ledger);
-    return completionStatus(ledger, state.streams);
+    return completionStatus(ledger, state.streams, { heard });
   }
   if (command === 'fail') {
     if (values.operation?.length !== 1) throw new Error('Expected one operation id.');
@@ -558,18 +566,19 @@ async function run(root, command, values) {
       operationId: values.operation[0],
     });
     await writeJson(state.file.ledger, ledger);
-    return completionStatus(ledger, state.streams);
+    return completionStatus(ledger, state.streams, { heard });
   }
   if (command === 'waive') {
     const ledger = waiveRemaining(state.ledger, state.streams, values.id);
     await writeJson(state.file.ledger, ledger);
-    return completionStatus(ledger, state.streams);
+    return completionStatus(ledger, state.streams, { heard });
   }
-  const batchId = values.id ?? completionStatus(state.ledger, state.streams).batchId;
+  const batchId = values.id ?? completionStatus(state.ledger, state.streams, { heard }).batchId;
   if (command === 'offer') {
+    if (!heard) throw new Error(SHARE_WAITS);
     const ledger = offerCard(state.ledger, state.streams, batchId);
     await writeJson(state.file.ledger, ledger);
-    return completionStatus(ledger, state.streams);
+    return completionStatus(ledger, state.streams, { heard });
   }
   if (command === 'reply') {
     const result = replyToBatch(state.ledger, state.album, state.streams, {
@@ -580,7 +589,7 @@ async function run(root, command, values) {
     });
     await writeJson(state.file.ledger, result.ledger);
     if (result.appended.length > 0) await writeJson(state.file.album, result.album);
-    return completionStatus(result.ledger, state.streams);
+    return completionStatus(result.ledger, state.streams, { heard });
   }
   throw new Error(
     'Usage: node scripts/album-batch.mjs <status|open|more|clips|fail|waive|offer|reply>'

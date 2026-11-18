@@ -4,6 +4,8 @@ export const exporterFiles = [
   'scripts/exporter-files.mjs',
   'scripts/probe-stream.mjs',
   'scripts/preview-album.mjs',
+  'scripts/live-progress.mjs',
+  'scripts/page-preview.mjs',
   'scripts/preview-identity.mjs',
   'scripts/preview-server.mjs',
   'scripts/preview-streams.mjs',

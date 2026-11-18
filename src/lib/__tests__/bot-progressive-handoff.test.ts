@@ -83,6 +83,11 @@ it('produces the first bot attachment while four songs and the sibling take are 
       const report = JSON.parse(stdout);
       expect(report.online).toBe(received.size);
       expect(path.basename(report.link)).toBe('Open Album.html');
+      expect(path.basename(report.preview)).toBe('Album page.png');
+      expect(report.shareCard).toBe(false);
+      expect(report.say.startsWith('Your album page is ready. Tap to listen ↓')).toBe(true);
+      const png = await readFile(report.preview);
+      expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       // Capture the exact file bytes the bot can attach before making the next
       // receipt available. No chat connector or remote audio request is involved.
       const html = await readFile(report.link, 'utf8');
