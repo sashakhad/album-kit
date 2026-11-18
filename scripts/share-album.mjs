@@ -274,9 +274,10 @@ export async function shareVotingApp(root, options, runner, request) {
   if (!uploads.length && !streams.length && !existing?.siteUrl)
     throw new Error('Generate a playable take before sharing this album.');
   if (!options.scope && !existing?.siteUrl) throw new Error(usage);
-  const previousStatic = !existing
+  const savedStatic = !existing
     ? await savedStaticProject(root, options.project, options.scope)
     : null;
+  const previousStatic = savedStatic ? { ...savedStatic, orgId: savedStatic.accountId } : null;
   const source = await verifiedScaffold(root, options.ref ?? 'main', request, existing);
   try {
     const site = await setup(

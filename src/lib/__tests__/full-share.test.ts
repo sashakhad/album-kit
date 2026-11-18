@@ -64,7 +64,12 @@ it.each(['hosted', 'previous static'])(
       await mkdir(path.join(root, '.tmp/share-projects/creator'), { recursive: true });
       await writeFile(
         path.join(root, '.tmp/share-projects/creator/my-album.json'),
-        JSON.stringify({ id: project.id, name: project.name, scope: 'creator' })
+        JSON.stringify({
+          id: project.id,
+          name: project.name,
+          scope: 'creator',
+          accountId: project.accountId,
+        })
       );
     }
     await writeFile(path.join(root, 'package.json'), '{}');

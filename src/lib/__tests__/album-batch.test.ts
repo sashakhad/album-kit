@@ -137,7 +137,10 @@ describe('completion card', () => {
       titles: ['Night Window'],
     });
     expect(repaired.appended).toEqual(first.appended);
-    expect(repaired.album.tracks.map(track => track.slug)).toEqual(['porch-light', 'night-window']);
+    expect(repaired.album.tracks.map((track: { slug: string }) => track.slug)).toEqual([
+      'porch-light',
+      'night-window',
+    ]);
     expect(() =>
       replyToBatch(first.ledger, first.album, streams, {
         batchId: 'songs-1',
