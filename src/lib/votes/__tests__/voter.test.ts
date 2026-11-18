@@ -1,45 +1,52 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({
-  owner: false,
-  viewer: false,
-  key: 'secret' as string | null,
-  visibility: 'public',
-  listenerVoting: true,
-}));
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const attempts = vi.hoisted(() => vi.fn(async () => true));
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/owner/auth', () => ({
-  albumKey: () => state.key,
-  isOwnerRequest: () => state.owner,
-}));
-vi.mock('@/lib/owner/viewer', () => ({
-  isViewerRequest: async () => state.viewer,
-  viewerInviteIdFromRequest: async () => (state.viewer ? 'invite' : null),
-}));
-vi.mock('@/lib/settings/store', () => ({ loadSettings: async () => state }));
-vi.mock('@/lib/votes/attempt-log', () => ({ takeAttempt: async () => true }));
-import { canPlayBlindTake } from '../voter';
-beforeEach(() =>
-  Object.assign(state, {
-    owner: false,
-    viewer: false,
-    key: 'secret',
-    visibility: 'public',
-    listenerVoting: true,
-  })
-);
-describe('listener audio access', () => {
-  it('allows listener audio when listener voting is on', async () => {
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(true);
+vi.mock('@/lib/votes/attempt-log', () => ({ takeAttempt: attempts }));
+
+import { requireOwner } from '@/lib/owner/auth';
+import { LISTENER_COOKIE } from '@/lib/votes/listener-id';
+import { resolveVoter } from '../voter';
+
+function request(cookie?: string) {
+  return new Request('http://localhost/api/votes', {
+    headers: cookie === undefined ? {} : { cookie: `${LISTENER_COOKIE}=${cookie}` },
   });
-  it('blocks playback when listener voting is off unless the write token is present', async () => {
-    state.listenerVoting = false;
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
-    state.owner = true;
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(true);
+}
+
+beforeEach(() => {
+  vi.stubEnv('ALBUM_WRITE_TOKEN', 'test-signing-key');
+  attempts.mockReset().mockResolvedValue(true);
+});
+afterEach(() => vi.unstubAllEnvs());
+
+describe('public listener ballots', () => {
+  it('gives each browser its own ballot and reuses its signed cookie', async () => {
+    const first = await resolveVoter(request());
+    const second = await resolveVoter(request());
+    if (!('voter' in first && first.voter.kind === 'listener' && first.voter.issuedCookie)) {
+      throw new Error('Expected a new public listener ballot');
+    }
+    expect(second).toMatchObject({ voter: { kind: 'listener' } });
+    expect(second).not.toEqual(first);
+    const returning = request(first.voter.issuedCookie);
+    expect(await resolveVoter(returning)).toEqual({
+      voter: { kind: 'listener', visitorId: first.voter.visitorId, issuedCookie: null },
+    });
+    expect((await requireOwner(returning))?.status).toBe(401);
+    expect(attempts).toHaveBeenCalledTimes(2);
   });
-  it('blocks playback when the signing key is missing', async () => {
-    state.key = null;
-    expect(await canPlayBlindTake(new Request('http://localhost/audio'))).toBe(false);
+
+  it('still limits the creation of anonymous ballots', async () => {
+    attempts.mockResolvedValueOnce(false);
+    const result = await resolveVoter(request());
+    expect('error' in result && result.error.status).toBe(429);
+  });
+
+  it('reports an unconfigured ballot without issuing an unsigned identity', async () => {
+    vi.stubEnv('ALBUM_WRITE_TOKEN', '');
+    const result = await resolveVoter(request());
+    expect('error' in result && result.error.status).toBe(503);
   });
 });

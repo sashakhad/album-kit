@@ -1,19 +1,12 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
-  resolved: { voter: { kind: 'owner' as const } } as
-    | { voter: { kind: 'owner' } }
-    | { voter: { kind: 'listener'; visitorId: string; issuedCookie: string | null } }
-    | { error: Response },
   budget: true,
   casts: [] as { visitorId: string; round?: number; takeLabel: string }[],
 }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/votes/voter', () => ({
-  resolveVoter: async () => state.resolved,
-}));
 vi.mock('@/lib/votes/attempt-log', () => ({
   takeAttempt: async () => state.budget,
 }));
@@ -71,7 +64,7 @@ vi.mock('@/lib/album/load-album', () => ({
 vi.mock('@/lib/settings/store', () => ({
   loadSettings: async () => ({
     listeningDetails: 'visible',
-    listenerVoting: true,
+    listenerVoting: false,
     visibility: 'public',
   }),
 }));
@@ -114,10 +107,10 @@ vi.mock('@/lib/votes/blind', () => ({
 
 import { POST } from '@/app/api/votes/route';
 
-function voteRequest() {
+function voteRequest(headers: Record<string, string> = {}) {
   return new Request('http://localhost/api/votes', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ trackNumber: 1, versionSlug: 'v1', takeLabel: 'A', value: 1 }),
   });
 }
@@ -125,45 +118,47 @@ function voteRequest() {
 beforeEach(() => {
   state.casts.length = 0;
   state.budget = true;
-  state.resolved = { voter: { kind: 'owner' } };
+  vi.stubEnv('ALBUM_WRITE_TOKEN', 'test-write-token');
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe('POST /api/votes', () => {
   it('records an owner vote on the owner ballot', async () => {
-    const response = await POST(voteRequest());
+    const response = await POST(voteRequest({ authorization: 'Bearer test-write-token' }));
     expect(response.status).toBe(200);
     expect(state.casts[0]?.visitorId).toBe('owner');
     expect(state.casts[0]?.round).toBeUndefined();
   });
 
-  it('rejects a non-owner while listener voting is closed', async () => {
-    state.resolved = {
-      error: Response.json({ error: 'Owner key required' }, { status: 401 }),
-    };
+  it('reports an unavailable ballot without casting a vote', async () => {
+    vi.stubEnv('ALBUM_WRITE_TOKEN', '');
     const response = await POST(voteRequest());
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(503);
     expect(state.casts).toHaveLength(0);
   });
 
-  it('stores a public listener vote away from the owner ballot', async () => {
-    state.resolved = {
-      voter: { kind: 'listener', visitorId: 'listener:abc', issuedCookie: 'abc.sig' },
-    };
+  it('opens independent ballots for signed-out browsers on an album with legacy voting disabled', async () => {
     const response = await POST(voteRequest());
     const body = await response.json();
     expect(response.status).toBe(200);
-    expect(state.casts[0]?.visitorId).toBe('listener:abc');
-    expect(state.casts[0]?.round).toBe(2);
     expect(body.listenerTallies).toBeUndefined();
     expect(body.tallies[1].v1.A).toBe(1);
-    expect(response.headers.get('set-cookie')).toContain('album_listener=');
+    const cookie = response.headers.get('set-cookie')?.split(';')[0];
+    if (!cookie) throw new Error('Missing listener cookie');
+    expect(cookie).toMatch(/^album_listener=/);
+    expect((await POST(voteRequest({ cookie }))).status).toBe(200);
+    expect((await POST(voteRequest())).status).toBe(200);
+    const ids = state.casts.map(cast => cast.visitorId);
+    expect(ids[0]).toMatch(/^listener:/);
+    expect(ids[1]).toBe(ids[0]);
+    expect(ids[2]).toMatch(/^listener:/);
+    expect(ids[2]).not.toBe(ids[0]);
+    expect(state.casts.every(cast => cast.round === 2)).toBe(true);
   });
 
   it('rate limits a listener ballot', async () => {
     state.budget = false;
-    state.resolved = {
-      voter: { kind: 'listener', visitorId: 'listener:abc', issuedCookie: null },
-    };
     const response = await POST(voteRequest());
     expect(response.status).toBe(429);
     expect(state.casts).toHaveLength(0);

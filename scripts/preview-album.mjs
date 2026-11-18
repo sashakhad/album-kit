@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
@@ -12,6 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { isPlayableStream, isVideoStream } from '../src/lib/album/stream-url.ts';
@@ -99,19 +101,22 @@ async function renderPreview(album, tracks, albumKey) {
   );
 }
 
-async function preview(root, makeZip, serve) {
+export async function preview(
+  root,
+  {
+    makeZip = false,
+    serve = false,
+    streamsOnly = false,
+    output = path.join(root, '.tmp', streamsOnly ? 'album-preview-online' : 'album-preview'),
+  } = {}
+) {
   const albumRoot = path.join(root, 'album');
   const audioRoot = path.join(albumRoot, 'audio');
-  const output = path.join(root, '.tmp', 'album-preview');
   const album = await readJson(path.join(albumRoot, 'album.json'));
   const albumKey = albumKeyFor(album);
   const streams = await readJson(path.join(root, '.tmp', 'album-preview-streams.json'), []);
   if (!Array.isArray(streams)) throw new Error('The preview stream catalog must be a JSON array.');
 
-  const localFiles = await readdir(audioRoot, { withFileTypes: true }).catch(error => {
-    if (error.code === 'ENOENT') return [];
-    throw error;
-  });
   const inputs = new Map();
   for (const row of streams) {
     if (
@@ -122,8 +127,14 @@ async function preview(root, makeZip, serve) {
       inputs.set(row.filename, { src: row.streamUrl, online: true });
     }
   }
-  for (const entry of localFiles) {
-    if (entry.isFile()) inputs.set(entry.name, { online: false });
+  if (!streamsOnly) {
+    const localFiles = await readdir(audioRoot, { withFileTypes: true }).catch(error => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    });
+    for (const entry of localFiles) {
+      if (entry.isFile()) inputs.set(entry.name, { online: false });
+    }
   }
 
   const sets = new Set(album.sets.map(set => set.id));
@@ -156,14 +167,16 @@ async function preview(root, makeZip, serve) {
       } else {
         const folder = path.join(staging, 'audio');
         await mkdir(folder, { recursive: true });
-        const src = `audio/${track.number}-${track.takes.length + 1}.mp3`;
+        const src = `audio/${id}.mp3`;
         await copyFile(path.join(audioRoot, filename), path.join(staging, src));
         files.push(src);
         track.takes.push({ src, online: false, id });
         offline++;
       }
     }
-    await writeFile(path.join(staging, files[0]), await renderPreview(album, tracks, albumKey));
+    if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
+    const html = await renderPreview(album, tracks, albumKey);
+    await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
     if (makeZip) {
       execFileSync('zip', ['-q', '-0', path.join(staging, 'preview.zip'), ...files], {
@@ -177,30 +190,46 @@ async function preview(root, makeZip, serve) {
     const page = path.join(output, files[0]);
     await rename(path.join(staging, files[0]), page);
     if (makeZip) await rename(path.join(staging, 'preview.zip'), archive);
-    const url = serve
-      ? await servePreview({ output, files: new Set(files.slice(1)), names, albumKey })
-      : null;
-    console.log(
-      JSON.stringify({
-        page,
-        offline,
-        online,
-        ...(makeZip ? { archive } : {}),
-        ...(url ? { url } : {}),
-      })
-    );
+    // The running local player reads one complete catalog per request. Keep the
+    // mapping to original filenames outside both the public export and the ZIP.
+    const catalogPath = path.join(parent, 'album-preview-catalog.json');
+    if (output === path.join(root, '.tmp', 'album-preview')) {
+      const pending = path.join(staging, 'local-catalog.json');
+      const catalog = { albumKey, html, files: files.slice(1), names: [...names] };
+      await writeFile(pending, JSON.stringify(catalog), { mode: 0o600 });
+      await rename(pending, catalogPath);
+    }
+    const url = serve ? await servePreview({ output, catalogPath, albumKey }) : null;
+    return {
+      report: { page, offline, online, ...(makeZip ? { archive } : {}), ...(url ? { url } : {}) },
+      sources: tracks.flatMap(track => track.takes.map(take => take.src)),
+    };
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
 }
 
-try {
-  const args = process.argv.slice(2);
-  if (args.length > 1 || (args.length === 1 && !['--zip', '--serve'].includes(args[0]))) {
-    throw new Error('Usage: pnpm preview:album [--zip | --serve]');
+if (
+  process.argv[1] &&
+  existsSync(process.argv[1]) &&
+  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  try {
+    const args = process.argv.slice(2);
+    if (
+      args.length > 1 ||
+      (args.length === 1 && !['--zip', '--serve', '--streams-only'].includes(args[0]))
+    ) {
+      throw new Error('Usage: pnpm preview:album [--zip | --serve | --streams-only]');
+    }
+    const { report } = await preview(process.cwd(), {
+      makeZip: args.includes('--zip'),
+      serve: args.includes('--serve'),
+      streamsOnly: args.includes('--streams-only'),
+    });
+    console.log(JSON.stringify(report));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
   }
-  await preview(process.cwd(), args.includes('--zip'), args.includes('--serve'));
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
 }

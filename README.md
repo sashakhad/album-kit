@@ -2,13 +2,13 @@
 
 Make an album with Suno, hear every take, and choose the winners. The album lives in `album/`. Grok Bot can run the basic workflow. Cursor is optional for a project handoff or verified model comparison.
 
-Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared database, and no user's album goes on Sasha's Vercel or Neon. Do not ask anyone about shared hosting. Each owner uses the local preview, or that owner's own accounts.
+Sasha never hosts Album Bot for anyone. Make and play your album locally. If you choose to share it, the listening page runs on your own Vercel account.
 
 ## Start
 
 Open [Album Bot](grokbot/BOT.md) and type `/start`, or `/surprise` if you want the bot to pick the album. A small test is one or two tracks, with two prompts and one Suno generation per prompt on each (4 takes, about 20 Suno credits per track). The bot checks that balance silently and does not say the number unless the balance is tight, the plan is Suno Free and the daily cap limits the run, one step is over about 200 Suno credits, or it costs real money. With thousands of Suno credits it says what it is making and leaves the number out. `/cost` and `/settings` still show the numbers.
 
-The bot writes the songs, makes the takes on Suno, and opens a local album player. You listen and vote there. No GitHub repo, Vercel project, or database is required.
+In Light or Full Setup, the bot sends you the local player as soon as the first take plays. You can listen while Suno makes the rest. Making the album requires no hosting account.
 
 You will need your own Grok Bot on an [X Subscription Premium](https://x.ai/pricing) plan ($30+). Suno can be [Free](https://suno.com/pricing) ($0, 50 Suno credits a day, v6-mini only, non-commercial) or [Suno Pro](https://suno.com/pricing) ($10) or [Suno Premier](https://suno.com/pricing) ($30). You pay for your own Suno. The bot never buys a plan. Review takes are made public on Suno automatically and silently and stream from the public MP4. Never ask how review takes should play. Only a final pick is downloaded, and that download is silent. [Cursor](https://cursor.com/pricing) is optional.
 
@@ -16,11 +16,18 @@ The bot still checks Suno generation credits, plus external prompt models when a
 
 ## Preview before sharing
 
-Album Bot opens a local preview as soon as the first take is ready. In a checkout, `pnpm preview:album` refreshes `.tmp/album-preview/Open Album.html`. Double-click it to listen and vote. Votes stay in that browser. For a loopback ballot, run `pnpm preview:album --serve` and open the returned URL. Votes and the selected take are saved in `.tmp/album-preview-ballot.json`. Restart the preview server after adding takes. Existing local MP3s work offline. Public Suno streams are labeled and require internet. The exporter does not spend download credits and does not make a private take public. For a remote session, `pnpm preview:album --zip` packages the page and its local audio. Unzip the archive before opening `Open Album.html`.
+When Suno returns the first playable stream, the bot sends **Open Album.html** directly in chat. Open the file and press Play while the remaining tracks generate. The page streams public Suno audio and needs an internet connection.
+
+To make the one-file player in a checkout with Node 24, run `node scripts/preview-album.mjs --streams-only` and open the HTML file it prints. For scoring that survives a browser change, use `pnpm preview:album --serve` and open the returned local URL. After more takes arrive, run `pnpm preview:album` and reload that same URL. Scores, the selected take and the current pass stay in `.tmp/album-preview-ballot.json`. For takes available only as local audio files, `pnpm preview:album --zip` packages the player and its audio together.
 
 ## Share
 
-`/share`, or a request to share, send it to friends, or put it online, publishes that same preview as a static site on **your** Vercel account. One tap connects the Grok Bot Vercel connector. The deploy is the preview page plus its audio. There is no database and no GitHub repo. Votes are not stored on that page. Hosted voting is the advanced path below, and only when you ask for it.
+As soon as the last requested take is playable, Album Bot asks **“Your album is ready. Want to share it with other people?”** You can answer before scoring anything.
+
+- **Yes** publishes a listening page on your Vercel account. The bot checks that the public link opens and plays audio, then sends it to you. Anyone opening the page can compare takes and keep scores in their own browser. This uses the static export from `pnpm share:album`. A GitHub repo and database are optional.
+- **Later** keeps your player local. Type `/share` whenever you want a public link.
+
+To collect your friends’ votes together, see **Advanced: hosted voting** below.
 
 ## Skills
 
@@ -28,7 +35,7 @@ The playbook is `.cursor/skills/`. Read a skill's `SKILL.md` before its steps. T
 
 ## Advanced: hosted voting
 
-This path is only for an owner who explicitly wants friends to vote on a site. It uses a repository in **your** GitHub account, with this kit recorded as its upstream, plus your own Vercel project and your own Neon database. The bot can use a local or cloud checkout. If you set it up yourself, use Node 24, pnpm, a signed-in `gh` CLI, Vercel CLI and Docker for local Postgres:
+Choose this path to collect votes from multiple listeners in one place. It uses a repository in **your** GitHub account, with this kit recorded as its upstream, plus your own Vercel project and your own Neon database. The bot can use a local or cloud checkout. If you set it up yourself, use Node 24, pnpm, a signed-in `gh` CLI, Vercel CLI and Docker for local Postgres:
 
 ```bash
 git clone https://github.com/sashakhad/album-kit my-album
@@ -39,11 +46,9 @@ pnpm install
 pnpm setup:site --name my-album
 ```
 
-`setup:site` creates or links your Vercel project, a public Blob store, a Neon database, and a write token. It generates `ALBUM_WRITE_TOKEN`, stores it on the Vercel project and in `.env`, and never prints it. `.album-site.json` holds the site URL. The home page plays the album. Listener voting stays off until you turn it on. Want it private? Change your Vercel/GitHub settings.
+`setup:site` creates or links your Vercel project, a public Blob store, a Neon database, and a write token. It generates `ALBUM_WRITE_TOKEN`, stores it on the Vercel project and in `.env`, and never prints it. `.album-site.json` holds the site URL. The home page plays the album. Anyone with the public `<site>/vote` link can compare takes and vote straight away. Each listener has their own ballot. Owner tools still require owner access.
 
-On this advanced path, Album Bot connects GitHub and Vercel with the Grok Bot connectors and a one-tap card, then runs `pnpm setup:site`. The CLI commands above are the fallback when a connector cannot do a step. Neon is created on the owner's own account, with the Neon connector or Vercel Marketplace Neon. [GitHub](https://github.com/pricing) and [Vercel](https://vercel.com/pricing) Hobby are free. Vercel Hobby is for eligible [personal, non-commercial use](https://vercel.com/docs/limits/fair-use-guidelines). The hosted site also uses Vercel Blob and Postgres through Neon. Want it private? Change your Vercel/GitHub settings. Listener voting on that site stays off until you turn it on.
-
-An existing **public** Blob store cannot protect already uploaded objects by changing a site setting. Migrate takes into a private Blob store and retire the old public objects before selecting Private; Settings requires a verified private store and `PRIVATE_BLOB_AUDITED=true` after that audit. New setup sets this flag because it creates no earlier public take store. Private listening invites are one-use links that expire after 15 minutes. The link secret is in the URL fragment, removed on opening, and exchanged for a revocable viewer cookie. Viewers can hear final picks. With listener voting on, they can also hear previews and score takes, and those scores stay separate from the owner's. They cannot change Settings. Test access on a second browser before sharing.
+On this advanced path, Album Bot connects GitHub and Vercel with the Grok Bot connectors and a one-tap card, then runs `pnpm setup:site`. The CLI commands above are the fallback when a connector cannot do a step. Neon is created on the owner's own account, with the Neon connector or Vercel Marketplace Neon. [GitHub](https://github.com/pricing) and [Vercel](https://vercel.com/pricing) Hobby are free. Vercel Hobby is for eligible [personal, non-commercial use](https://vercel.com/docs/limits/fair-use-guidelines). The hosted site also uses Vercel Blob and Postgres through Neon.
 
 ## Kit updates
 
@@ -53,7 +58,7 @@ An existing **public** Blob store cannot protect already uploaded objects by cha
 
 ## Settings and rounds
 
-Open **Settings** in the album’s header, edit a choice, and select **Save changes**. Sharing and listening changes take effect on the site when saved. Music settings apply to new rounds. Use **Sharing** to copy the live listener link or invite someone to a private album.
+Open **Settings** in the album’s header, edit a choice, and select **Save changes**. Sharing and listening changes take effect on the site when saved. Music settings apply to new rounds. Use **Sharing** to copy the public link.
 
 Settings are saved in the album’s Postgres database (`AlbumSettings`). They survive reloads and deployments, and Grok Bot uses the same record. `album/album.json` defines the title, artist, and tracks; it does not hold site settings. The bot can read with `pnpm album:settings` and send a JSON object of just the changed fields on stdin to `pnpm album:settings --patch`. These commands use the owner-only `/api/owner/settings` endpoint. Defaults and album overrides are separate fields. Imported music presets are drafts on the site until saved and preserve your current sharing choice.
 
@@ -86,4 +91,4 @@ Run `pnpm check` for formatting, lint, types and tests. Run `pnpm publish:album 
 
 ### Listening and previews
 
-Listen is the primary listening page. It plays an owner’s chosen take or each take tied for the highest positive owner score. Owners and people allowed to vote can hear a Preview when a track has no choice or positive score. Scoring happens on Compare takes, from each take chip or the player’s Score panel. With listener voting off, visitors can only play published picks. Private albums still require an invitation. Compare takes opens the scoring screen; each neutral take label keeps a score visible, including zero. Prompts start collapsed below the player and follow the saved visibility/reveal policy. Source-set names are retained internally, not used as listening labels.
+Listen is the primary listening page. It plays an owner’s chosen take or each take tied for the highest positive owner score. Everyone can hear a Preview when a track has no choice or positive score. Scoring happens on Compare takes, from each take chip or the player’s Score panel. Compare takes opens the scoring screen; each neutral take label keeps a score visible, including zero. Prompts start collapsed below the player and follow the saved visibility/reveal policy. Source-set names are retained internally, not used as listening labels.

@@ -103,21 +103,19 @@ export function summarizeProgress(args: {
   return progress;
 }
 
-/** Page for a track that is already playable. Listen when previews are on, otherwise Compare takes. */
-export function trackPagePath(title: string, listenerVoting: boolean): string {
+/** The public comparison page for a playable track. */
+export function trackPagePath(title: string): string {
   const slug = slugifyTrackTitle(title);
-  const section = listenerVoting ? 'listen' : 'vote';
   if (slug.length === 0) {
-    return `/${section}`;
+    return '/vote';
   }
-  return `/${section}/${slug}`;
+  return `/vote/${slug}`;
 }
 
 /** Tracks whose takes are already on the site. Other tracks in the round stay off this list. */
 export function liveTrackLinks(args: {
   tracks: readonly { trackNumber: number; title: string }[];
   playableNumbers: readonly number[];
-  listenerVoting: boolean;
 }): LiveTrackLink[] {
   const playable = new Set(args.playableNumbers);
   const links: LiveTrackLink[] = [];
@@ -130,7 +128,7 @@ export function liveTrackLinks(args: {
     links.push({
       trackNumber: track.trackNumber,
       title: track.title,
-      path: trackPagePath(track.title, args.listenerVoting),
+      path: trackPagePath(track.title),
     });
   }
   return links;

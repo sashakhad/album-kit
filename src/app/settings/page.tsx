@@ -1,3 +1,6 @@
+import { redirect } from 'next/navigation';
+
+import { isOwner } from '@/lib/owner/auth';
 import { SettingsForm } from '@/components/owner/SettingsForm';
 import { loadSettings } from '@/lib/settings/store';
 import { prisma } from '@/lib/prisma';
@@ -8,6 +11,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Settings' };
 
 export default async function SettingsPage() {
+  if (!(await isOwner())) redirect('/listen');
   const [settings, latest, config, reserved] = await Promise.all([
     loadSettings(),
     prisma.generationRound.findFirst({

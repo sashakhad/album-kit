@@ -10,7 +10,7 @@ import {
   readLocalStore,
 } from '../src/lib/votes/local-pass.ts';
 
-export async function servePreview({ output, files, names, albumKey }) {
+export async function servePreview({ output, catalogPath, albumKey }) {
   const ballotPath = path.join(path.dirname(output), 'album-preview-ballot.json');
   let store = { albums: {} };
   try {
@@ -20,17 +20,15 @@ export async function servePreview({ output, files, names, albumKey }) {
   }
   let ballot = store.albums[albumKey] ?? emptyLocalBallot();
 
-  const ballotView = () => ({
+  const ballotView = names => ({
     pass: ballot.pass,
-    selected: [...names].find(([, filename]) => filename === ballot.selected)?.[0] ?? null,
+    selected: names.find(([, filename]) => filename === ballot.selected)?.[0] ?? null,
     votes: Object.fromEntries(
-      [...names].flatMap(([id, filename]) =>
+      names.flatMap(([id, filename]) =>
         Object.hasOwn(ballot.votes, filename) ? [[id, ballot.votes[filename]]] : []
       )
     ),
-    retired: [...names].flatMap(([id, filename]) =>
-      ballot.retired.includes(filename) ? [id] : []
-    ),
+    retired: names.flatMap(([id, filename]) => (ballot.retired.includes(filename) ? [id] : [])),
   });
 
   const persist = next => {
@@ -53,8 +51,10 @@ export async function servePreview({ output, files, names, albumKey }) {
 
     try {
       if (request.headers.host !== host) return send(403);
+      const catalog = JSON.parse(await readFile(catalogPath, 'utf8'));
+      if (catalog.albumKey !== albumKey) return send(410);
       if (request.url === '/ballot') {
-        if (request.method === 'GET') return json(200, ballotView());
+        if (request.method === 'GET') return json(200, ballotView(catalog.names));
         if (request.method !== 'PUT') return send(405);
         if (
           request.headers.origin !== `http://${host}` ||
@@ -74,25 +74,22 @@ export async function servePreview({ output, files, names, albumKey }) {
         }
         if (change?.action === 'next-pass') {
           persist(advanceLocalPass(ballot));
-          return json(200, ballotView());
+          return json(200, ballotView(catalog.names));
         }
-        const filename = names.get(change?.take);
+        const filename = catalog.names.find(([id]) => id === change?.take)?.[1];
         if (!filename || ![undefined, -1, 1].includes(change.vote)) return send(400);
         persist(applyLocalVote(ballot, filename, change.vote));
-        return json(200, ballotView());
+        return json(200, ballotView(catalog.names));
       }
 
       if (request.method !== 'GET' && request.method !== 'HEAD') return send(405);
       if (request.url === '/') {
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
-        return send(
-          200,
-          request.method === 'HEAD' ? '' : await readFile(path.join(output, 'Open Album.html'))
-        );
+        return send(200, request.method === 'HEAD' ? '' : catalog.html);
       }
 
       const file = request.url?.slice(1);
-      if (!file || !files.has(file)) return send(404);
+      if (!file || !catalog.files.includes(file)) return send(404);
       const filename = path.join(output, file);
       const { size } = await stat(filename);
       const range = request.headers.range?.match(/^bytes=(\d*)-(\d*)$/);

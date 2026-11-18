@@ -44,12 +44,9 @@ function commandResult(command, args) {
   };
 }
 
-export function probeReadiness(root, run = commandResult, now = Date.now()) {
-  const album = parseJson(path.join(root, 'album', 'album.json'));
+function probeHosting(root, state, run, now) {
   const site = parseJson(path.join(root, '.album-site.json'));
   const project = parseJson(path.join(root, '.vercel', 'project.json'));
-  const state = parseJson(path.join(root, STATE_FILE)) ?? {};
-  const cursorInstalled = run('cursor', ['--version']).ready;
   const vercelSignedIn = run('vercel', ['whoami']).ready;
   const githubSignedIn = run('gh', ['auth', 'status']).ready;
   const githubAccount = githubSignedIn
@@ -77,13 +74,6 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
         '.full_name',
       ])
     : null;
-  const suno = state.suno;
-  const sunoFresh = freshCheck(suno?.checkedAt, now);
-  const sunoCapabilitiesVerified = Boolean(
-    sunoFresh &&
-    SUNO_REQUIRED_CAPABILITIES.every(capability => suno?.capabilities?.includes(capability)) &&
-    (suno?.method === 'browser' || suno?.capabilities?.includes('credits'))
-  );
   // Connector checks are recorded only after a live connector operation. A CLI login
   // is not required when the connector verified the same account and resource.
   const connectorAccount = state.githubConnector?.account?.toLowerCase();
@@ -109,10 +99,60 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
   );
 
   return {
-    path:
-      state.path === 'studio' || state.path === 'light' || state.path === 'full'
-        ? state.path
-        : 'quick',
+    vercel: {
+      cliSignedIn: vercelSignedIn,
+      siteProvisioned: Boolean(
+        vercelConnectorReady ||
+        (vercelSignedIn &&
+          typeof project?.projectId === 'string' &&
+          project.projectId.length > 0 &&
+          siteRecorded)
+      ),
+      connectorVerified: vercelConnectorReady,
+    },
+    github: {
+      signedIn: githubSignedIn || githubConnectorReady,
+      account: githubConnectorReady ? connectorAccount : githubLogin,
+      albumRemote: githubCliReady || githubConnectorReady,
+      connectorVerified: githubConnectorReady,
+    },
+    ownerAccessConfirmed: Boolean(
+      state.ownerAccess?.confirmedAt &&
+      typeof site?.siteUrl === 'string' &&
+      state.ownerAccess.siteUrl === site.siteUrl
+    ),
+  };
+}
+
+function isLocalPath(selectedPath) {
+  return selectedPath === 'light' || selectedPath === 'full';
+}
+
+export function probeReadiness(
+  root,
+  run = commandResult,
+  now = Date.now(),
+  { hosted = false } = {}
+) {
+  const state = parseJson(path.join(root, STATE_FILE)) ?? {};
+  const needsPathChoice = !['light', 'full', 'quick', 'studio'].includes(state.path);
+  const selectedPath = needsPathChoice ? 'light' : state.path;
+  const checkHosting = hosted || !isLocalPath(selectedPath);
+  const album = parseJson(path.join(root, 'album', 'album.json'));
+  const checkCursor = selectedPath !== 'light' && !hosted;
+  const cursorInstalled = checkCursor && run('cursor', ['--version']).ready;
+  const suno = state.suno;
+  const sunoFresh = freshCheck(suno?.checkedAt, now);
+  const sunoCapabilitiesVerified = Boolean(
+    sunoFresh &&
+    (selectedPath !== 'full' || suno?.method === 'mcp') &&
+    SUNO_REQUIRED_CAPABILITIES.every(capability => suno?.capabilities?.includes(capability)) &&
+    (suno?.method === 'browser' || suno?.capabilities?.includes('credits'))
+  );
+  return {
+    path: selectedPath,
+    needsPathChoice,
+    hostedOnly: hosted,
     album: Boolean(
       typeof album?.title === 'string' &&
       album.title.trim() &&
@@ -140,47 +180,11 @@ export function probeReadiness(root, run = commandResult, now = Date.now()) {
       ),
       checkedAt: typeof suno?.checkedAt === 'string' ? suno.checkedAt : null,
     },
-    vercel: {
-      cliSignedIn: vercelSignedIn,
-      siteProvisioned: Boolean(
-        vercelConnectorReady ||
-        (vercelSignedIn &&
-          typeof project?.projectId === 'string' &&
-          project.projectId.length > 0 &&
-          siteRecorded)
-      ),
-      connectorVerified: vercelConnectorReady,
-    },
-    github: {
-      signedIn: githubSignedIn || githubConnectorReady,
-      account: githubConnectorReady ? connectorAccount : githubLogin,
-      albumRemote: githubCliReady || githubConnectorReady,
-      connectorVerified: githubConnectorReady,
-    },
-    ownerAccessConfirmed: Boolean(
-      state.ownerAccess?.confirmedAt &&
-      typeof site?.siteUrl === 'string' &&
-      state.ownerAccess.siteUrl === site.siteUrl
-    ),
+    ...(checkHosting ? probeHosting(root, state, run, now) : {}),
   };
 }
 
-export function nextStep(status) {
-  if (status.path === 'light') {
-    if (!status.album) {
-      return 'Collect the album name, genre, and track titles, then write album/album.json and album/BRIEF.md.';
-    }
-    if (!status.suno.capabilitiesVerified) {
-      return 'Check the signed-in Suno browser, or an existing paid connection, for create, status, and models. When Suno hides the balance, do not ask for it.';
-    }
-    return 'Open the local preview. Scores and the pass stay on this computer. Do not connect GitHub, Vercel, or Cursor.';
-  }
-  if (!status.album) {
-    return 'Collect the album name, genre, and track titles, then write album/album.json and album/BRIEF.md.';
-  }
-  if (!status.suno.capabilitiesVerified) {
-    return 'Check the signed-in Suno connector or Free browser for create, status, and models; check credits when the account exposes them. Record only capabilities observed in the account.';
-  }
+function nextHostingStep(status) {
   if (!status.github.signedIn) {
     return 'Connect GitHub, then verify the user-owned album repository and distinct origin and kit remotes.';
   }
@@ -193,13 +197,46 @@ export function nextStep(status) {
   if (!status.vercel.siteProvisioned) {
     return 'Verify the Vercel project through the connector or CLI, then finish site setup and any Neon handoff.';
   }
-  if (!status.ownerAccessConfirmed) {
+  if (!status.hostedOnly && !status.ownerAccessConfirmed) {
     return 'Open the one-time owner link, confirm Compare takes opens, and check that the site plays. Then run pnpm onboarding confirm-owner-access.';
   }
-  if (
-    (status.path === 'studio' || status.path === 'full') &&
-    !status.cursor.modelExecutionVerified
-  ) {
+  return null;
+}
+
+export function nextStep(status) {
+  if (status.hostedOnly) {
+    return (
+      nextHostingStep(status) ??
+      'Open /vote signed out, check that a take plays and the score buttons are available, then share the public link.'
+    );
+  }
+  if (status.needsPathChoice) {
+    return 'Choose Album Bot Light for a quick local album or Full Setup to compare Cursor writers with paid Suno.';
+  }
+  if (!status.album) {
+    return 'Collect the album name, genre, and track titles, then write album/album.json and album/BRIEF.md.';
+  }
+  if (!status.github) {
+    if (status.path === 'light') {
+      if (!status.suno.capabilitiesVerified) {
+        return 'Check the signed-in Suno browser, or an existing paid connection, for create, status, and models. When Suno hides the balance, do not ask for it.';
+      }
+      return 'Generate the tracks and open the local preview to listen and score.';
+    }
+    if (!status.suno.capabilitiesVerified) {
+      return 'Connect the paid Suno account and check its available models, generation tools, and credits.';
+    }
+    if (!status.cursor.modelExecutionVerified) {
+      return 'Connect the Cursor project and verify which prompt writers it can run.';
+    }
+    return 'Choose up to five available Cursor writers. Compare each original prompt with the combined version, show the take count and Suno credit cost, and generate the tracks.';
+  }
+  if (!status.suno.capabilitiesVerified) {
+    return 'Check the signed-in Suno connector or Free browser for create, status, and models; check credits when the account exposes them. Record only capabilities observed in the account.';
+  }
+  const hostingStep = nextHostingStep(status);
+  if (hostingStep) return hostingStep;
+  if (status.path === 'studio' && !status.cursor.modelExecutionVerified) {
     return 'Check Cursor installation and connected Project execution; record only an observed model, or use Album Bot Light.';
   }
   return `Run the Suno preflight before generation and ask about cost only when the cost threshold requires it.${status.suno.downloadVerified ? '' : ' Verify download capability before final export.'}`;
@@ -212,26 +249,28 @@ function saveState(root, state) {
 }
 
 function printStatus(status) {
-  const steps = [
-    ['Album brief', status.album],
-    ['Suno capabilities', status.suno.capabilitiesVerified],
-    ['GitHub remotes', status.github.albumRemote],
-    ['Vercel site record', status.vercel.siteProvisioned],
-    ['Owner access', status.ownerAccessConfirmed],
-    ...(status.path === 'studio' || status.path === 'full'
-      ? [['Cursor execution', status.cursor.modelExecutionVerified]]
-      : []),
-  ];
-  const visible =
-    status.path === 'light'
-      ? [
-          ['Album brief', status.album],
-          ['Suno capabilities', status.suno.capabilitiesVerified],
-        ]
-      : steps;
+  const { hostedOnly } = status;
+  const visible = [];
+  if (!hostedOnly) {
+    visible.push(
+      ['Album brief', status.album],
+      ['Suno capabilities', status.suno.capabilitiesVerified]
+    );
+  }
+  if (status.github) {
+    visible.push(
+      ['GitHub remotes', status.github.albumRemote],
+      ['Vercel site record', status.vercel.siteProvisioned]
+    );
+    if (!hostedOnly) visible.push(['Owner access', status.ownerAccessConfirmed]);
+  }
+  if (!hostedOnly && (status.path === 'studio' || status.path === 'full')) {
+    visible.push(['Cursor execution', status.cursor.modelExecutionVerified]);
+  }
   const complete = visible.filter(([, ready]) => ready).length;
-  const pathLabel =
-    status.path === 'light'
+  const pathLabel = status.needsPathChoice
+    ? 'Choose your setup'
+    : status.path === 'light'
       ? 'Album Bot Light'
       : status.path === 'full'
         ? 'Full Setup'
@@ -239,18 +278,24 @@ function printStatus(status) {
           ? 'Studio'
           : 'Quick start';
   console.log(`Onboarding ${complete}/${visible.length} · ${pathLabel}`);
-  console.log(
-    `Cursor: ${status.cursor.installed ? 'installed' : 'not detected'}; connected model execution ${status.cursor.modelExecutionVerified ? 'observed' : 'unverified'}`
-  );
-  console.log(
-    `Suno: ${status.suno.capabilitiesVerified ? `capabilities checked via ${status.suno.method}; download ${status.suno.downloadVerified ? 'verified' : 'unverified'}` : 'account/connector capabilities unverified or stale'}`
-  );
-  console.log(
-    `GitHub: ${status.github.connectorVerified ? 'connector verified' : status.github.signedIn ? 'CLI signed in' : 'not verified'}; album remote ${status.github.albumRemote ? 'verified' : 'pending'}`
-  );
-  console.log(
-    `Vercel: ${status.vercel.connectorVerified ? 'connector verified' : status.vercel.cliSignedIn ? 'CLI signed in' : 'not verified'}; site ${status.vercel.siteProvisioned ? 'saved locally (check live URL)' : 'not verified'}`
-  );
+  if (!hostedOnly && status.path !== 'light') {
+    console.log(
+      `Cursor: ${status.cursor.installed ? 'installed' : 'not detected'}; connected model execution ${status.cursor.modelExecutionVerified ? 'observed' : 'unverified'}`
+    );
+  }
+  if (!hostedOnly) {
+    console.log(
+      `Suno: ${status.suno.capabilitiesVerified ? `capabilities checked via ${status.suno.method}; download ${status.suno.downloadVerified ? 'verified' : 'unverified'}` : 'account/connector capabilities unverified or stale'}`
+    );
+  }
+  if (status.github) {
+    console.log(
+      `GitHub: ${status.github.connectorVerified ? 'connector verified' : status.github.signedIn ? 'CLI signed in' : 'not verified'}; album remote ${status.github.albumRemote ? 'verified' : 'pending'}`
+    );
+    console.log(
+      `Vercel: ${status.vercel.connectorVerified ? 'connector verified' : status.vercel.cliSignedIn ? 'CLI signed in' : 'not verified'}; site ${status.vercel.siteProvisioned ? 'saved locally (check live URL)' : 'not verified'}`
+    );
+  }
   for (const [label, ready] of visible) console.log(`${ready ? '✓' : '○'} ${label}`);
   console.log(`Next: ${nextStep(status)}`);
 }
@@ -258,6 +303,7 @@ function printStatus(status) {
 export function main(argv = process.argv.slice(2), root = process.cwd(), run = commandResult) {
   const state = parseJson(path.join(root, STATE_FILE)) ?? {};
   const [action, ...args] = argv;
+  const hostedStatus = action === 'status' && args.length === 1 && args[0] === '--hosted';
   if (
     action === 'path' &&
     (args[0] === 'quick' || args[0] === 'studio' || args[0] === 'light' || args[0] === 'full') &&
@@ -313,12 +359,16 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), run = c
     }
     state.ownerAccess = { confirmedAt: new Date().toISOString(), siteUrl };
     saveState(root, state);
-  } else if (action !== undefined && (action !== 'status' || args.length > 0)) {
+  } else if (action !== undefined && !hostedStatus && (action !== 'status' || args.length > 0)) {
     throw new Error(
-      'Usage: pnpm onboarding [status | path quick|studio|light|full | verify-suno mcp create status models credits [download] | verify-suno browser create status models [credits] [download] | verify-github <account> <owner/repo> | verify-vercel <project> <site-url> | verify-cursor <observed-model> | confirm-owner-access]'
+      'Usage: pnpm onboarding [status [--hosted] | path quick|studio|light|full | verify-suno mcp create status models credits [download] | verify-suno browser create status models [credits] [download] | verify-github <account> <owner/repo> | verify-vercel <project> <site-url> | verify-cursor <observed-model> | confirm-owner-access]'
     );
   }
-  const status = probeReadiness(root, run);
+  const legacyPath = state.path === 'quick' || state.path === 'studio';
+  const hosted =
+    hostedStatus ||
+    (!legacyPath && ['verify-github', 'verify-vercel', 'confirm-owner-access'].includes(action));
+  const status = probeReadiness(root, run, Date.now(), { hosted });
   printStatus(status);
   return status;
 }

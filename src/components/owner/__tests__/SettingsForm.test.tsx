@@ -9,20 +9,13 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 afterEach(() => vi.unstubAllGlobals());
 
 describe('album settings', () => {
-  it('saves listener voting and shows the public listen link', async () => {
-    const updated = { ...DEFAULT_SETTINGS, listenerVoting: true, promptVariations: 2 };
-    const fetch = vi.fn().mockResolvedValue(Response.json({ resolved: updated }));
-    vi.stubGlobal('fetch', fetch);
+  it('shows the public album link with scoring already available', () => {
     render(<SettingsForm albumTitle='Album' initial={DEFAULT_SETTINGS} lastSunoCheck={null} />);
-    fireEvent.change(screen.getByLabelText('Who can vote'), { target: { value: 'listeners' } });
-    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes');
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Up to date'));
-    expect(JSON.parse(fetch.mock.calls[0]?.[1].body)).toEqual({ patch: { listenerVoting: true } });
-    expect(screen.getByRole('spinbutton', { name: 'Prompts per track' })).toHaveValue(2);
-    expect(screen.getByRole('textbox', { name: 'Listener link' })).toHaveValue(
-      `${window.location.origin}/listen`
+    expect(screen.getByRole('textbox', { name: 'Album link' })).toHaveValue(
+      `${window.location.origin}/vote`
     );
+    expect(screen.queryByLabelText('Who can vote')).not.toBeInTheDocument();
+    expect(screen.getByText(/each browser keeps its own scores/i)).toBeInTheDocument();
   });
 
   it('keeps edits available for retry when saving fails', async () => {

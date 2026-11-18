@@ -1,8 +1,6 @@
 import 'server-only';
 
 import { albumKey, isOwnerRequest } from '@/lib/owner/auth';
-import { canCastVote } from '@/lib/settings/access';
-import { loadSettings } from '@/lib/settings/store';
 import { LISTENER_IDENTITIES_PER_HOUR, LISTENER_IDENTITIES_WINDOW_MS } from '@/lib/votes/abuse';
 import { takeAttempt } from '@/lib/votes/attempt-log';
 import {
@@ -25,11 +23,6 @@ export async function resolveVoter(
   }
   if (await isOwnerRequest(request)) {
     return { voter: { kind: 'owner' } };
-  }
-
-  const settings = await loadSettings();
-  if (!canCastVote({ listenerVoting: settings.listenerVoting, owner: false })) {
-    return { error: Response.json({ error: 'Write token required' }, { status: 401 }) };
   }
 
   const existing = listenerIdFromRequest(request);
@@ -62,18 +55,4 @@ export async function resolveVoter(
       issuedCookie: listenerCookieValue(id),
     },
   };
-}
-
-export async function canPlayBlindTake(request: Request): Promise<boolean> {
-  if (albumKey() === null) {
-    return false;
-  }
-  if (await isOwnerRequest(request)) {
-    return true;
-  }
-  const settings = await loadSettings();
-  return canCastVote({
-    listenerVoting: settings.listenerVoting,
-    owner: false,
-  });
 }

@@ -139,15 +139,7 @@ describe('album progress', () => {
           { trackNumber: 2, title: 'Second' },
         ],
         playableNumbers: [1],
-        listenerVoting: false,
       })
     ).toEqual([{ trackNumber: 1, title: 'First', path: '/vote/first' }]);
-    expect(
-      liveTrackLinks({
-        tracks: [{ trackNumber: 1, title: 'First' }],
-        playableNumbers: [1],
-        listenerVoting: true,
-      })[0]?.path
-    ).toBe('/listen/first');
   });
 });

@@ -8,10 +8,8 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('server-only', () => ({}));
-vi.mock('@/lib/votes/voter', () => ({
-  canPlayBlindTake: async () => state.play,
-}));
 vi.mock('@/lib/owner/auth', () => ({
+  albumKey: () => (state.play ? 'test-album-key' : null),
   OWNER_VISITOR_ID: 'owner',
   isOwnerRequest: () => state.owner,
 }));
@@ -53,13 +51,13 @@ beforeEach(() => {
 });
 
 describe('GET /api/blind-audio', () => {
-  it('blocks listeners while listener voting is off', async () => {
+  it('reports a missing server signing key', async () => {
     const response = await get();
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(503);
     expect(state.allowUnpinned).toBe(false);
   });
 
-  it('streams the opaque take for someone allowed to vote', async () => {
+  it('streams an opaque take to a listener without an account', async () => {
     state.play = true;
     const response = await get();
     expect(response.status).toBe(200);

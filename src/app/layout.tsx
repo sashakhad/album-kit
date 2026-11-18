@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 
 import { SiteHeader } from '@/components/album/SiteHeader';
 import { loadAlbumConfig } from '@/lib/album/album-config';
-import { loadSettings } from '@/lib/settings/store';
+import { isOwner } from '@/lib/owner/auth';
 
 import './globals.css';
 
@@ -36,18 +36,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  const [{ title }, settings] = await Promise.all([albumHeading(), loadSettings()]);
+  const [{ title }, owner] = await Promise.all([albumHeading(), isOwner()]);
 
   return (
     <html lang='en' className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <body className='font-sans antialiased'>
-        <SiteHeader
-          albumTitle={title}
-          showListen
-          showVote
-          showSettings
-          listenerVoting={settings.listenerVoting}
-        />
+        <SiteHeader albumTitle={title} showSettings={owner} />
         {children}
       </body>
     </html>

@@ -3,7 +3,6 @@ import 'server-only';
 import { loadAlbumConfig } from '@/lib/album/album-config';
 import { listSets } from '@/lib/album/load-album';
 import { prisma } from '@/lib/prisma';
-import { loadSettings } from '@/lib/settings/store';
 import {
   idleProgress,
   liveTrackLinks,
@@ -74,7 +73,7 @@ async function loadRoundProgress(): Promise<AlbumProgress> {
 
 async function loadLiveTracks(progress: AlbumProgress): Promise<LiveTrackLink[]> {
   try {
-    const [versions, settings] = await Promise.all([listSets(), loadSettings().catch(() => null)]);
+    const versions = await listSets();
     const playableNumbers: number[] = [];
     for (const version of versions) {
       for (const track of version.tracks) {
@@ -89,7 +88,6 @@ async function loadLiveTracks(progress: AlbumProgress): Promise<LiveTrackLink[]>
     return liveTrackLinks({
       tracks: progress.tracks,
       playableNumbers,
-      listenerVoting: settings?.listenerVoting === true,
     });
   } catch {
     return [];

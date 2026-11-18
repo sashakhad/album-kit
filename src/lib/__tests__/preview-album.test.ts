@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -217,9 +217,10 @@ describe('album preview', () => {
     await mkdir(unpacked);
     execFileSync('unzip', ['-q', report.archive ?? '', '-d', unpacked]);
     const html = await readFile(path.join(unpacked, 'Open Album.html'), 'utf8');
-    const audio = await readFile(path.join(unpacked, 'audio', '1-1.mp3'));
+    const localSrc = `audio/${takeId(localName)}.mp3`;
+    const audio = await readFile(path.join(unpacked, localSrc));
     expect(audio.toString()).toBe('local-mp3-bytes');
-    expect(html).toContain('audio/1-1.mp3');
+    expect(html).toContain(localSrc);
     expect(html).toContain('data-online="false"');
     expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
     expect(html).toContain('Internet required');
@@ -229,6 +230,55 @@ describe('album preview', () => {
     expect(html).not.toContain('other-song');
     expect(html).not.toContain('clipA.mp4');
     expect(html).toContain('oklch(0.145 0 0)');
+  });
+
+  it('hands off one standalone HTML file when the first public take is ready', async () => {
+    const root = await writeFixture();
+    const catalog = path.join(root, '.tmp', 'album-preview-streams.json');
+    await writeFile(
+      catalog,
+      JSON.stringify([
+        { filename: localName, clipId: 'clipA', streamUrl: 'https://cdn1.suno.ai/clipA.mp4' },
+      ])
+    );
+    const result = await runPreview(root, ['--streams-only']);
+    expect(result.code).toBe(0);
+    const report = readReport(result.stdout);
+    expect(report).toMatchObject({ offline: 0, online: 1 });
+    expect(await readdir(path.dirname(report.page))).toEqual(['Open Album.html']);
+    const html = await readFile(report.page, 'utf8');
+    expect(html).toContain('data-src="https://cdn1.suno.ai/clipA.mp4"');
+    expect(html).not.toContain('data-src="audio/');
+    await writeFile(catalog, '[]');
+    const empty = await runPreview(root, ['--streams-only']);
+    expect(empty.code).toBe(1);
+    expect(empty.stdout).toBe('');
+  });
+
+  it('plays and scores later takes at the original link after a normal refresh', async () => {
+    const root = await writeFixture();
+    const audio = path.join(root, 'album', 'audio');
+    await rename(path.join(audio, localName), path.join(audio, streamName));
+    await writeFile(path.join(root, '.tmp', 'album-preview-streams.json'), '[]');
+    const first = readReport((await runPreview(root, ['--serve'])).stdout);
+    const url = first.url ?? '';
+    const audioUrl = (name: string) => new URL(`audio/${takeId(name)}.mp3`, url);
+    const firstAudio = await (await fetch(audioUrl(streamName))).text();
+    await putVote(url, takeId(streamName), 1);
+
+    // The later take sorts before the one already playing.
+    await writeFile(path.join(audio, localName), 'later-audio');
+    expect((await runPreview(root, [])).code).toBe(0);
+    const updated = await (await fetch(url)).text();
+    expect(updated).toContain(takeId(localName));
+    expect(await (await fetch(audioUrl(streamName))).text()).toBe(firstAudio);
+    expect(await (await fetch(audioUrl(localName))).text()).toBe('later-audio');
+    const ballot = await putVote(url, takeId(localName), -1);
+    expect(ballot.votes).toEqual({ [takeId(streamName)]: 1, [takeId(localName)]: -1 });
+
+    await rm(path.join(audio, localName));
+    expect((await runPreview(root, [])).code).toBe(0);
+    expect((await fetch(audioUrl(localName))).status).toBe(404);
   });
 
   it('keeps cumulative scores across a preview restart', async () => {
