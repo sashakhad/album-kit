@@ -130,7 +130,7 @@ it('runs from the fresh kit’s script when invoked outside both directories', (
   write(kit, script, read(process.cwd(), script));
   const message = execFileSync(process.execPath, [path.join(kit, script), album], {
     cwd: root,
-    env: { PATH: '' },
+    env: { PATH: '', NODE_ENV: 'test' },
     encoding: 'utf8',
   });
   expect(message).toContain('Updated');

@@ -27,7 +27,7 @@ export class ExitError extends Error {
   }
 }
 
-export function createRunner({ dryRun, scope }) {
+export function createRunner({ dryRun, scope = '' }) {
   function run(command, args, options = {}) {
     const shown = [command, ...args.map((arg, index) => maskArg(args, index, arg, options))]
       .map(quote)

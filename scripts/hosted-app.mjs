@@ -38,7 +38,7 @@ function projectAliases(project) {
 }
 
 /** Resolve an existing album link or reserve a new project. Never adopt a name collision. */
-export async function hostedProject(root, { name, scope, site, create }, runner) {
+export async function hostedProject(root, { name, scope = '', site = null, create }, runner) {
   if (!projectPattern.test(name) || (scope && !scopePattern.test(scope))) {
     throw new Error('A valid Vercel project and account scope are required.');
   }
@@ -53,7 +53,7 @@ export async function hostedProject(root, { name, scope, site, create }, runner)
   }
   const savedId = link?.projectId ?? site?.projectId;
   const owner = link?.orgId ?? site?.orgId;
-  const selectedScope = scope ?? site?.scope ?? owner;
+  const selectedScope = scope || site?.scope || owner;
   if (
     (process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID !== savedId) ||
     (process.env.VERCEL_ORG_ID && process.env.VERCEL_ORG_ID !== owner)
