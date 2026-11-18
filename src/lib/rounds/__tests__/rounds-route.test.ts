@@ -4,6 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const settingsState = vi.hoisted(() => ({
   reviewTakes: 'public' as 'public' | 'private',
   sunoModel: 'auto',
+  promptWriter: 'grok-bot' as 'grok-bot' | 'cursor',
+  comparison: 'off' as 'off' | 'originals-plus-combined' | 'curated',
+  writerLineup: [] as string[],
+  promptVariations: 2,
 }));
 
 vi.mock('server-only', () => ({}));
@@ -12,9 +16,12 @@ vi.mock('@/lib/settings/store', () => ({
   loadSettings: async () => ({
     ...(await import('@/lib/settings/schema')).DEFAULT_SETTINGS,
     preset: 'small-test',
-    promptVariations: 2,
+    promptVariations: settingsState.promptVariations,
     sunoModel: settingsState.sunoModel,
     reviewTakes: settingsState.reviewTakes,
+    promptWriter: settingsState.promptWriter,
+    comparison: settingsState.comparison,
+    writerLineup: settingsState.writerLineup,
   }),
 }));
 vi.mock('@/lib/album/album-config', () => ({
@@ -68,6 +75,10 @@ function request(overrides: Record<string, unknown> = {}) {
 afterEach(() => {
   settingsState.reviewTakes = 'public';
   settingsState.sunoModel = 'auto';
+  settingsState.promptWriter = 'grok-bot';
+  settingsState.comparison = 'off';
+  settingsState.writerLineup = [];
+  settingsState.promptVariations = 2;
 });
 
 describe('round creation', () => {
@@ -165,5 +176,137 @@ describe('round creation', () => {
       downloads: 4,
     });
     expect(result.round.snapshot.settings.reviewTakes).toBe('private');
+  });
+
+  it('accepts a Cursor round after the selected models return prompts', async () => {
+    settingsState.promptWriter = 'cursor';
+    settingsState.comparison = 'originals-plus-combined';
+    settingsState.writerLineup = ['Opus', 'Sonnet'];
+    const styles = [
+      'Warm upright bass, brushed snare and a slow soul vocal line.',
+      'Muted guitar stabs, soft organ and a late-night groove.',
+      'Bass and organ together, with the brushed snare from the soul lane.',
+    ];
+    const response = await POST(
+      request({
+        externalSpendEstimateUsd: 0,
+        prompts: [
+          {
+            id: 'p1',
+            trackNumber: 1,
+            lane: 1,
+            style: styles[0],
+            writerHost: 'cursor',
+            writerProvider: 'Anthropic',
+            requestedModel: 'Opus',
+            observedModel: 'Opus',
+            executionId: 'run-opus',
+            revision: 1,
+            role: 'original',
+            lyrics: '[Instrumental]',
+            brief: 'Slow soul',
+          },
+          {
+            id: 'p2',
+            trackNumber: 1,
+            lane: 2,
+            style: styles[1],
+            writerHost: 'cursor',
+            writerProvider: 'Anthropic',
+            requestedModel: 'Sonnet',
+            observedModel: 'Sonnet',
+            executionId: 'run-sonnet',
+            revision: 1,
+            role: 'original',
+            lyrics: '[Instrumental]',
+            brief: 'Slow soul',
+          },
+          {
+            id: 'p3',
+            trackNumber: 1,
+            lane: 3,
+            style: styles[2],
+            writerHost: 'grok-bot',
+            revision: 1,
+            role: 'combined',
+            contributors: ['Opus', 'Sonnet'],
+            lyrics: '[Instrumental]',
+            brief: 'Slow soul',
+          },
+        ],
+      })
+    );
+    const result = await response.json();
+    expect(response.status).toBe(201);
+    expect(result.round.status).toBe('preparing');
+    expect(result.estimate).toMatchObject({
+      prompts: 3,
+      expectedOutputs: 6,
+      balanceKnown: true,
+      blockers: [],
+    });
+    expect(result.round.snapshot.prompts[2]).toMatchObject({
+      role: 'combined',
+      contributors: ['Opus', 'Sonnet'],
+    });
+  });
+
+  it('does not credit a Cursor name that never ran', async () => {
+    settingsState.promptWriter = 'cursor';
+    settingsState.comparison = 'originals-plus-combined';
+    settingsState.writerLineup = ['Opus'];
+    const response = await POST(
+      request({
+        externalSpendEstimateUsd: 0,
+        prompts: [
+          {
+            id: 'p1',
+            trackNumber: 1,
+            lane: 1,
+            style: 'Warm upright bass, brushed snare and a slow soul vocal line.',
+            writerHost: 'cursor',
+            requestedModel: 'Opus',
+            revision: 1,
+            role: 'original',
+          },
+          {
+            id: 'p2',
+            trackNumber: 1,
+            lane: 2,
+            style: 'Muted guitar stabs, soft organ and a late-night groove.',
+            writerHost: 'grok-bot',
+            revision: 1,
+            role: 'combined',
+            contributors: ['Opus'],
+          },
+        ],
+      })
+    );
+    expect(response.status).toBe(400);
+    const result = await response.json();
+    expect(result.error.join(' ')).toContain('has not run');
+  });
+
+  it('lets a hidden Suno balance through when the batch is inside the spending limit', async () => {
+    const response = await POST(
+      request({
+        capabilities: {
+          availableModels: ['v6-mini'],
+          qualityDefault: 'v6-mini',
+          costModel: 'v6-mini',
+          creditsPerGeneration: 10,
+          outputsPerGeneration: 2,
+          downloadsPerOutput: 0,
+          generationCreditsAvailable: null,
+          downloadsAvailable: 0,
+          checkedAt: new Date().toISOString(),
+        },
+      })
+    );
+    const result = await response.json();
+    expect(response.status).toBe(201);
+    expect(result.estimate.balanceKnown).toBe(false);
+    expect(result.estimate.blockers).toEqual([]);
+    expect(result.round.status).toBe('preparing');
   });
 });

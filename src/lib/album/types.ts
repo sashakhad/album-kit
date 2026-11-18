@@ -20,6 +20,7 @@ export type AlbumTake = {
     promptSource?: 'generation' | 'sheet' | 'unavailable';
     parentTakeFilename?: string;
     promptInstructions?: string;
+    contributors?: string[];
   };
 };
 

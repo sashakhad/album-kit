@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { promptsPerTrack } from '@/lib/rounds/lineup';
 import type { AlbumSettingsValue } from '@/lib/settings/schema';
 
 export const sunoCapabilitiesSchema = z.object({
@@ -9,7 +10,8 @@ export const sunoCapabilitiesSchema = z.object({
   creditsPerGeneration: z.number().int().positive(),
   outputsPerGeneration: z.number().int().positive(),
   downloadsPerOutput: z.number().int().min(0),
-  generationCreditsAvailable: z.number().int().min(0),
+  /** Null when Suno hides the balance. The agreed batch and spending limit still apply. */
+  generationCreditsAvailable: z.number().int().min(0).nullable(),
   downloadsAvailable: z.number().int().min(0),
   checkedAt: z.string().datetime(),
 });
@@ -56,6 +58,7 @@ export type RoundEstimate = {
   migration: string | null;
   externalSpendEstimateUsd: number;
   hostingChargeEstimateUsd: number;
+  balanceKnown: boolean;
   blockers: string[];
 };
 
@@ -66,11 +69,17 @@ export function estimateRound(args: {
   externalSpendEstimateUsd?: number | undefined;
   hostingChargeEstimateUsd?: number | undefined;
   hostingEligibilityVerified?: boolean | undefined;
+  returnedPrompts?: ReadonlyArray<{
+    writerHost: 'grok-bot' | 'cursor';
+    writerProvider?: string | null | undefined;
+    observedModel?: string | null | undefined;
+    executionId?: string | null | undefined;
+  }>;
 }): RoundEstimate {
   const capabilities = sunoCapabilitiesSchema.parse(args.capabilities);
   const tracks = z.number().int().positive().parse(args.tracks);
   const { model, migration } = resolveSunoModel(args.settings.sunoModel, capabilities);
-  const prompts = tracks * args.settings.promptVariations;
+  const prompts = tracks * promptsPerTrack(args.settings);
   const generations = prompts * args.settings.generationsPerPrompt;
   const expectedOutputs = generations * capabilities.outputsPerGeneration;
   const generationCredits = generations * capabilities.creditsPerGeneration;
@@ -113,7 +122,10 @@ export function estimateRound(args: {
       `Generation cost for ${model} must be verified; the supplied rate is for ${capabilities.costModel}.`
     );
   }
-  if (generationCredits > capabilities.generationCreditsAvailable) {
+  if (
+    capabilities.generationCreditsAvailable !== null &&
+    generationCredits > capabilities.generationCreditsAvailable
+  ) {
     blockers.push(
       `Need ${generationCredits} generation credits; ${capabilities.generationCreditsAvailable} available.`
     );
@@ -126,10 +138,15 @@ export function estimateRound(args: {
       `Generation estimate exceeds the ${args.settings.generationCreditLimit}-credit limit.`
     );
   }
-  if (args.settings.promptWriter === 'cursor' && args.externalSpendEstimateUsd === undefined) {
+  const cursorReady = cursorExecutionsVerified(args.returnedPrompts);
+  if (
+    args.settings.promptWriter === 'cursor' &&
+    !cursorReady &&
+    args.externalSpendEstimateUsd === undefined
+  ) {
     blockers.push('Cursor model cost and execution path must be verified before this round.');
   }
-  if (args.settings.promptWriter === 'cursor') {
+  if (args.settings.promptWriter === 'cursor' && !cursorReady) {
     blockers.push(
       'Cursor prompt execution is not connected to this kit. Complete a verified Cursor handoff or use Grok Bot.'
     );
@@ -155,8 +172,41 @@ export function estimateRound(args: {
     migration,
     externalSpendEstimateUsd: args.externalSpendEstimateUsd ?? 0,
     hostingChargeEstimateUsd: args.hostingChargeEstimateUsd ?? 0,
+    balanceKnown: capabilities.generationCreditsAvailable !== null,
     blockers,
   };
+}
+
+export function cursorExecutionsVerified(
+  prompts:
+    | ReadonlyArray<{
+        writerHost: 'grok-bot' | 'cursor';
+        writerProvider?: string | null | undefined;
+        observedModel?: string | null | undefined;
+        executionId?: string | null | undefined;
+      }>
+    | undefined
+): boolean {
+  if (prompts === undefined || prompts.length === 0) return false;
+  let sawCursor = false;
+  for (const prompt of prompts) {
+    if (prompt.writerHost !== 'cursor') continue;
+    sawCursor = true;
+    if (
+      prompt.writerProvider === null ||
+      prompt.writerProvider === undefined ||
+      prompt.writerProvider.length === 0 ||
+      prompt.observedModel === null ||
+      prompt.observedModel === undefined ||
+      prompt.observedModel.length === 0 ||
+      prompt.executionId === null ||
+      prompt.executionId === undefined ||
+      prompt.executionId.length === 0
+    ) {
+      return false;
+    }
+  }
+  return sawCursor;
 }
 
 export type PromptAttribution = {

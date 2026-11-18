@@ -47,7 +47,19 @@ function takeLabel(number) {
     : takeLabel(Math.floor((number - 1) / 26)) + takeLabel(((number - 1) % 26) + 1);
 }
 
-async function renderPreview(album, tracks) {
+function albumKeyFor(album) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        title: album.title,
+        tracks: album.tracks.map(track => [track.number, track.slug]),
+      })
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
+async function renderPreview(album, tracks, albumKey) {
   const [template, styles] = await Promise.all([
     readFile(new URL('./album-preview.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/globals.css', import.meta.url), 'utf8'),
@@ -79,8 +91,12 @@ async function renderPreview(album, tracks) {
     artist: album.artist ? `<p class="artist">${escapeHtml(album.artist)}</p>` : '',
     tracks: sections || '<p class="muted">No tracks yet.</p>',
     theme,
+    albumKey: JSON.stringify(albumKey),
   };
-  return template.replace(/\{\{(title|artist|tracks|theme)\}\}/g, (_, key) => replacements[key]);
+  return template.replace(
+    /\{\{(title|artist|tracks|theme|albumKey)\}\}/g,
+    (_, key) => replacements[key]
+  );
 }
 
 async function preview(root, makeZip, serve) {
@@ -88,6 +104,7 @@ async function preview(root, makeZip, serve) {
   const audioRoot = path.join(albumRoot, 'audio');
   const output = path.join(root, '.tmp', 'album-preview');
   const album = await readJson(path.join(albumRoot, 'album.json'));
+  const albumKey = albumKeyFor(album);
   const streams = await readJson(path.join(root, '.tmp', 'album-preview-streams.json'), []);
   if (!Array.isArray(streams)) throw new Error('The preview stream catalog must be a JSON array.');
 
@@ -146,7 +163,7 @@ async function preview(root, makeZip, serve) {
         offline++;
       }
     }
-    await writeFile(path.join(staging, files[0]), await renderPreview(album, tracks));
+    await writeFile(path.join(staging, files[0]), await renderPreview(album, tracks, albumKey));
     const archive = path.join(parent, 'album-preview.zip');
     if (makeZip) {
       execFileSync('zip', ['-q', '-0', path.join(staging, 'preview.zip'), ...files], {
@@ -161,7 +178,7 @@ async function preview(root, makeZip, serve) {
     await rename(path.join(staging, files[0]), page);
     if (makeZip) await rename(path.join(staging, 'preview.zip'), archive);
     const url = serve
-      ? await servePreview({ output, files: new Set(files.slice(1)), names })
+      ? await servePreview({ output, files: new Set(files.slice(1)), names, albumKey })
       : null;
     console.log(
       JSON.stringify({

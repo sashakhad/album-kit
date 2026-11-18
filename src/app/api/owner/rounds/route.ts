@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { OWNER_VISITOR_ID, requireOwner } from '@/lib/owner/auth';
+import { comparisonProblems, promptsPerTrack } from '@/lib/rounds/lineup';
 import { estimateRound, promptAttribution, sunoCapabilitiesSchema } from '@/lib/rounds/preflight';
 import { loadSettings } from '@/lib/settings/store';
 import { prisma } from '@/lib/prisma';
@@ -33,6 +34,10 @@ const bodySchema = z.object({
         observedModel: z.string().nullable().optional(),
         executionId: z.string().nullable().optional(),
         revision: z.number().int().positive(),
+        role: z.enum(['original', 'combined']).optional(),
+        contributors: z.array(z.string().min(1).max(120)).max(5).optional(),
+        lyrics: z.string().max(5000).optional(),
+        brief: z.string().max(5000).optional(),
       })
     )
     .min(1),
@@ -115,6 +120,8 @@ export async function POST(request: Request) {
         ...settings,
         sunoModel: parsed.data.sunoModelOverride ?? settings.sunoModel,
         promptVariations: 1,
+        comparison: 'off' as const,
+        writerLineup: [],
         generationsPerPrompt: Math.ceil(
           variation.requestedTakes / parsed.data.capabilities.outputsPerGeneration
         ),
@@ -129,7 +136,16 @@ export async function POST(request: Request) {
       { status: 409 }
     );
   }
-  const estimate = estimateRound({ ...parsed.data, settings: roundSettings });
+  const comparisonErrors = comparisonProblems(roundSettings, parsed.data.prompts);
+  if (comparisonErrors.length > 0) {
+    return NextResponse.json({ error: comparisonErrors }, { status: 400 });
+  }
+  const slotsPerTrack = variation ? 20 : promptsPerTrack(settings);
+  const estimate = estimateRound({
+    ...parsed.data,
+    settings: roundSettings,
+    returnedPrompts: parsed.data.prompts,
+  });
   const ids = new Set(parsed.data.prompts.map(prompt => prompt.id));
   const trackNumbers = new Set(parsed.data.prompts.map(prompt => prompt.trackNumber));
   const slots = new Set(parsed.data.prompts.map(prompt => `${prompt.trackNumber}:${prompt.lane}`));
@@ -138,7 +154,7 @@ export async function POST(request: Request) {
     ids.size !== estimate.prompts ||
     trackNumbers.size !== parsed.data.tracks ||
     slots.size !== estimate.prompts ||
-    parsed.data.prompts.some(prompt => prompt.lane > (variation ? 20 : settings.promptVariations))
+    parsed.data.prompts.some(prompt => prompt.lane > slotsPerTrack)
   ) {
     return NextResponse.json(
       { error: 'Prompt slots must match the exact track and variation count' },
@@ -168,6 +184,10 @@ export async function POST(request: Request) {
       executionId: prompt.executionId ?? null,
       revision: prompt.revision,
     }),
+    ...(prompt.role === undefined ? {} : { role: prompt.role }),
+    ...(prompt.contributors === undefined ? {} : { contributors: prompt.contributors }),
+    ...(prompt.lyrics === undefined ? {} : { lyrics: prompt.lyrics }),
+    ...(prompt.brief === undefined ? {} : { brief: prompt.brief }),
   }));
   if (
     variation?.status === 'generating' &&

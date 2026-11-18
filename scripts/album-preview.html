@@ -68,13 +68,16 @@
             <input id="seek" type="range" min="0" max="0" value="0" step="0.1" aria-label="Seek" />
             <span id="duration">0:00</span>
           </label>
+          <p id="stream-notice" class="muted"></p>
           <section id="ballot" aria-label="Compare takes" hidden>
+            <p id="pass-label" class="muted">Pass 1</p>
             <p id="vote-progress" class="muted"></p>
             <div class="controls">
               <button id="upvote" type="button" aria-label="Add one point">+</button>
               <output id="take-score" aria-label="Take score">0</output>
               <button id="downvote" type="button" aria-label="Subtract one point">−</button>
               <button id="next-unrated" type="button">Next unrated</button>
+              <button id="next-pass" type="button">Next pass</button>
             </div>
             <p id="vote-status" class="muted" role="status"></p>
           </section>
@@ -104,11 +107,15 @@
         const upvote = document.querySelector('#upvote');
         const downvote = document.querySelector('#downvote');
         const unrated = document.querySelector('#next-unrated');
+        const nextPass = document.querySelector('#next-pass');
         const voteStatus = document.querySelector('#vote-status');
+        const albumKey = {{albumKey}};
         let votes = {};
+        let pass = 1;
+        let retired = [];
         let writes = Promise.resolve();
         const fromDisk = location.protocol === 'file:';
-        const storageKey = 'album-kit-preview-ballot';
+        const storageKey = 'album-kit-preview-ballot-' + albumKey;
 
         function showVotes() {
           const selected = buttons[current];
@@ -126,7 +133,34 @@
           const count = trackTakes.filter(button => Object.hasOwn(votes, button.dataset.id)).length;
           document.querySelector('#vote-progress').textContent =
             count + ' of ' + trackTakes.length + ' rated on this track';
-          unrated.disabled = buttons.every(button => Object.hasOwn(votes, button.dataset.id));
+          document.querySelector('#pass-label').textContent = 'Pass ' + pass;
+          unrated.disabled = buttons.every(
+            button => button.hidden || Object.hasOwn(votes, button.dataset.id)
+          );
+        }
+
+        function applyRetired(ids) {
+          retired = Array.isArray(ids) ? ids : [];
+          for (const button of buttons) button.hidden = retired.includes(button.dataset.id);
+        }
+
+        function nextVisible(start) {
+          for (let index = start; index < buttons.length; index += 1) {
+            if (!buttons[index].hidden) return index;
+          }
+          return -1;
+        }
+
+        function firstVisible(start) {
+          const ahead = nextVisible(start);
+          if (ahead >= 0) return ahead;
+          const wrapped = nextVisible(0);
+          return wrapped >= 0 ? wrapped : start;
+        }
+
+        function stayOnVisible() {
+          if (buttons[current].hidden) select(firstVisible(0), false);
+          else showVotes();
         }
 
         function saveBallot(vote) {
@@ -135,23 +169,43 @@
           writes = writes
             .then(async () => {
               if (fromDisk) {
-                const nextBallot = { selected: take, votes: { ...votes } };
-                if (vote !== undefined) nextBallot.votes[take] = (votes[take] ?? 0) + vote;
+                const nextBallot = { albumKey, pass, selected: take, votes: { ...votes }, retired };
+                if (vote === 'next-pass') {
+                  const kept = {};
+                  const dropped = retired.slice();
+                  for (const [id, score] of Object.entries(votes)) {
+                    if (score < 0) {
+                      if (!dropped.includes(id)) dropped.push(id);
+                    } else kept[id] = score;
+                  }
+                  nextBallot.pass = pass + 1;
+                  nextBallot.votes = kept;
+                  nextBallot.retired = dropped;
+                } else if (vote !== undefined) {
+                  nextBallot.votes[take] = (votes[take] ?? 0) + vote;
+                }
                 localStorage.setItem(storageKey, JSON.stringify(nextBallot));
                 votes = nextBallot.votes;
-                voteStatus.textContent = vote === undefined ? '' : 'Score saved in this browser';
-                showVotes();
+                pass = nextBallot.pass;
+                applyRetired(nextBallot.retired);
+                voteStatus.textContent =
+                  vote === 'next-pass' ? 'Pass ' + pass : vote === undefined ? '' : 'Score saved in this browser';
+                stayOnVisible();
                 return;
               }
               const response = await fetch('/ballot', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ take, vote }),
+                body: JSON.stringify(vote === 'next-pass' ? { action: 'next-pass' } : { take, vote }),
               });
               if (!response.ok) throw new Error('Save failed');
-              votes = (await response.json()).votes;
-              voteStatus.textContent = vote === undefined ? '' : 'Score saved';
-              showVotes();
+              const saved = await response.json();
+              votes = saved.votes;
+              pass = saved.pass || 1;
+              applyRetired(saved.retired);
+              voteStatus.textContent =
+                vote === 'next-pass' ? 'Pass ' + pass : vote === undefined ? '' : 'Score saved';
+              stayOnVisible();
             })
             .catch(() => {
               voteStatus.textContent = 'Could not save. Try again.';
@@ -183,9 +237,13 @@
           document.querySelector('#track-title').textContent = title;
           document.querySelector('#take-label').textContent =
             label + (online === 'true' ? ' · Internet required' : '');
+          document.querySelector('#stream-notice').textContent =
+            online === 'true'
+              ? 'This take streams from a public Suno link. Anyone with that link can play it, even though this page is on your computer.'
+              : '';
           buttons[current].setAttribute('aria-pressed', 'true');
-          previous.disabled = current === 0;
-          next.disabled = current === buttons.length - 1;
+          previous.disabled = nextVisible(0) === current;
+          next.disabled = nextVisible(current + 1) < 0;
           error.textContent = '';
           sync();
           showVotes();
@@ -220,11 +278,19 @@
         seek.addEventListener('input', () => {
           media.currentTime = Number(seek.value);
         });
-        previous.addEventListener('click', () => select(current - 1));
-        next.addEventListener('click', () => select(current + 1));
+        previous.addEventListener('click', () => {
+          for (let index = current - 1; index >= 0; index -= 1) {
+            if (!buttons[index].hidden) return select(index);
+          }
+        });
+        next.addEventListener('click', () => {
+          const index = nextVisible(current + 1);
+          if (index >= 0) select(index);
+        });
         buttons.forEach((button, index) => button.addEventListener('click', () => select(index)));
         upvote.addEventListener('click', () => saveBallot(1));
         downvote.addEventListener('click', () => saveBallot(-1));
+        nextPass.addEventListener('click', () => saveBallot('next-pass'));
         unrated.addEventListener('click', async () => {
           await writes;
           const ordered = buttons.slice(current + 1).concat(buttons.slice(0, current + 1));
@@ -234,10 +300,13 @@
         player.hidden = false;
         select(0, false);
         function restore(saved) {
-          votes = saved.votes;
+          if (saved.albumKey && saved.albumKey !== albumKey) saved = { votes: {} };
+          votes = saved.votes || {};
+          pass = saved.pass || 1;
+          applyRetired(saved.retired);
           ballot.hidden = false;
           const index = buttons.findIndex(button => button.dataset.id === saved.selected);
-          if (index >= 0) select(index, false);
+          select(index >= 0 && !buttons[index].hidden ? index : firstVisible(0), false);
           showVotes();
         }
         const loadError = () => {

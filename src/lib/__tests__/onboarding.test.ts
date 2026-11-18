@@ -62,6 +62,17 @@ describe('onboarding checkpoint', () => {
     expect(nextStep(status)).toContain('Suno connector or Free browser');
   });
 
+  it('keeps Album Bot Light on the local preview', () => {
+    const run = runner(readyCommands);
+    main(['path', 'light'], root, run);
+    expect(probeReadiness(root, run).path).toBe('light');
+    expect(nextStep(probeReadiness(root, run))).toContain('Suno');
+    main(['verify-suno', 'browser', 'create', 'status', 'models'], root, run);
+    const ready = nextStep(probeReadiness(root, run));
+    expect(ready).toContain('local preview');
+    expect(ready).toContain('Do not connect GitHub, Vercel, or Cursor.');
+  });
+
   it('keeps status idempotent and lets the owner return from Studio to Quick start', async () => {
     const run = runner(readyCommands);
     main(['status'], root, run);

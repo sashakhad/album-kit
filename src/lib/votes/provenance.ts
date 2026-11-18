@@ -3,6 +3,17 @@ import 'server-only';
 import type { AlbumTake, AlbumVersion } from '@/lib/album/types';
 import { prisma } from '@/lib/prisma';
 
+function combinedContributors(value: unknown): string[] {
+  if (typeof value !== 'object' || value === null || !('combinedContributors' in value)) return [];
+  const raw = (value as { combinedContributors?: unknown }).combinedContributors;
+  if (!Array.isArray(raw)) return [];
+  const names: string[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string' && item.length > 0 && !names.includes(item)) names.push(item);
+  }
+  return names;
+}
+
 export async function withVisibleDetails(
   version: AlbumVersion,
   maskPromptModels = false
@@ -25,13 +36,19 @@ export async function withVisibleDetails(
           promptSource: take.prompt === undefined ? 'unavailable' : 'sheet',
         },
       };
-    const writer = maskPromptModels
-      ? `${row.writerHost === 'grok-bot' ? 'Grok Bot' : (row.writerProvider ?? 'Cursor')} · model masked`
-      : row.writerHost === 'grok-bot'
-        ? 'Grok Bot · model undisclosed'
-        : row.attribution === 'verified' && row.observedModel !== null
-          ? `${row.writerProvider ?? 'Cursor'} · ${row.observedModel}`
-          : 'Cursor · model unverified';
+    const contributors = combinedContributors(row.generationSettings);
+    const writer =
+      contributors.length > 0
+        ? maskPromptModels
+          ? 'Combined · models masked'
+          : `Combined · ${contributors.join(', ')}`
+        : maskPromptModels
+          ? `${row.writerHost === 'grok-bot' ? 'Grok Bot' : (row.writerProvider ?? 'Cursor')} · model masked`
+          : row.writerHost === 'grok-bot'
+            ? 'Grok Bot · model undisclosed'
+            : row.attribution === 'verified' && row.observedModel !== null
+              ? `${row.writerProvider ?? 'Cursor'} · ${row.observedModel}`
+              : 'Cursor · model unverified';
     return {
       ...take,
       // The sheet is editable; the generation record is the prompt tied to this audio file.
@@ -41,6 +58,7 @@ export async function withVisibleDetails(
         writer,
         sunoModel: row.sunoModel ?? 'Suno model unverified',
         promptSource: 'generation',
+        ...(contributors.length > 0 ? { contributors } : {}),
         ...(row.parentTakeFilename ? { parentTakeFilename: row.parentTakeFilename } : {}),
         ...(row.promptInstructions ? { promptInstructions: row.promptInstructions } : {}),
       },

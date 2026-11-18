@@ -55,6 +55,8 @@ export async function POST(request: Request) {
       observedModel: string | null;
       revision: number;
       executionId: string | null;
+      role?: 'original' | 'combined';
+      contributors?: string[];
     }>;
     resolvedSunoModel?: string;
     variation?: {
@@ -147,7 +149,7 @@ export async function POST(request: Request) {
       executionId: writer.executionId,
       sunoModel: input.sunoModel,
       generationId: input.generationId,
-      generationSettings: storedGenerationSettings(input) as Prisma.InputJsonValue,
+      generationSettings: storedGenerationSettings(input, planned) as Prisma.InputJsonValue,
       outputId: input.outputId,
       clipId,
       streamUrl: input.streamUrl ?? null,
@@ -160,13 +162,20 @@ export async function POST(request: Request) {
   return NextResponse.json(created, { status: 201 });
 }
 
-function storedGenerationSettings(input: {
-  generationSettings: Record<string, unknown>;
-  generationPath?: 'mcp' | 'browser' | undefined;
-  clipTags?: string | undefined;
-}): Record<string, unknown> {
+function storedGenerationSettings(
+  input: {
+    generationSettings: Record<string, unknown>;
+    generationPath?: 'mcp' | 'browser' | undefined;
+    clipTags?: string | undefined;
+  },
+  planned: { role?: 'original' | 'combined'; contributors?: string[] }
+): Record<string, unknown> {
   const settings = { ...input.generationSettings };
   if (input.generationPath !== undefined) settings.path = input.generationPath;
   if (input.clipTags !== undefined) settings.clipTags = input.clipTags;
+  if (planned.role === 'combined' && planned.contributors !== undefined) {
+    settings.role = 'combined';
+    settings.combinedContributors = planned.contributors;
+  }
   return settings;
 }

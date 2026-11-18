@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { comparisonPreview } from '../lineup';
 import { estimateRound, promptAttribution, type SunoCapabilities } from '../preflight';
 import { DEFAULT_SETTINGS, presetSettings } from '@/lib/settings/schema';
 
@@ -186,6 +187,77 @@ describe('round preflight', () => {
       'Download credits per take must be checked before a private review round.'
     );
     expect(estimate.blockers.some(blocker => blocker.startsWith('Need '))).toBe(false);
+  });
+
+  it('does not block a hidden Suno balance, and still honors the spending limit', () => {
+    const hidden = estimateRound({
+      tracks: 1,
+      settings: { ...DEFAULT_SETTINGS, ...presetSettings('small-test') },
+      capabilities: { ...capabilities, generationCreditsAvailable: null },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(hidden.balanceKnown).toBe(false);
+    expect(hidden.blockers).toEqual([]);
+
+    const overLimit = estimateRound({
+      tracks: 1,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        ...presetSettings('small-test'),
+        generationCreditLimit: 10,
+      },
+      capabilities: { ...capabilities, generationCreditsAvailable: null },
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+    });
+    expect(overLimit.blockers).toContain('Generation estimate exceeds the 10-credit limit.');
+  });
+
+  it('refuses Cursor until the selected models have returned prompts', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ...presetSettings('studio'),
+      comparison: 'originals-plus-combined' as const,
+      writerLineup: ['Opus', 'Soul', 'Grok', 'Sonnet', 'Fable'],
+    };
+    const refused = estimateRound({
+      tracks: 1,
+      settings,
+      capabilities,
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+      externalSpendEstimateUsd: 0,
+    });
+    expect(refused.prompts).toBe(6);
+    expect(refused.expectedOutputs).toBe(12);
+    expect(refused.blockers).toContain(
+      'Cursor prompt execution is not connected to this kit. Complete a verified Cursor handoff or use Grok Bot.'
+    );
+
+    const returned = ['Opus', 'Soul', 'Grok', 'Sonnet', 'Fable'].map(model => ({
+      writerHost: 'cursor' as const,
+      writerProvider: 'Cursor',
+      observedModel: model,
+      executionId: `run-${model}`,
+    }));
+    const accepted = estimateRound({
+      tracks: 1,
+      settings,
+      capabilities,
+      hostingChargeEstimateUsd: 0,
+      hostingEligibilityVerified: true,
+      externalSpendEstimateUsd: 0,
+      returnedPrompts: [
+        ...returned,
+        { writerHost: 'grok-bot' as const, observedModel: null, executionId: null },
+      ],
+    });
+    expect(accepted.blockers).toEqual([]);
+    expect(comparisonPreview({ writers: 2, outputsPerGeneration: 2 })).toEqual({
+      prompts: 3,
+      takes: 6,
+    });
   });
 
   it('never invents a Grok Bot model and separates requested from observed Cursor models', () => {

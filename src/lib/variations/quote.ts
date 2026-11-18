@@ -79,7 +79,10 @@ export function estimateVariation(args: {
     blockers.push('Suno did not identify an eligible quality default; choose a verified model.');
   if (capabilities.costModel !== model)
     blockers.push(`The generation credit rate for ${model} is unverified.`);
-  if (generationCredits > capabilities.generationCreditsAvailable)
+  if (
+    capabilities.generationCreditsAvailable !== null &&
+    generationCredits > capabilities.generationCreditsAvailable
+  )
     blockers.push(
       `Need ${generationCredits} credits; the account has ${capabilities.generationCreditsAvailable}.`
     );

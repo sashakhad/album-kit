@@ -78,4 +78,30 @@ describe('visible take provenance', () => {
       details: { promptSource: 'sheet' },
     });
   });
+
+  it('credits a combined prompt with the writers that actually ran', async () => {
+    findMany.mockResolvedValue([
+      {
+        filename: first,
+        style: 'Bass and organ together.',
+        writerHost: 'grok-bot',
+        writerProvider: null,
+        attribution: 'undisclosed',
+        observedModel: null,
+        sunoModel: 'v6',
+        parentTakeFilename: null,
+        promptInstructions: null,
+        generationSettings: { role: 'combined', combinedContributors: ['Opus', 'Sonnet'] },
+      },
+    ]);
+    const visible = await withVisibleDetails(version);
+    expect(visible.tracks[0]?.takes[0]).toMatchObject({
+      prompt: 'Bass and organ together.',
+      details: {
+        writer: 'Combined · Opus, Sonnet',
+        contributors: ['Opus', 'Sonnet'],
+        promptSource: 'generation',
+      },
+    });
+  });
 });

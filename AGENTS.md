@@ -23,3 +23,7 @@ For any new album, run `start-here` first.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
 - Ship completed kit changes to production: merge the upstream PR, update the user-owned album repository without replacing its `album/` content, and verify the linked Vercel production deployment and listening URL. A merged kit PR alone is not done.
+
+## Other assistants
+
+ChatGPT and Claude can try these same instructions with the tools their own session provides. Read this file and the skills under `.cursor/skills/`. Grok Bot with Cursor is the supported path for Album Bot Light, Full Setup, and the writer comparison. Support on other hosts will vary. This note is best-effort: those hosts are not integrated or tested here.

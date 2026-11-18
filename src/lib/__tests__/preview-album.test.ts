@@ -24,6 +24,8 @@ type PreviewReport = {
 type Ballot = {
   selected: string | null;
   votes: Record<string, number>;
+  pass?: number;
+  retired?: string[];
 };
 
 const children: ChildProcess[] = [];
@@ -87,7 +89,17 @@ function readBallot(value: unknown): Ballot {
   }
   const selected =
     'selected' in value && typeof value.selected === 'string' ? value.selected : null;
-  return { selected, votes };
+  const pass = 'pass' in value && typeof value.pass === 'number' ? value.pass : undefined;
+  const retired =
+    'retired' in value && Array.isArray(value.retired)
+      ? value.retired.filter((item): item is string => typeof item === 'string')
+      : undefined;
+  return {
+    selected,
+    votes,
+    ...(pass === undefined ? {} : { pass }),
+    ...(retired ? { retired } : {}),
+  };
 }
 
 async function writeFixture(): Promise<string> {
@@ -174,17 +186,21 @@ function runPreview(
   });
 }
 
-async function putVote(pageUrl: string, take: string, delta: number): Promise<Ballot> {
+async function putBallot(pageUrl: string, body: Record<string, unknown>): Promise<Ballot> {
   const response = await fetch(new URL('/ballot', pageUrl), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
       Origin: pageUrl.replace(/\/$/, ''),
     },
-    body: JSON.stringify({ take, vote: delta }),
+    body: JSON.stringify(body),
   });
   expect(response.status).toBe(200);
   return readBallot(await response.json());
+}
+
+async function putVote(pageUrl: string, take: string, delta: number): Promise<Ballot> {
+  return putBallot(pageUrl, { take, vote: delta });
 }
 
 describe('album preview', () => {
@@ -246,6 +262,44 @@ describe('album preview', () => {
     const ballot = readBallot(await reloaded.json());
     expect(ballot.votes[localId]).toBe(2);
     expect(ballot.votes[streamId]).toBe(-2);
+    expect(ballot.pass).toBe(1);
+  });
+
+  it('keeps pass two and a positive score after restart, and starts a new album clean', async () => {
+    const root = await writeFixture();
+    const first = readReport((await runPreview(root, ['--serve'])).stdout);
+    const pageUrl = first.url ?? '';
+    const localId = takeId(localName);
+    const streamId = takeId(streamName);
+    await putVote(pageUrl, localId, 1);
+    await putVote(pageUrl, streamId, -1);
+    const advanced = await putBallot(pageUrl, { action: 'next-pass' });
+    expect(advanced.pass).toBe(2);
+    expect(advanced.votes[localId]).toBe(1);
+    expect(advanced.votes[streamId]).toBeUndefined();
+    expect(advanced.retired).toContain(streamId);
+
+    for (const child of children) child.kill('SIGTERM');
+    children.length = 0;
+    await new Promise<void>(resolve => {
+      setTimeout(resolve, 50);
+    });
+
+    const restarted = readReport((await runPreview(root, ['--serve'])).stdout);
+    const kept = readBallot(await (await fetch(new URL('/ballot', restarted.url ?? ''))).json());
+    expect(kept.pass).toBe(2);
+    expect(kept.votes[localId]).toBe(1);
+
+    for (const child of children) child.kill('SIGTERM');
+    children.length = 0;
+    const albumPath = path.join(root, 'album', 'album.json');
+    const album = JSON.parse(await readFile(albumPath, 'utf8')) as { title: string };
+    album.title = 'Second Album';
+    await writeFile(albumPath, JSON.stringify(album));
+    const second = readReport((await runPreview(root, ['--serve'])).stdout);
+    const fresh = readBallot(await (await fetch(new URL('/ballot', second.url ?? ''))).json());
+    expect(fresh.pass).toBe(1);
+    expect(fresh.votes).toEqual({});
   });
 
   it('rejects unknown arguments', async () => {

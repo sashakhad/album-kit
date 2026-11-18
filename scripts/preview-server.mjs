@@ -3,23 +3,43 @@ import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 
-export async function servePreview({ output, files, names }) {
+import {
+  advanceLocalPass,
+  applyLocalVote,
+  emptyLocalBallot,
+  readLocalStore,
+} from '../src/lib/votes/local-pass.ts';
+
+export async function servePreview({ output, files, names, albumKey }) {
   const ballotPath = path.join(path.dirname(output), 'album-preview-ballot.json');
-  let ballot = { selected: null, votes: {} };
+  let store = { albums: {} };
   try {
-    ballot = JSON.parse(readFileSync(ballotPath, 'utf8'));
+    store = readLocalStore(JSON.parse(readFileSync(ballotPath, 'utf8')), albumKey);
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  let ballot = store.albums[albumKey] ?? emptyLocalBallot();
 
   const ballotView = () => ({
+    pass: ballot.pass,
     selected: [...names].find(([, filename]) => filename === ballot.selected)?.[0] ?? null,
     votes: Object.fromEntries(
       [...names].flatMap(([id, filename]) =>
         Object.hasOwn(ballot.votes, filename) ? [[id, ballot.votes[filename]]] : []
       )
     ),
+    retired: [...names].flatMap(([id, filename]) =>
+      ballot.retired.includes(filename) ? [id] : []
+    ),
   });
+
+  const persist = next => {
+    ballot = next;
+    store = { albums: { ...store.albums, [albumKey]: next } };
+    const pending = `${ballotPath}.${process.pid}.new`;
+    writeFileSync(pending, JSON.stringify(store, null, 2) + '\n', { mode: 0o600 });
+    renameSync(pending, ballotPath);
+  };
 
   const server = createServer(async (request, response) => {
     const host = `127.0.0.1:${server.address().port}`;
@@ -52,16 +72,13 @@ export async function servePreview({ output, files, names }) {
         } catch {
           return send(400);
         }
+        if (change?.action === 'next-pass') {
+          persist(advanceLocalPass(ballot));
+          return json(200, ballotView());
+        }
         const filename = names.get(change?.take);
         if (!filename || ![undefined, -1, 1].includes(change.vote)) return send(400);
-
-        const votes = { ...ballot.votes };
-        if (change.vote !== undefined) votes[filename] = (votes[filename] ?? 0) + change.vote;
-        const next = { selected: filename, votes };
-        const pending = `${ballotPath}.${process.pid}.new`;
-        writeFileSync(pending, JSON.stringify(next, null, 2) + '\n', { mode: 0o600 });
-        renameSync(pending, ballotPath);
-        ballot = next;
+        persist(applyLocalVote(ballot, filename, change.vote));
         return json(200, ballotView());
       }
 

@@ -20,6 +20,16 @@ import {
 const inputClass =
   'min-h-11 w-full rounded-lg border border-white/15 bg-background px-3 py-2 text-base sm:text-sm';
 const muted = 'text-muted-foreground text-sm leading-relaxed';
+function lineupFromInput(value: string): string[] {
+  const lineup: string[] = [];
+  for (const part of value.split(',')) {
+    const name = part.trim();
+    if (name.length === 0 || lineup.includes(name) || lineup.length >= 5) continue;
+    lineup.push(name);
+  }
+  return lineup;
+}
+
 const presetLabels = {
   'quick-start': 'Quick start',
   'small-test': 'Small test',
@@ -42,6 +52,7 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserv
   const [error, setError] = useState('');
   const [presetNotice, setPresetNotice] = useState('');
   const [customSunoModel, setCustomSunoModel] = useState(false);
+  const [lineupText, setLineupText] = useState(initial.writerLineup.join(', '));
   const patch = settingsChanges(saved, draft);
   const dirty = Object.keys(patch).length > 0;
   const models = [...new Set([...(lastSunoCheck?.models ?? []), draft.sunoModel])].filter(
@@ -90,6 +101,7 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserv
       const next = parsed.data;
       setSaved(next);
       setDraft(next);
+      setLineupText(next.writerLineup.join(', '));
       setPresetNotice('');
       setCustomSunoModel(false);
       router.refresh();
@@ -109,6 +121,7 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserv
         ...imported,
         listenerVoting: previous.listenerVoting,
       }));
+      setLineupText((imported.writerLineup ?? []).join(', '));
       setPresetNotice('Preset loaded. Save changes to apply it.');
     } catch {
       setPresetNotice('Couldn’t read this preset. Choose an exported album preset JSON file.');
@@ -163,6 +176,7 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserv
                   disabled={saving}
                   onClick={() => {
                     setDraft(saved);
+                    setLineupText(saved.writerLineup.join(', '));
                     setError('');
                     setPresetNotice('');
                     setCustomSunoModel(false);
@@ -401,6 +415,47 @@ export function SettingsForm({ albumTitle, initial, lastSunoCheck, creditsReserv
                   <option value='cursor'>Cursor · connected project required</option>
                 </select>
               </Field>
+              {draft.promptWriter === 'cursor' ? (
+                <Field
+                  label='Comparison'
+                  hint={
+                    draft.comparison === 'originals-plus-combined' && draft.writerLineup.length > 0
+                      ? `${formatNumber(draft.writerLineup.length + 1)} prompts and ${formatNumber((draft.writerLineup.length + 1) * 2)} takes per track when each Create returns two recordings.`
+                      : 'Originals plus Combined, or a curated suite of prompt variations.'
+                  }
+                >
+                  <select
+                    value={draft.comparison}
+                    onChange={event =>
+                      change('comparison', event.target.value as AlbumSettingsValue['comparison'])
+                    }
+                    className={inputClass}
+                  >
+                    <option value='off'>Off</option>
+                    <option value='originals-plus-combined'>
+                      One original per writer, plus Combined
+                    </option>
+                    <option value='curated'>Curated suite</option>
+                  </select>
+                </Field>
+              ) : null}
+              {draft.promptWriter === 'cursor' ? (
+                <Field
+                  label='Writer lineup'
+                  hint='Up to five models this Cursor project can run. Swap or remove names here.'
+                >
+                  <input
+                    value={lineupText}
+                    maxLength={600}
+                    onChange={event => {
+                      setLineupText(event.target.value);
+                      change('writerLineup', lineupFromInput(event.target.value));
+                    }}
+                    className={inputClass}
+                    placeholder='Model A, Model B'
+                  />
+                </Field>
+              ) : null}
               {draft.promptWriter === 'cursor' ? (
                 <Field
                   label='Requested Cursor model'
