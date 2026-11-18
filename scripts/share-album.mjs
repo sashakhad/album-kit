@@ -34,7 +34,11 @@ export async function shareMode(root) {
 export async function prepareShare(root) {
   const directory = await mkdtemp(path.join(tmpdir(), 'album-share-'));
   try {
-    const { report, sources } = await preview(root, { output: directory });
+    const { report, sources } = await preview(root, {
+      output: directory,
+      // The public site is one player. The chat attachment cap does not apply.
+      pageBudgetBytes: Number.POSITIVE_INFINITY,
+    });
     if (!sources.length) throw new Error('Generate a playable take before sharing this album.');
     await rename(report.page, path.join(directory, 'index.html'));
     return { directory, sources };

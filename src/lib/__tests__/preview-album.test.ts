@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { shellStamp } from '../../../scripts/build-player-shell.mjs';
+import { preview } from '../../../scripts/preview-album.mjs';
 import { PLAYER_SHELL_CSP } from '@/lib/album/content-security';
 import { embedPublicAudio } from '@/lib/album/embed-public-audio';
 
@@ -51,6 +52,27 @@ afterEach(async () => {
 
 function takeId(filename: string): string {
   return createHash('sha256').update(filename).digest('hex').slice(0, 24);
+}
+
+function splitReport(result: unknown): { page: string; pages: string[]; say: string } {
+  if (typeof result !== 'object' || result === null || !('report' in result)) {
+    throw new Error('preview did not return a report');
+  }
+  const report = result.report;
+  if (typeof report !== 'object' || report === null) throw new Error('preview report is empty');
+  if (!('page' in report) || typeof report.page !== 'string')
+    throw new Error('preview report has no page');
+  if (!('say' in report) || typeof report.say !== 'string')
+    throw new Error('preview report has no say');
+  if (!('pages' in report) || !Array.isArray(report.pages)) {
+    throw new Error('preview report has no pages');
+  }
+  const pages: string[] = [];
+  for (const file of report.pages) {
+    if (typeof file !== 'string') throw new Error('A split page path is not a string.');
+    pages.push(file);
+  }
+  return { page: report.page, pages, say: report.say };
 }
 
 function readReport(stdout: string): PreviewReport {
@@ -500,6 +522,98 @@ describe('album preview', () => {
     expect(html).toContain('Ice Machine');
     expect(html).not.toContain('cdn1.suno.ai');
     expect(opened.stdout).toContain('The titles are in.');
+  });
+
+  it('splits embedded takes into HTML files that stay under the attachment budget', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'album-split-'));
+    roots.push(root);
+    await mkdir(path.join(root, 'album'), { recursive: true });
+    const online = path.join(root, '.tmp', 'album-preview-online');
+    await mkdir(online, { recursive: true });
+    await writeFile(path.join(online, 'Open Album 3.html'), 'stale');
+    await writeFile(
+      path.join(root, 'album', 'album.json'),
+      JSON.stringify({
+        title: 'Budget',
+        artist: 'Album Bot',
+        sets: [{ id: 'v1', name: 'First' }],
+        tracks: [{ number: 1, title: 'Budget Song', slug: 'budget-song' }],
+      })
+    );
+    const first = 'https://cdn1.suno.ai/clip-split-a.mp4';
+    const second = 'https://cdn1.suno.ai/clip-split-b.mp4';
+    await writeFile(
+      path.join(root, '.tmp', 'album-preview-streams.json'),
+      JSON.stringify([
+        {
+          filename: 'v1-01-budget-song-p1-takea.mp3',
+          clipId: 'clip-split-a',
+          streamUrl: first,
+        },
+        {
+          filename: 'v1-01-budget-song-p1-takeb.mp3',
+          clipId: 'clip-split-b',
+          streamUrl: second,
+        },
+      ])
+    );
+    const bytes = Buffer.alloc(180_000, 7);
+    const cacheDir = path.join(root, '.tmp', 'album-preview-embedded');
+    for (const url of [first, second]) {
+      await embedPublicAudio({
+        url,
+        cacheDir,
+        allowNetwork: true,
+        ffmpegBin: null,
+        fetchImpl: () =>
+          Promise.resolve({
+            status: 200,
+            headers: {
+              get(name: string) {
+                const key = name.toLowerCase();
+                if (key === 'content-type') return 'video/mp4';
+                if (key === 'content-length') return String(bytes.length);
+                return null;
+              },
+            },
+            arrayBuffer() {
+              const copy = Uint8Array.from(bytes);
+              return Promise.resolve(copy.buffer);
+            },
+          }),
+      });
+    }
+    const shell = await readFile(path.join(kitRoot, 'scripts', 'player-shell.html'));
+    const budget = shell.length + 260_000;
+    const result = await preview(root, {
+      streamsOnly: true,
+      pageBudgetBytes: budget,
+      ffmpegBin: null,
+    });
+    const report = splitReport(result);
+    expect(report.pages.map(file => path.basename(file))).toEqual([
+      'Open Album.html',
+      'Open Album 2.html',
+    ]);
+    expect(report.page).toBe(report.pages[0]);
+    expect(report.say).toContain('The album is in 2 files so each one can be attached.');
+    expect(report.say.startsWith('Your album page is ready. Tap to listen ↓')).toBe(true);
+    const seen = new Set<string>();
+    for (const file of report.pages) {
+      const html = await readFile(file);
+      expect(html.length).toBeLessThanOrEqual(budget);
+      const text = html.toString('utf8');
+      const urls = [...text.matchAll(/https:\/\/cdn1\.suno\.ai\/clip-split-[ab]\.mp4/g)].map(
+        match => match[0]
+      );
+      expect(new Set(urls).size).toBe(1);
+      const url = urls[0];
+      if (url === undefined) throw new Error('A split page has no take.');
+      seen.add(url);
+      expect(text).toContain('"mime":"video/mp4"');
+    }
+    expect(seen).toEqual(new Set([first, second]));
+    expect((await readdir(online)).sort()).toEqual(['Open Album 2.html', 'Open Album.html']);
   });
 
   it('rejects unknown arguments', async () => {

@@ -1,13 +1,17 @@
 // @vitest-environment node
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { embedPublicAudio, type EmbedFetch } from '@/lib/album/embed-public-audio';
+import {
+  embedPublicAudio,
+  isoBmffDurationSeconds,
+  type EmbedFetch,
+} from '@/lib/album/embed-public-audio';
 
 const run = promisify(execFile);
 const roots: string[] = [];
@@ -132,7 +136,28 @@ describe('public stream embedding', () => {
     expect(embedded).toEqual({ mime: 'video/mp4', base64: bytes.toString('base64') });
   });
 
-  it('copies the AAC track out of a public MP4 when ffmpeg is on PATH', async () => {
+  it('reads the movie duration and ignores a decoy mvhd inside mdat', () => {
+    const mvhd = Buffer.alloc(20);
+    mvhd.writeUInt32BE(1000, 12);
+    mvhd.writeUInt32BE(184405, 16);
+    const decoy = Buffer.alloc(32);
+    decoy.write('mvhd', 4, 'ascii');
+    const file = Buffer.concat([
+      box('ftyp', Buffer.from('isom')),
+      box('mdat', decoy),
+      box('moov', box('mvhd', mvhd)),
+    ]);
+    expect(isoBmffDurationSeconds(file)).toBeCloseTo(184.405, 3);
+
+    const version1 = Buffer.alloc(32);
+    version1.writeUInt8(1, 0);
+    version1.writeUInt32BE(1000, 20);
+    version1.writeBigUInt64BE(184405n, 24);
+    expect(isoBmffDurationSeconds(box('moov', box('mvhd', version1)))).toBeCloseTo(184.405, 3);
+    expect(isoBmffDurationSeconds(Buffer.from('not-an-mp4'))).toBeNull();
+  });
+
+  it('re-encodes a public MP4 to AAC-LC at the requested review bitrate', async () => {
     try {
       await run('ffmpeg', ['-version']);
     } catch {
@@ -146,31 +171,81 @@ describe('public stream embedding', () => {
       '-f',
       'lavfi',
       '-i',
-      'sine=frequency=440:duration=1',
+      'sine=frequency=440:duration=3',
       '-f',
       'lavfi',
       '-i',
-      'color=c=black:s=16x16:d=1',
+      'testsrc=size=320x240:rate=10:duration=3',
       '-shortest',
       '-c:v',
       'libx264',
       '-pix_fmt',
       'yuv420p',
+      '-b:v',
+      '800k',
       '-c:a',
       'aac',
       mp4,
     ]);
     const video = await readFile(mp4);
-    const embedded = await embedPublicAudio({
+    let fetches = 0;
+    const fetchImpl: EmbedFetch = () => {
+      fetches += 1;
+      return Promise.resolve(responseFor(video, 'video/mp4'));
+    };
+    const high = await embedPublicAudio({
       url: clipA,
       cacheDir: dir,
       allowNetwork: true,
-      fetchImpl: () => Promise.resolve(responseFor(video, 'video/mp4')),
+      bitrateKbps: 96,
+      fetchImpl,
     });
-    expect(embedded?.mime).toBe('audio/mp4');
-    const audio = Buffer.from(embedded?.base64 ?? '', 'base64');
-    expect(audio.subarray(4, 8).toString('ascii')).toBe('ftyp');
-    expect(audio.length).toBeGreaterThan(0);
-    expect(audio.length).toBeLessThan(video.length);
+    const low = await embedPublicAudio({
+      url: clipA,
+      cacheDir: dir,
+      allowNetwork: true,
+      bitrateKbps: 48,
+      fetchImpl,
+    });
+    const again = await embedPublicAudio({
+      url: clipA,
+      cacheDir: dir,
+      allowNetwork: true,
+      bitrateKbps: 48,
+      fetchImpl,
+    });
+    expect(fetches).toBe(1);
+    expect(high?.mime).toBe('audio/mp4');
+    expect(low?.mime).toBe('audio/mp4');
+    expect(again).toEqual(low);
+    const highBytes = Buffer.from(high?.base64 ?? '', 'base64');
+    const lowBytes = Buffer.from(low?.base64 ?? '', 'base64');
+    expect(highBytes.subarray(4, 8).toString('ascii')).toBe('ftyp');
+    expect(lowBytes.length).toBeGreaterThan(0);
+    expect(lowBytes.length).toBeLessThan(highBytes.length);
+    expect(lowBytes.length).toBeLessThan(video.length);
+    expect(isoBmffDurationSeconds(video)).toBeCloseTo(3, 0);
+    const decoded = path.join(dir, 'decoded.m4a');
+    await writeFile(decoded, lowBytes);
+    const probed = await run('ffprobe', [
+      '-v',
+      'error',
+      '-select_streams',
+      'a:0',
+      '-show_entries',
+      'stream=profile,codec_name',
+      '-of',
+      'csv=p=0',
+      decoded,
+    ]);
+    expect(String(probed.stdout)).toContain('aac');
+    expect(String(probed.stdout).toLowerCase()).toContain('lc');
   });
 });
+
+function box(type: string, payload: Buffer): Buffer {
+  const header = Buffer.alloc(8);
+  header.writeUInt32BE(8 + payload.length, 0);
+  header.write(type, 4, 'ascii');
+  return Buffer.concat([header, payload]);
+}

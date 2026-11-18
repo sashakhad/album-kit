@@ -240,6 +240,7 @@ describe('local preview playbook', () => {
       'If the owner has no reachable computer, or the open fails, say nothing extra.'
     );
     expect(body).toContain('The attachment stands.');
+    expect(body).toContain('attach every file in `pages`');
     expect(body).not.toMatch(/google-chrome|Google Chrome|chrome --/i);
   });
 
