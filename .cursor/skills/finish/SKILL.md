@@ -9,7 +9,7 @@ Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared data
 
 ## Default
 
-The owner listens and votes in the local preview. For public Suno streams, use Node 24 to run `node scripts/preview-album.mjs --streams-only` and attach the returned `Open Album.html` directly in chat. For a ballot saved to the checkout, use `pnpm preview:album --serve` on their computer. Use the ZIP from `pnpm preview:album --zip` when they need local audio files remotely. Scores stay in the owner’s ballot. The sharing offer happens in `suno-run` once the requested album is generated. Someone who chose to keep it local can still use `/share` here. Follow **Share** in `start-here` to publish on their own Vercel account.
+Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on Node 24 and attach the same Open Album.html from the printed `link` immediately. File scores stay in that browser. Use the optional local server for a ballot saved to the checkout, or the ZIP for offline audio files. The sharing offer happens in `suno-run` once the requested album is generated. If they chose to keep it local, they can still use `/share` here.
 
 ## When to use
 

@@ -110,6 +110,7 @@ export async function preview(
     output = path.join(root, '.tmp', streamsOnly ? 'album-preview-online' : 'album-preview'),
   } = {}
 ) {
+  const startedAt = performance.now();
   const albumRoot = path.join(root, 'album');
   const audioRoot = path.join(albumRoot, 'audio');
   const album = await readJson(path.join(albumRoot, 'album.json'));
@@ -201,7 +202,15 @@ export async function preview(
     }
     const url = serve ? await servePreview({ output, catalogPath, albumKey }) : null;
     return {
-      report: { page, offline, online, ...(makeZip ? { archive } : {}), ...(url ? { url } : {}) },
+      report: {
+        page,
+        link: page,
+        elapsedMs: Math.round(performance.now() - startedAt),
+        offline,
+        online,
+        ...(makeZip ? { archive } : {}),
+        ...(url ? { url } : {}),
+      },
       sources: tracks.flatMap(track => track.takes.map(take => take.src)),
     };
   } finally {

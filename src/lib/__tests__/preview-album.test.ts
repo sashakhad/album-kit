@@ -19,6 +19,8 @@ type PreviewReport = {
   online: number;
   archive?: string;
   url?: string;
+  link?: string;
+  elapsedMs?: number;
 };
 
 type Ballot = {
@@ -74,6 +76,10 @@ function readReport(stdout: string): PreviewReport {
   };
   if ('archive' in value && typeof value.archive === 'string') report.archive = value.archive;
   if ('url' in value && typeof value.url === 'string') report.url = value.url;
+  if ('link' in value && typeof value.link === 'string') report.link = value.link;
+  if ('elapsedMs' in value && typeof value.elapsedMs === 'number') {
+    report.elapsedMs = value.elapsedMs;
+  }
   return report;
 }
 
@@ -350,6 +356,24 @@ describe('album preview', () => {
     const fresh = readBallot(await (await fetch(new URL('/ballot', second.url ?? ''))).json());
     expect(fresh.pass).toBe(1);
     expect(fresh.votes).toEqual({});
+  });
+
+  it('fills Open Album.html from stream URLs without a zip or a server', async () => {
+    const root = await writeFixture();
+    const first = await runPreview(root, []);
+    expect(first.code).toBe(0);
+    const report = readReport(first.stdout);
+    expect(report.archive).toBeUndefined();
+    expect(report.url).toBeUndefined();
+    expect(report.link).toBe(report.page);
+    expect(report.page.endsWith(`${path.sep}Open Album.html`)).toBe(true);
+    expect(report.elapsedMs).toBeLessThan(10000);
+    const html = await readFile(report.page, 'utf8');
+    expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
+
+    const again = readReport((await runPreview(root, [])).stdout);
+    expect(again.link).toBe(report.link);
+    expect(again.elapsedMs).toBeLessThan(10000);
   });
 
   it('rejects unknown arguments', async () => {

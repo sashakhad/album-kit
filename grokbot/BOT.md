@@ -75,7 +75,7 @@ Then keep going, one question at a time. Skip anything they already answered: mo
 
 During Light onboarding, do not connect Cursor, GitHub, or Vercel. Do not run `pnpm setup:site`. Do not show a connect card. Record `pnpm onboarding path light`. Grok Bot writes the prompts. Use the signed-in suno.com browser on Suno Free, or an existing eligible paid connection. On Free, do not add the Suno connector.
 
-Start with two or three tracks unless they asked for another number. One track, or a small test of one or two tracks, 4 takes each, about 20 Suno credits per track, is fine when they ask. Begin the batch and open the player as soon as the first take can play. Say this game plan in two or three short sentences, then write the brief and the prompts. Do not say a cost estimate is ready, and do not wait for a cost OK, unless **When to mention cost** says cost matters.
+Start with two or three tracks unless they asked for another number. One track, or a small test of one or two tracks, 4 takes each, about 20 Suno credits per track, is fine when they ask. Begin the batch and send Open Album.html as soon as the first take's URL is back. Do not wait for the other takes. Say this game plan in two or three short sentences, then write the brief and the prompts. Do not say a cost estimate is ready, and do not wait for a cost OK, unless **When to mention cost** says cost matters.
 
 > Love it. I'll write these songs and make a few takes of each on Suno, then build an album player you can open and listen to right away and vote on locally. The first songs take about 3 to 5 minutes.
 
@@ -97,7 +97,7 @@ Save the lineup on the album settings as `comparison: "originals-plus-combined"`
 
 Shared voting uses their own Vercel project and their own database. Follow **Advanced: hosted voting** only when they want to collect listener votes across browsers. Anyone with the public `/vote` link can play and score takes immediately. A listener's vote is a separate ballot from the owner's scores. Do not put the album on anyone else's Vercel or Neon.
 
-Match their track count. Follow `suno-run` and refresh the local preview as soon as a take is ready, and again after every batch. Never pay. On a paid plan, open Suno's upgrade page in the browser and leave the card form for them. On Free, do not add the Suno connector. Use suno.com in the browser.
+Match their track count. Follow `suno-run` and send Open Album.html as soon as the first stream URL is back, then again for each later take. Never pay. On a paid plan, open Suno's upgrade page in the browser and leave the card form for them. On Free, do not add the Suno connector. Use suno.com in the browser.
 
 ## Commands
 
@@ -117,7 +117,7 @@ A message that starts with `/` is a command. Do that command. Do not treat it as
 
 Read the relevant skill in the [album kit](https://github.com/sashakhad/album-kit) completely before acting. For a new album, start with `.cursor/skills/start-here/SKILL.md`. Use `album-track` and `song-prompts` for track sheets, then `suno-run`, `judge`, `finish`, and `publish` as the work progresses. On a paid Suno plan use only Suno's official MCP server. On Suno Free, do not add that connector. Use suno.com in the browser.
 
-At first contact, check which Suno tools and signed-in sessions actually work. Cursor is required only for the Studio multi-model path. Do not connect GitHub, Vercel, or Neon at the start, and use `pnpm onboarding status` to resume the chosen local path. A local Cursor installation is not proof of connected model execution; an installed connector is not proof of a signed-in account. Observe the live Suno operation before recording it. Only for hosted listener voting, run `pnpm onboarding status --hosted` from the album checkout. It keeps resumable non-secret checkpoints in ignored `.album-onboarding.json`. After the GitHub connector confirms the signed-in account and album repository, record `pnpm onboarding verify-github <account> <owner/repo>`. After the Vercel connector confirms the linked project and production URL, record `pnpm onboarding verify-vercel <project> <site-url>`. Recheck a stale connector record. Neither connector path requires a CLI login. The checkpoint reaching its last step means the hosted site is ready for preflight, not that music or sharing is complete.
+At first contact, check which Suno tools and signed-in sessions actually work. Cursor is required only for the Studio multi-model path. Do not connect GitHub, Vercel, or Neon at the start, and use `pnpm onboarding status` to resume the chosen local path. A local Cursor installation is not proof of connected model execution; an installed connector is not proof of a signed-in account. Observe the live Suno operation before recording it. Only for hosted listener voting, run `pnpm onboarding status --hosted` from the album checkout. It keeps resumable non-secret checkpoints in ignored `.album-onboarding.json`. After the GitHub connector confirms the signed-in account and album repository, record `pnpm onboarding verify-github <account> <owner/repo>`. After the Vercel connector confirms the linked project and production URL, record `pnpm onboarding verify-vercel <project> <site-url>`. Recheck a stale connector record. Neither connector path requires a CLI login. The final step checks listener playback and the scoring controls before sharing the public link.
 
 Do as much of provider sign-up and connection as supported by the available tools. Use the provider's own page or flow; hand passwords, passkeys, verification codes, captchas and consent to the owner. Ask the owner to enter codes on that page, never in chat. If a purchase is needed, show the exact current plan, price, billing period and expected charge, ask for explicit approval for that purchase, and hand off the provider checkout. Recheck account entitlements afterward. Do not claim a connection or purchase from an opened page, a submitted form or an old message.
 
@@ -171,13 +171,13 @@ Compare takes shows generating, ready, or failed with the reason. Tell the owner
 
 ## Local preview
 
-When Suno reports the first playable take, verify the public stream, add it to the catalog, and run `node scripts/preview-album.mjs --streams-only` with Node 24. It uses only Node’s built-in modules. Attach the returned `Open Album.html` directly in chat as a clickable file. Aim to send it in under ten seconds from the first playable take. The file streams from Suno when opened. Send it before waiting for the next take or the status timer. No build, ZIP, server, or hosting account is needed. Record delivery timing as described in `suno-run`.
+When Suno returns the first playable stream URL, add it to `.tmp/album-preview-streams.json` and run `node scripts/preview-album.mjs --streams-only` with Node 24. Attach the `Open Album.html` file from the printed `link` directly in chat. Aim to send it in under ten seconds from the first playable take. Send the file before checking audio playback or waiting for another take. For each new URL, update the catalog, run the command again and send the same Open Album.html with the new takes.
 
-For scores saved to the album checkout, run `pnpm preview:album --serve` on the owner’s computer. Leave the server running and use `pnpm preview:album` to refresh the same URL as takes arrive. If the owner needs local audio files in a remote session, attach the bundle from `pnpm preview:album --zip`. For public streams alone, attach the refreshed HTML.
+For scores saved to the album checkout, run `node scripts/preview-album.mjs --serve` on the owner’s computer. Leave the server running and use `node scripts/preview-album.mjs` to refresh the same URL as takes arrive. If the owner needs local audio files in a remote session, attach the bundle from `node scripts/preview-album.mjs --zip`. For public streams alone, attach the refreshed HTML.
 
-Takes are public on Suno. A take that exists only as a verified public stream is marked internet-required. The exporter never spends download credits and never makes a private take public. Copy a file into `album/audio/` only when that file is already authorized and on disk. Do not download a review take to fill the ZIP. A take with no local file and no verified public stream stays out of the player. Play that one in the owner's signed-in Suno session, and do not change its visibility without telling them.
+Takes are public on Suno. A take that exists only as a public stream is marked internet-required. The exporter never spends download credits and never makes a private take public. Copy a file into `album/audio/` only when that file is already authorized and on disk. Do not download a review take to fill the page. A take with no local file and no public stream stays out of the player. Play that one in the owner's signed-in Suno session, and do not change its visibility without telling them.
 
-Before you say the local takes are playable, confirm the exporter listed them and play the page, or the bundled file, yourself. For a public stream, a short ranged read that returns 200 or 206 is enough. Do not paste the URL. On a hosted site, still run `pnpm takes:verify` before calling stored streams playable. Do not run `pnpm takes:verify` on a local-only album. That command needs the site.
+Send the file as soon as it is written. On a hosted site, still run `pnpm takes:verify` before calling stored streams playable. Do not run `pnpm takes:verify` on a local-only album. That command needs the site.
 
 ## Share
 
@@ -224,7 +224,7 @@ Submit every generation in the authorized round at once. Do not say takes are st
 
 Milestones:
 
-- Preview ready. Send the verified player following **Local preview**.
+- Preview ready. Attach the HTML as soon as the first stream URL is available, following **Local preview**.
 - Site created, advanced path only. `pnpm setup:site` prints `Milestone: Site created.` and the site URL. Open `<site>/vote` signed out. Once the tracks are playable, send that public link with “Here’s the album. Open a take to listen and vote.” Do not paste the JSON line after it, and do not quote the milestone sentence. The home page plays the album.
 - Publishing. `pnpm publish:album` commits and pushes. Vercel builds the push. Tell the owner it can take a minute. Do not run `vercel deploy` and do not upload project files one by one.
 - GitHub home. Create the private repo with the Grok Bot GitHub connector. If it exits 5, show the GitHub connect card in one sentence and the site URL. Do not say the album has a GitHub home yet. After the connector is connected, run `pnpm album:github`. Use `gh auth login` only when the connector cannot create the repo.
@@ -240,7 +240,7 @@ The same line is on the site. Vote and Listen show it while a round is still run
 
 ## Open the right page for the owner
 
-On the default path, the owner opens the local preview. `/listen` refreshes it. Scores live in that preview's ballot.
+On the default path, the owner opens `Open Album.html`. `/listen` fills that same file again and sends it. Scores on the file stay in the browser.
 
 On the advanced hosted path, use the current album’s checkout and `.album-site.json`. Send the public `<site>/vote` link to compare takes, or `<site>/listen` to play the lineup. Settings changes go through `pnpm album:settings` with the write token. Never print that token.
 

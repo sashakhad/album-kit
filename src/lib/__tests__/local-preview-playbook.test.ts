@@ -21,7 +21,7 @@ describe('local preview playbook', () => {
     for (const file of files) {
       const body = await text(file);
       expect(body).toContain('Sasha never hosts Album Bot for anyone.');
-      expect(body).toContain('pnpm preview:album');
+      expect(body).toContain('node scripts/preview-album.mjs --streams-only');
     }
 
     const bot = await text('grokbot/BOT.md');
@@ -54,7 +54,8 @@ describe('local preview playbook', () => {
     const delivery = beforeOffer.slice(firstHandoff, firstHandoff + 550);
     expect(delivery).toMatch(/attach.*Open Album\.html.*directly in chat/i);
     expect(delivery).toContain('under ten seconds from the first playable take');
-    expect(beforeOffer.indexOf('pnpm preview:album --zip')).toBeGreaterThan(firstHandoff);
+    expect(delivery).toContain('printed `link`');
+    expect(delivery).toContain('before checking audio playback');
     expect(beforeOffer).toMatch(
       /(?:all|every) requested (?:tracks|take)[^.\n]*?(?:playable|plays)/i
     );
@@ -63,6 +64,20 @@ describe('local preview playbook', () => {
     expect(afterOffer).toMatch(/verified public (?:player )?URL/i);
     expect(body.slice(beforeOffer.lastIndexOf('Full Setup'))).toMatch(/ask (?:only )?once\b/i);
     expect(body).not.toContain('Do not offer it in the first session.');
+  });
+
+  it.each([
+    'grokbot/BOT.md',
+    'grokbot/PORTABLE.md',
+    '.cursor/skills/start-here/SKILL.md',
+    '.cursor/skills/suno-run/SKILL.md',
+    '.cursor/skills/finish/SKILL.md',
+  ])('refreshes the same file directly with Node in %s', async file => {
+    const body = await text(file);
+    expect(body).toContain('node scripts/preview-album.mjs --streams-only');
+    expect(body).toContain('same Open Album.html');
+    expect(body).not.toContain('pnpm preview:album --zip');
+    expect(body).not.toContain('pnpm preview:album --serve');
   });
 
   it('measures the first handoff through the actual chat send', async () => {
