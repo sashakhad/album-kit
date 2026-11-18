@@ -1,11 +1,13 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
+  assertOwnerAccount,
   ensureGitHubRepo,
   EXIT,
   ExitError,
   readEnvFile,
+  setup,
   slugify,
   usableWriteToken,
   generateWriteToken,
@@ -116,6 +118,41 @@ describe('ensureGitHubRepo', () => {
 
     expect(result).toEqual({ ok: true, blocker: null, url: 'https://github.com/me/my-album' });
     expect(calls.some(call => call.includes('--public'))).toBe(true);
+  });
+});
+
+describe('fresh owner setup', () => {
+  it('refuses Sasha’s Vercel account before any call', () => {
+    expect(() => assertOwnerAccount('sasha-bayans-projects')).toThrow(/Sasha's Vercel or Neon/);
+    expect(() => assertOwnerAccount('', 'sashabayan')).toThrow(/Sasha's Vercel or Neon/);
+    expect(() => assertOwnerAccount('throwaway-owner', 'throwaway-porch')).not.toThrow();
+  });
+
+  it('prints a dry run for a throwaway owner and does not call Vercel', async () => {
+    const lines: string[] = [];
+    const log = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+    const vercel = () => {
+      throw new Error('Vercel was called');
+    };
+    await setup(
+      { name: 'throwaway-porch', scope: 'throwaway-owner', dryRun: true },
+      process.cwd(),
+      { dryRun: true, vercel, run: vercel, must: <T>(value: T) => value }
+    );
+    expect(lines.join('\n')).toContain(
+      'Dry run for throwaway-porch on throwaway-owner. No Vercel, Neon, or GitHub call is made.'
+    );
+    await expect(
+      setup({ name: 'porch', scope: 'sasha-bayans-projects', dryRun: true }, process.cwd(), {
+        dryRun: true,
+        vercel,
+        run: vercel,
+        must: <T>(value: T) => value,
+      })
+    ).rejects.toThrow(/Sasha's Vercel or Neon/);
+    log.mockRestore();
   });
 });
 

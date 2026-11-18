@@ -1,0 +1,17 @@
+name: Redeploy albums
+on:
+  push:
+    branches: [main]
+jobs:
+  redeploy:
+    if: github.repository == 'sashakhad/album-kit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Trigger Vercel deploy hooks
+        env:
+          ALBUM_DEPLOY_HOOKS: ${{ secrets.ALBUM_DEPLOY_HOOKS }}
+        run: node scripts/redeploy-albums.mjs
