@@ -22,7 +22,7 @@ import { isPlayableStream } from '../src/lib/album/stream-url.ts';
 import { servePreview } from './preview-server.mjs';
 import { previewIdentity } from './preview-identity.mjs';
 import { captureAlbumPage } from './capture-page.mjs';
-import { deliverySay, markPageDelivered, trackProgressLine } from './live-progress.mjs';
+import { deliverySay, markPageDelivered, pageReady, trackProgressLine } from './live-progress.mjs';
 
 import {
   mergeReadyTakes,
@@ -205,6 +205,7 @@ async function exportPreview(
     makeZip = false,
     serve = false,
     streamsOnly = false,
+    allowEmpty = false,
     output = path.join(root, '.tmp', streamsOnly ? 'album-preview-online' : 'album-preview'),
   } = {}
 ) {
@@ -273,7 +274,9 @@ async function exportPreview(
         offline++;
       }
     }
-    if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
+    if (streamsOnly && !online && !allowEmpty) {
+      throw new Error('No public streams are ready for this album.');
+    }
     const previous = await priorLabels(root, albumKey);
     await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
     const html = await renderPreview(album, tracks, albumKey);
@@ -292,11 +295,14 @@ async function exportPreview(
     await rename(path.join(staging, files[0]), page);
     const previewImage = await captureAlbumPage(page, path.join(root, '.tmp', 'Album page.png'));
     const pendingTracks = tracks.some(track => track.takes.length === 0);
-    const say = deliverySay({
-      first: previous.size === 0,
-      pendingTracks,
-      landedLabel: landedLabel(tracks, previous),
-    });
+    const say =
+      online === 0
+        ? pageReady
+        : deliverySay({
+            first: previous.size === 0,
+            pendingTracks,
+            landedLabel: landedLabel(tracks, previous),
+          });
     await markPageDelivered(root);
     if (makeZip) await rename(path.join(staging, 'preview.zip'), archive);
     // The running local player reads one complete catalog per request. Keep the
@@ -358,18 +364,20 @@ if (
     if (
       !recording &&
       (args.length > 1 ||
-        (args.length === 1 && !['--zip', '--serve', '--streams-only'].includes(args[0])))
+        (args.length === 1 && !['--zip', '--serve', '--streams-only', '--open'].includes(args[0])))
     ) {
       throw new Error(
-        'Usage: pnpm preview:album [--zip | --serve | --streams-only | --record <ready-take.json>]'
+        'Usage: pnpm preview:album [--zip | --serve | --streams-only | --open | --record <ready-take.json>]'
       );
     }
+    const opening = args.includes('--open');
     const { report } = recording
       ? await recordReadyTakes(process.cwd(), await readJson(args[1]))
       : await preview(process.cwd(), {
           makeZip: args.includes('--zip'),
           serve: args.includes('--serve'),
-          streamsOnly: args.includes('--streams-only'),
+          streamsOnly: args.includes('--streams-only') || opening,
+          allowEmpty: opening,
         });
     console.log(JSON.stringify(report));
   } catch (error) {

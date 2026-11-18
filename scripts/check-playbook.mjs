@@ -21,8 +21,7 @@ const completionCard = ['Your album is ready. What’s next?', 'Share album', 'A
 const tapToListen = 'Your album page is ready. Tap to listen ↓';
 const firstOnesIn =
   'Cool, the first ones are in. Spinning up your album page now. Tap here to listen.';
-const generationEstimate =
-  'A short paid clip is often playable in a couple of minutes. A Free song can run about 3–4 minutes, so the first take can take longer. I’ll send each one as soon as you can tap it.';
+const generationEstimate = 'The first take usually starts playing in about 20–30 seconds.';
 const nextTracksLine =
   'I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.';
 const liveLines = [tapToListen, firstOnesIn, generationEstimate, nextTracksLine];
@@ -47,7 +46,14 @@ const shareEditions = [
 const ONBOARDING_PHRASES = [
   {
     file: path.join(ROOT, 'grokbot', 'PORTABLE.md'),
-    phrases: [...completionCard, ...liveLines, ...shareEditions],
+    phrases: [
+      ...completionCard,
+      ...liveLines,
+      ...shareEditions,
+      'node scripts/preview-album.mjs --open',
+      'node scripts/publish-quota.mjs --remaining <left> --takes <count>',
+      'mustlovellamas@mail.grokbot.com',
+    ],
   },
   {
     file: path.join(ROOT, 'grokbot', 'BOT.md'),
@@ -79,6 +85,9 @@ const ONBOARDING_PHRASES = [
       'pnpm share:album',
       'pnpm setup:site --name <album-slug> --scope',
       'node scripts/preview-album.mjs --streams-only',
+      'node scripts/preview-album.mjs --open',
+      'node scripts/publish-quota.mjs --remaining <left> --takes <count>',
+      'mustlovellamas@mail.grokbot.com',
       '/share',
       'Retried newly published files that returned 403.',
       'no-CLI path',
@@ -109,6 +118,9 @@ const ONBOARDING_PHRASES = [
       'pnpm share:album',
       'pnpm setup:site --name <album-slug> --scope',
       'node scripts/preview-album.mjs --streams-only',
+      'node scripts/preview-album.mjs --open',
+      'node scripts/publish-quota.mjs --remaining <left> --takes <count>',
+      'mustlovellamas@mail.grokbot.com',
       '/share',
     ],
   },
@@ -156,6 +168,9 @@ const ONBOARDING_PHRASES = [
       'about 20 Suno generation credits per track',
       'backfill',
       'node scripts/preview-album.mjs --streams-only',
+      'node scripts/preview-album.mjs --open',
+      'node scripts/publish-quota.mjs --remaining <left> --takes <count>',
+      'mustlovellamas@mail.grokbot.com',
       'Sasha never hosts Album Bot for anyone.',
       'custom mode',
       'Retried newly published files that returned 403.',
