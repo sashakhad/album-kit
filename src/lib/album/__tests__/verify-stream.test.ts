@@ -106,7 +106,7 @@ describe('stream media check', () => {
       path.join(process.cwd(), 'src/app/api/owner/streams/verify/route.ts'),
       'utf8'
     );
-    expect(route).toContain('maxDuration = VERIFY_MAX_DURATION_SECONDS');
+    expect(route).toContain('export const maxDuration = 60');
     expect(route).not.toContain('maxDuration = 300');
   });
 
