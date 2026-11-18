@@ -375,6 +375,48 @@ async function checkFreshOpenings() {
   }
 }
 
+const SESSION_FILES = [
+  path.join(ROOT, 'grokbot', 'INSTRUCTIONS.md'),
+  path.join(ROOT, 'grokbot', 'BOT.md'),
+  path.join(ROOT, 'grokbot', 'PORTABLE.md'),
+  path.join(ROOT, '.cursor', 'skills', 'start-here', 'SKILL.md'),
+];
+
+const SESSION_PHRASES = [
+  'A new bot presumes start.',
+  'An active conversation resumes the current album and does not replay the opening.',
+  'Explicit `/start` starts a fresh album and preserves the existing album, takes, scores, and jobs.',
+  '`/help` and `/settings` work before sign-in.',
+  '`/refresh <branch-or-SHA>`',
+  '`/refresh main`',
+  'Do not create a duplicate job.',
+  'Do not create a job or drop a vote.',
+  'Up to five different AI models each write a prompt',
+  'combines their ideas',
+  'Connect Cursor only when the comparison starts.',
+  'Report the revision that loaded',
+];
+
+async function checkSessionSplit() {
+  for (const file of SESSION_FILES) {
+    let text;
+    try {
+      text = await readFile(file, 'utf8');
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+      report(file, 1, 'missing session file');
+      continue;
+    }
+    for (const phrase of SESSION_PHRASES) {
+      if (!text.includes(phrase)) {
+        report(file, 1, `session split is missing “${phrase}”`);
+      }
+    }
+  }
+}
+
 async function checkOnboardingCopy() {
   for (const entry of ONBOARDING_PHRASES) {
     let text;
@@ -397,6 +439,7 @@ async function checkOnboardingCopy() {
 
 async function main() {
   await checkOnboardingCopy();
+  await checkSessionSplit();
   await checkFreshOpenings();
   const skillDirs = await listSkillDirs();
   await checkSkillNames(skillDirs);
