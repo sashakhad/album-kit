@@ -1,9 +1,13 @@
 import { execFileSync } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { expect, it } from 'vitest';
 
 import {
+  decisionFromArgs,
+  freeQuotaSay,
   lowPublishQuota,
   publishQuotaDecision,
   unreadPublishQuota,
@@ -43,4 +47,24 @@ it('fails closed from the command when the remaining count was not read', () => 
     encoding: 'utf8',
   });
   expect(JSON.parse(ready)).toMatchObject({ ok: true, remaining: 40, takes: 8 });
+});
+
+it('counts Free publishes itself and says when Suno shows no number', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'publish-quota-'));
+  try {
+    const first = decisionFromArgs(['--free', '--takes', '4', '--root', root]);
+    expect(first.ok).toBe(true);
+    expect(first.say).toBe(freeQuotaSay(0, 4));
+    expect(first.say).toContain('does not show');
+
+    expect(decisionFromArgs(['--record', '--root', root])).toMatchObject({ made: 1 });
+    expect(decisionFromArgs(['--record', '--root', root])).toMatchObject({ made: 2 });
+    const later = decisionFromArgs(['--free', '--takes', '4', '--root', root]);
+    expect(later).toMatchObject({ ok: true, made: 2, say: freeQuotaSay(2, 4) });
+
+    const full = decisionFromArgs(['--free', '--takes', '99', '--root', root]);
+    expect(full).toMatchObject({ ok: false, say: lowPublishQuota, made: 2 });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
