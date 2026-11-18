@@ -104,7 +104,7 @@ flowchart TD
   ready -->|No| wait["Leave that clip pending. Keep polling the other ids"]
   ready -->|Yes| record["Record that clip. Do not wait for the others"]
   record --> first{"Is this the first playable take in the batch?"}
-  first -->|Yes| sendFirst["Attach Album page.png and Open Album.html. Your album page is ready. Tap to listen."]
+  first -->|Yes| sendFirst["Attach Open Album.html, and a screenshot only when one was captured. Your album page is ready. Tap to listen."]
   first -->|No| sendMore["Attach the same filename and name what is new"]
   sendFirst --> done{"Is every requested take in this batch playable?"}
   sendMore --> done
@@ -112,7 +112,7 @@ flowchart TD
   done -->|Yes| card["Later message, after the page: Your album is ready. What’s next?"]
 ```
 
-The first playable song may be any track in the batch. A streaming status is not the gate. Aim to attach the file within ten seconds of the byte probe passing, while the other clip ids keep polling in the background. The exporter is already on disk before the first Create. The first line is “Your album page is ready. Tap to listen ↓”, with “Cool, the first ones are in. Spinning up your album page now. Tap here to listen.” When other tracks on the list do not have a take yet, the line includes “I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.” Start those tracks without waiting. /more and /pick are secondary and do not append songs. Post Album page.png with the file. The completion card waits until every requested take is playable, and until a later message after the page. Generation starts with “About 1–2 minutes until the first take can play, then a few more minutes for the rest. I’ll send each one as soon as you can tap it.”
+The first playable song may be any track in the batch. A streaming status is not the gate. Aim to attach the file within ten seconds of the byte probe passing, while the other clip ids keep polling in the background. The exporter is already on disk before the first Create. The first line is “Your album page is ready. Tap to listen ↓”, with “Cool, the first ones are in. Spinning up your album page now. Tap here to listen.” When other tracks on the list do not have a take yet, the line includes “I’ll make the next tracks on the album. /more makes more takes of this song, and /pick chooses favorites.” Start those tracks without waiting. /more and /pick are secondary and do not append songs. If the command prints `preview`, attach that screenshot of the real page. If it does not, send the file with no picture. The completion card waits until every requested take is playable, and until a later message after the page. Generation starts with “A short paid clip is often playable in a couple of minutes. A Free song can run about 3–4 minutes, so the first take can take longer. I’ll send each one as soon as you can tap it.”
 
 ## Share album, Add more tracks, or a custom reply
 

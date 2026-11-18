@@ -21,7 +21,7 @@ import { isPlayableStream } from '../src/lib/album/stream-url.ts';
 
 import { servePreview } from './preview-server.mjs';
 import { previewIdentity } from './preview-identity.mjs';
-import { renderAlbumPagePng } from './page-preview.mjs';
+import { captureAlbumPage } from './capture-page.mjs';
 import { deliverySay, markPageDelivered, trackProgressLine } from './live-progress.mjs';
 
 import {
@@ -290,21 +290,7 @@ async function exportPreview(
     }
     const page = path.join(output, files[0]);
     await rename(path.join(staging, files[0]), page);
-    const previewImage = path.join(root, '.tmp', 'Album page.png');
-    const shown = [];
-    for (const track of tracks) {
-      if (track.takes.length === 0) continue;
-      const letters = [];
-      for (const take of track.takes) letters.push(take.letter);
-      shown.push({ title: track.title, letters });
-    }
-    await writeFile(
-      previewImage,
-      renderAlbumPagePng({
-        title: typeof album.title === 'string' ? album.title : 'Album',
-        tracks: shown,
-      })
-    );
+    const previewImage = await captureAlbumPage(page, path.join(root, '.tmp', 'Album page.png'));
     const pendingTracks = tracks.some(track => track.takes.length === 0);
     const say = deliverySay({
       first: previous.size === 0,
@@ -327,7 +313,7 @@ async function exportPreview(
       report: {
         page,
         link: page,
-        preview: previewImage,
+        ...(previewImage ? { preview: previewImage } : {}),
         say,
         open: page,
         shareCard: false,

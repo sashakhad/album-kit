@@ -670,10 +670,7 @@ export function AlbumPlayer({
           {currentTrack !== null ? (
             <p className='text-muted-foreground text-sm'>
               {padTrackNumber(currentTrack.number)}
-              {playerSurface === 'vote' && currentTake !== null
-                ? ` · Take ${currentTake.label}`
-                : ''}
-              {currentTrack.status === 'preview' ? ' · Preview' : ''}
+              {currentTake !== null ? ` · Take ${currentTake.label}` : ''}
               {isParkedTake(currentTrack, currentTake) ? ' · Possible rename' : ''}
             </p>
           ) : null}
@@ -1300,7 +1297,7 @@ function ParkedTakeRow({
         </span>
         <span className='min-w-0 flex-1'>
           <span className='block truncate text-sm'>{track.title}</span>
-          <span className='text-muted-foreground font-mono text-xs'>{take.label}</span>
+          <span className='text-muted-foreground font-mono text-xs'>{`Take ${take.label}`}</span>
         </span>
       </button>
       <div className='flex shrink-0 items-center gap-1'>
@@ -1539,7 +1536,7 @@ function TakeScoreChips({
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {take.label}
+                {`Take ${take.label}`}
               </button>
               {voting ? (
                 <VoteButton
