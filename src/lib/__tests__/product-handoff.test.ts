@@ -81,6 +81,11 @@ describe('product handoff', () => {
     expect(requirements).toContain('Copy this sentence exactly');
     expect(requirements).toContain('A status of streaming is ready media for that clip.');
     expect(requirements).toContain('Do not run pnpm, an install, or a build');
+    expect(requirements).toContain('node scripts/album-batch.mjs status');
+    expect(requirements).toContain('phase is `ready`');
+    expect(requirements).toContain('projectId');
+    expect(requirements).toContain('Review next pass');
+    expect(requirements).toContain('Start Pass 2? No takes will be cut.');
 
     const charts = bodies.get('docs/decision-charts.md');
     if (charts === undefined) throw new Error('Missing charts');

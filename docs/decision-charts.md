@@ -89,7 +89,7 @@ flowchart TD
   sendFirst --> done{"Is every requested take in this batch playable?"}
   sendMore --> done
   done -->|No| watch["Do not show the completion card"]
-  done -->|Yes| card["Ask once: Your album is ready. What’s next?"]
+  done -->|Yes| card["Phase ready, then offer: Your album is ready. What’s next?"]
 ```
 
 The first playable song may be any track in the batch. Aim to attach the file within ten seconds of that take becoming playable, before checking the remaining takes.
@@ -107,7 +107,7 @@ flowchart TD
   edition -->|Full Setup| app["Next.js app from the pinned kit revision and this album"]
   static --> check{"Does the public player open and play?"}
   app --> fullcheck{"Do /listen and /vote play signed out, and does /settings check out for the creator?"}
-  check -->|Yes| link["Send the verified URL"]
+  check -->|Yes| link["Send the URL only when projectId and accountId are the creator’s"]
   fullcheck -->|Yes| link
   check -->|No| hold["Keep the local player and name the blocker"]
   fullcheck -->|No| hold
