@@ -12,7 +12,7 @@ export const unreadPublishQuota =
   'I have not read how many public publishes are left today. I’m not starting until I know this batch fits.';
 
 export function freeQuotaSay(made, takes) {
-  return `Suno Free does not show how many public publishes are left. I've published ${made} today. This batch needs ${takes}. The cap is 100 a day.`;
+  return `Suno Free does not show an account publish count. This album folder has recorded ${made} publishes today, which is not the account total. This batch needs ${takes}. The cap is 100 a day.`;
 }
 
 function dayKey(now = new Date()) {

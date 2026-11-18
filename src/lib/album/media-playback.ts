@@ -242,6 +242,9 @@ function prepareElement(element: HTMLMediaElement, url: string, crossOrigin: boo
   element.setAttribute('src', url);
 }
 
+const STALL_RETRY_MS = 2000;
+const HAVE_FUTURE_DATA = 3;
+
 function settlePlay(
   element: HTMLMediaElement,
   signal: AbortSignal,
@@ -249,9 +252,12 @@ function settlePlay(
 ): Promise<Settle> {
   return new Promise(resolve => {
     let settled = false;
+    let retried = false;
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
     const finish = (value: Settle) => {
       if (settled) return;
       settled = true;
+      if (stallTimer !== null) clearTimeout(stallTimer);
       element.removeEventListener('error', onError);
       signal.removeEventListener('abort', onAbort);
       resolve(value);
@@ -260,35 +266,49 @@ function settlePlay(
       finish({ kind: 'failed', failure: failureOf(element) });
     };
     const onAbort = () => finish({ kind: 'aborted' });
+    const beginPlay = () => {
+      let playing: Promise<void>;
+      try {
+        playing = element.play();
+      } catch (error) {
+        finish(thrownSettle(element, error));
+        return;
+      }
+      if (stallTimer !== null) clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        if (settled || signal.aborted || retried || load === undefined) return;
+        if (element.readyState >= HAVE_FUTURE_DATA) return;
+        retried = true;
+        element.pause();
+        element.removeAttribute('src');
+        element.load();
+        prepareElement(element, load.url, load.crossOrigin);
+        beginPlay();
+      }, STALL_RETRY_MS);
+      void playing.then(
+        () => {
+          finish({ kind: 'played' });
+        },
+        (error: unknown) => {
+          if (signal.aborted || isAbortError(error)) {
+            finish({ kind: 'aborted' });
+            return;
+          }
+          queueMicrotask(() => {
+            const failure = readMediaError(element);
+            if (failure !== null) {
+              finish({ kind: 'failed', failure });
+              return;
+            }
+            finish(thrownSettle(element, error));
+          });
+        }
+      );
+    };
     element.addEventListener('error', onError);
     signal.addEventListener('abort', onAbort);
     if (load !== undefined) prepareElement(element, load.url, load.crossOrigin);
-    let playing: Promise<void>;
-    try {
-      playing = element.play();
-    } catch (error) {
-      finish(thrownSettle(element, error));
-      return;
-    }
-    void playing.then(
-      () => {
-        finish({ kind: 'played' });
-      },
-      (error: unknown) => {
-        if (signal.aborted || isAbortError(error)) {
-          finish({ kind: 'aborted' });
-          return;
-        }
-        queueMicrotask(() => {
-          const failure = readMediaError(element);
-          if (failure !== null) {
-            finish({ kind: 'failed', failure });
-            return;
-          }
-          finish(thrownSettle(element, error));
-        });
-      }
-    );
+    beginPlay();
   });
 }
 

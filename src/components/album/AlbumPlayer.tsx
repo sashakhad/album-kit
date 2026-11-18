@@ -1173,7 +1173,7 @@ function PlaybackMedia({
           audioRef.current = node;
           onReady(node);
         }}
-        preload='metadata'
+        preload='auto'
         playsInline
         {...events}
       />
@@ -1182,7 +1182,7 @@ function PlaybackMedia({
           videoRef.current = node;
           onReady(node);
         }}
-        preload='metadata'
+        preload='auto'
         playsInline
         disablePictureInPicture
         aria-hidden

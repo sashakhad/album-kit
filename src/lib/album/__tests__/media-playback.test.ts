@@ -124,6 +124,34 @@ describe('sandboxed attachment playback', () => {
     expect(message).toContain(STREAM);
   });
 
+  it('reloads a stream that is still waiting after two seconds', async () => {
+    vi.useFakeTimers();
+    try {
+      const { audio, video } = mountMedia();
+      let calls = 0;
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function play() {
+        calls += 1;
+        if (calls === 1) return new Promise(() => undefined);
+        return Promise.resolve();
+      });
+      const onPlaying = vi.fn();
+      startTakePlayback({
+        url: STREAM,
+        audio,
+        video,
+        buffered: null,
+        fetchImpl: vi.fn(),
+        listener: { onPlaying, onFailure: vi.fn(), onNeedsGesture: vi.fn() },
+        onBuffer: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(onPlaying).toHaveBeenCalled();
+      expect(calls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not fetch a local file when the element can play it', async () => {
     const { audio, video } = mountMedia();
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
