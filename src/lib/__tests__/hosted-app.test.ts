@@ -61,7 +61,9 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-function host(options: { collision?: boolean; existingEnv?: boolean } = {}) {
+function host(
+  options: { collision?: boolean; existingEnv?: boolean; deploymentProjectId?: string } = {}
+) {
   const deployments: string[][] = [];
   const uploads: string[][] = [];
   const keys = new Set(
@@ -88,6 +90,7 @@ function host(options: { collision?: boolean; existingEnv?: boolean } = {}) {
       value = {
         deployment: {
           id: 'dpl_test',
+          projectId: options.deploymentProjectId ?? project.id,
           readyState: 'READY',
           target: 'production',
           productionUrl: url,
@@ -150,6 +153,13 @@ describe('direct album deployment', () => {
       'direct'
     );
   });
+  it('rejects a deployment that names a different Vercel project', async () => {
+    const { runner, request } = host({ deploymentProjectId: 'prj_other' });
+    await expect(
+      setup({ name: project.name, scope: 'test-scope' }, root, runner, request)
+    ).rejects.toThrow('different project');
+  });
+
   it('never adopts a different album with a matching project name', async () => {
     const { runner, deployments, request } = host({ collision: true });
     await expect(setup({ name: project.name }, root, runner, request)).rejects.toThrow(

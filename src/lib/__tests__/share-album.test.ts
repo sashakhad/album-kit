@@ -112,7 +112,7 @@ describe('public listening app', () => {
       if (args[0] === 'api') {
         return {
           status: 0,
-          stdout: '{"name":"porch-listen","id":"prj_owned"}',
+          stdout: '{"name":"porch-listen","id":"prj_owned","accountId":"team_owner"}',
           stderr: '',
           shown: 'create',
         };
@@ -124,7 +124,12 @@ describe('public listening app', () => {
         : {
             status: 0,
             stdout: JSON.stringify({
-              deployment: { productionUrl: url, readyState: 'READY', target: 'production' },
+              deployment: {
+                projectId: 'prj_owned',
+                productionUrl: url,
+                readyState: 'READY',
+                target: 'production',
+              },
             }),
             stderr: '',
             shown: 'deploy',
@@ -145,9 +150,56 @@ describe('public listening app', () => {
       });
     };
     await expect(shareAlbum(root, options, runner, request)).rejects.toThrow('Interrupted');
-    await expect(shareAlbum(root, options, runner, request)).resolves.toBe(url);
-    expect(calls.map(args => args[0])).toEqual(['api', 'deploy', 'deploy']);
+    await expect(shareAlbum(root, options, runner, request)).resolves.toMatchObject({
+      url,
+      edition: 'light',
+      project: 'porch-listen',
+      projectId: 'prj_owned',
+      accountId: 'team_owner',
+      scope: 'owner-team',
+    });
+    expect(calls.map(args => args[0])).toEqual(['api', 'deploy', 'api', 'deploy']);
+    expect(calls[2]?.[1]).toBe('/v9/projects/prj_owned');
     expect(media).toHaveLength(2);
+  });
+
+  it('refuses a project with no account and a deployment for a different project', async () => {
+    const runner = createRunner({ dryRun: false });
+    const vercel = vi.spyOn(runner, 'vercel');
+    vercel.mockReturnValueOnce({
+      status: 0,
+      stdout: '{"name":"porch-listen","id":"prj_owned"}',
+      stderr: '',
+      shown: 'create',
+    });
+    await expect(shareAlbum(root, options, runner)).rejects.toThrow('account');
+    expect(vercel).toHaveBeenCalledTimes(1);
+
+    vercel.mockReset();
+    vercel.mockImplementation(args => {
+      if (args[0] === 'api') {
+        return {
+          status: 0,
+          stdout: '{"name":"porch-listen","id":"prj_owned","accountId":"team_owner"}',
+          stderr: '',
+          shown: 'create',
+        };
+      }
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          deployment: {
+            projectId: 'prj_other',
+            productionUrl: url,
+            readyState: 'READY',
+            target: 'production',
+          },
+        }),
+        stderr: '',
+        shown: 'deploy',
+      };
+    });
+    await expect(shareAlbum(root, options, runner)).rejects.toThrow('different project');
   });
 
   it('never adopts an existing project with a matching name', async () => {
