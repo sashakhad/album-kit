@@ -175,10 +175,66 @@ describe('AlbumPlayer', () => {
     const user = userEvent.setup();
     render(<AlbumPlayer version={sampleVersion} />);
     fireEvent.error(audioElement());
-    expect(screen.getByRole('alert')).toHaveTextContent('Could not load');
+    expect(screen.getByRole('alert')).toHaveTextContent('MediaError');
+    expect(screen.getByRole('alert')).toHaveTextContent('/api/audio/v1/01-track-one.mp3');
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('shows the MediaError and stream URL when a sandboxed viewer blocks playback', async () => {
+    const user = userEvent.setup();
+    const mp4 = 'https://cdn1.suno.ai/clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    const safety = {
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check',
+    };
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function play(
+      this: HTMLMediaElement
+    ) {
+      Object.defineProperty(this, 'error', { configurable: true, value: safety });
+      this.dispatchEvent(new Event('error'));
+      return Promise.reject(new DOMException('No supported source', 'NotSupportedError'));
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      })
+    );
+    render(
+      <AlbumPlayer
+        version={{
+          ...sampleVersion,
+          tracks: [
+            {
+              number: 1,
+              title: 'Track One',
+              kind: 'album',
+              filename: '01-track-one.mp3',
+              audioUrl: mp4,
+              takes: [
+                {
+                  label: 'A',
+                  filename: '01-track-one.mp3',
+                  audioUrl: mp4,
+                  versionSlug: 'v1',
+                  voteLabel: 'A',
+                },
+              ],
+              prompt: 'Warm and wide.',
+            },
+          ],
+        }}
+      />
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Play' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('MediaError 4');
+    expect(alert).toHaveTextContent(safety.message);
+    expect(alert).toHaveTextContent(mp4);
+    expect(alert).toHaveTextContent('Failed to fetch');
   });
 
   it('plays a ready track when selected', async () => {
@@ -230,6 +286,9 @@ describe('AlbumPlayer', () => {
     expect(document.querySelector('audio')).not.toHaveAttribute('src');
     expect(screen.getByRole('button', { name: 'Play' })).toBeEnabled();
     expect(screen.getByRole('slider', { name: 'Seek' })).toBeInTheDocument();
+
+    expect(screen.getByText('Internet required')).toBeInTheDocument();
+    expect(screen.queryByText(/public Suno link|anyone with that link/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Play' }));
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();

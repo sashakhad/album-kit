@@ -102,7 +102,7 @@ function openPlayer(html: string) {
 
 it('plays a track on the first tap and advances like the album page', async () => {
   const html = renderPage();
-  expect(html).not.toMatch(/internet required|streams from a public Suno link/i);
+  expect(html).not.toMatch(/streams from a public Suno link|anyone with that link/i);
   expect(html).toContain('const albumKey = "');
   const { dom, played, sessions, errors } = openPlayer(html);
   const { document, HTMLElement } = dom.window;
@@ -112,9 +112,18 @@ it('plays a track on the first tap and advances like the album page', async () =
   expect(shown).toContain('First song');
   expect(shown).toContain('Second song');
   expect(shown).not.toMatch(
-    /Only negative scores|dropped before|unscored takes|streams from a public Suno link|internet required/i
+    /Only negative scores|dropped before|unscored takes|streams from a public Suno link|anyone with that link/i
   );
+  expect(shown).toMatch(/internet required/i);
   expect(document.querySelector('[data-pass-status]')).toBeNull();
+
+  const localTake = buttonNamed(document, /^take a$/i);
+  expect(localTake.parentElement?.parentElement?.textContent ?? '').not.toMatch(
+    /internet required/i
+  );
+  const streamTake = buttonNamed(document, /^take b$/i);
+  expect(streamTake.parentElement?.parentElement?.textContent ?? '').toMatch(/Internet required/);
+  expect(shown).not.toMatch(/anyone with that link/i);
 
   const track = buttonNamed(document, /first song/i);
   track.click();

@@ -9,6 +9,8 @@ import * as esbuild from 'esbuild';
 import postcss from 'postcss';
 import tailwind from '@tailwindcss/postcss';
 
+import { PLAYER_SHELL_CSP } from '../src/lib/album/content-security.ts';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 
@@ -25,6 +27,8 @@ const inputRoots = [
   'src/lib/album/play-path.ts',
   'src/lib/album/preview-listen.ts',
   'src/lib/album/slug.ts',
+  'src/lib/album/content-security.ts',
+  'src/lib/album/media-playback.ts',
   'src/lib/album/stream-url.ts',
   'src/lib/album/types.ts',
   'src/lib/votes/pass-copy.ts',
@@ -158,7 +162,7 @@ export async function buildPlayerShell() {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; media-src 'self' file: https://*.suno.ai; base-uri 'none'; form-action 'none'"
+      content="${PLAYER_SHELL_CSP}"
     />
     <title>___ALBUM_TITLE___</title>
     <style>${css}</style>
