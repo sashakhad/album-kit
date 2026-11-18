@@ -31,6 +31,36 @@ describe('local preview playbook', () => {
     }
   );
 
+  it('splits a new bot from a returning album across the installed and test instructions', async () => {
+    const files = [
+      'grokbot/INSTRUCTIONS.md',
+      'grokbot/BOT.md',
+      'grokbot/PORTABLE.md',
+      '.cursor/skills/start-here/SKILL.md',
+    ];
+    const phrases = [
+      'A new bot presumes start.',
+      'An active conversation resumes the current album and does not replay the opening.',
+      'Explicit `/start` starts a fresh album and preserves the existing album, takes, scores, and jobs.',
+      '`/help` and `/settings` work before sign-in.',
+      '`/refresh <branch-or-SHA>`',
+      '`/refresh main`',
+      'Do not create a duplicate job.',
+      'Do not create a job or drop a vote.',
+      'Up to five different AI models each write a prompt',
+      'combines their ideas',
+      'Connect Cursor only when the comparison starts.',
+      'Report the revision that loaded',
+    ];
+    for (const file of files) {
+      const body = await text(file);
+      for (const phrase of phrases) {
+        expect(body, `${file} missing ${phrase}`).toContain(phrase);
+      }
+      expect(body).not.toMatch(/streams from a public Suno link|internet required/i);
+    }
+  });
+
   it('opens a fresh album with help and settings before the album idea', async () => {
     const greeting =
       "Hey, I'm Album Bot! Type /help for commands or /settings to see your setup. Let's get some music going.";
