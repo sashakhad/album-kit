@@ -86,7 +86,7 @@ Only set up GitHub or Cursor Origin if the creator asks to save the album there.
 
 ### Pick up kit updates
 
-From a fresh kit copy, run `pnpm kit:update <existing-album-directory>` or `node scripts/update-album-kit.mjs <existing-album-directory>`. It updates the kit code in that album folder while preserving its `album/` directory, ballots, environment, deployment link and custom files. Publish a requested voting app update from that album folder with `pnpm publish:album "Kit update"`. For a static page, repeat **Share** from `start-here` with the same project and scope.
+From a fresh kit copy, run `pnpm kit:update <existing-album-directory>` or `node scripts/update-album-kit.mjs <existing-album-directory>`. It updates the kit code in that album folder while preserving its `album/` directory, ballots, environment, deployment link and custom files. To deploy the updated Full Setup app, run `node <checked-kit>/scripts/share-album.mjs --project <existing-project> --scope <verified-owner-scope> --ref <new-verified-SHA>` from the album folder. For changes to the album’s songs or settings, `pnpm publish:album "<album change>"` reuses its deployed kit revision. For a static page, repeat **Share** from `start-here` with the same project and scope.
 
 ## Check before you say done
 

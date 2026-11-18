@@ -33,6 +33,8 @@ Settings default `vocals` to `instrumental`. For that default, the sheet's Lyric
 
 When the owner wants vocals, or the song is sung, do not leave that default in place. Set `vocals` to `sung`, or to `chops` when they asked for vocal chops. Write original lyrics into the sheet's Lyrics field. Do not copy an existing song. A title joke may appear in the lyric; it still stays out of Style. For chops, write a short original chop line unless they asked for a full lyric. `suno-run` sends those lyrics in Suno's custom mode, the `lyrics` field, with Style and Title.
 
+For multiple songs with vocals, write original lyrics per track. As each track’s sheet is ready, pass the exact lyrics, title, Style and writer provenance to `suno-run` while writing the next sheet. Finish that song’s agreed writer comparison before its submissions. Keep the shared brief, lyrics, model and number of takes consistent across its comparison entries.
+
 ## Write and check
 
 Produce exactly the requested number of distinct musical lanes. Put genre and concrete groove early; describe defining sounds, arrangement, hooks, dynamics and a useful production direction. Honor the album job, vocals and constraints. Keep each Style paragraph under 900 characters. Keep the joke, title, funny framing and vocal negations out of Style; use the Title, Instrumental, Lyrics and Exclude fields for their intended roles. Apply `src/lib/rounds/prompt-quality.ts` and check the sheet's count and the owner's exact constraints. For a variation, check that the revision preserves the parent's requested features and applies the edit instructions without changing tracks.

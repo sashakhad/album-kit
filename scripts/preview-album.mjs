@@ -21,14 +21,13 @@ import { isPlayableStream, isVideoStream } from '../src/lib/album/stream-url.ts'
 import { servePreview } from './preview-server.mjs';
 import { previewIdentity } from './preview-identity.mjs';
 
-async function readJson(filename, fallback) {
-  try {
-    return JSON.parse(await readFile(filename, 'utf8'));
-  } catch (error) {
-    if (error.code === 'ENOENT' && fallback !== undefined) return fallback;
-    throw error;
-  }
-}
+import {
+  mergeReadyTakes,
+  readJson,
+  readStreams,
+  saveJson,
+  withPreviewWriter,
+} from './preview-streams.mjs';
 
 function escapeHtml(value) {
   return String(value).replace(
@@ -50,6 +49,68 @@ function takeLabel(number) {
     : takeLabel(Math.floor((number - 1) / 26)) + takeLabel(((number - 1) % 26) + 1);
 }
 
+async function priorLabels(root, albumKey) {
+  const labels = new Map();
+  for (const directory of ['album-preview', 'album-preview-online']) {
+    const html = await readFile(
+      path.join(root, '.tmp', directory, 'Open Album.html'),
+      'utf8'
+    ).catch(error => {
+      if (error.code === 'ENOENT') return '';
+      throw error;
+    });
+    if (!html.includes(`const albumKey = "${albumKey}";`)) continue;
+    for (const [button] of html.matchAll(/<button\b[^>]*>/g)) {
+      const id = / data-id="([a-f0-9]{24})"/.exec(button)?.[1];
+      const letter = / data-label="Take ([A-Z]+)"/.exec(button)?.[1];
+      if (id && letter && !labels.has(id)) labels.set(id, letter);
+    }
+  }
+  return labels;
+}
+
+async function assignLabels(root, albumKey, tracks) {
+  const file = path.join(root, '.tmp', 'album-preview-labels', albumKey + '.json');
+  const saved = await readJson(file, null);
+  const prior = saved === null ? await priorLabels(root, albumKey) : new Map();
+  const catalog = saved ?? {};
+  let changed = false;
+  for (const track of tracks) {
+    const labels = catalog[track.number] ?? {};
+    const used = new Set(Object.values(labels));
+    // Older exports numbered only the takes that were present. Retain their
+    // displayed letters before assigning any newly arrived clips.
+    for (const take of track.takes) {
+      const previous = prior.get(take.id);
+      if (!Object.hasOwn(labels, take.id) && previous && !used.has(previous)) {
+        labels[take.id] = previous;
+        used.add(previous);
+        changed = true;
+      }
+    }
+    let next = 1;
+    for (const take of track.takes) {
+      if (Object.hasOwn(labels, take.id)) {
+        if (typeof labels[take.id] !== 'string' || !/^[A-Z]+$/.test(labels[take.id])) {
+          throw new Error('The saved preview take label is invalid.');
+        }
+      } else {
+        let letter = take.letter;
+        while (used.has(letter)) letter = takeLabel(next++);
+        labels[take.id] = letter;
+        used.add(letter);
+        changed = true;
+      }
+      take.letter = labels[take.id];
+    }
+    catalog[track.number] = labels;
+  }
+  if (changed) {
+    await mkdir(path.dirname(file), { recursive: true });
+    await saveJson(file, catalog);
+  }
+}
+
 async function renderPreview(album, tracks, albumKey, legacyAlbumKey) {
   const [template, styles] = await Promise.all([
     readFile(new URL('./album-preview.html', import.meta.url), 'utf8'),
@@ -63,13 +124,13 @@ async function renderPreview(album, tracks, albumKey, legacyAlbumKey) {
       const title = escapeHtml(track.title);
       const number = String(track.number).padStart(2, '0');
       const takes = track.takes
-        .map((take, index) => {
-          const label = `Take ${takeLabel(index + 1)}`;
+        .map(take => {
+          const label = `Take ${take.letter}`;
           const name = `${title}, ${label}`;
           return `<div class="take-row" data-take-id="${take.id}" role="group" aria-label="${name}">
             <button type="button" data-take aria-label="${name}" aria-pressed="false"
               data-src="${escapeHtml(take.src)}" data-id="${take.id}" data-title="${title}" data-label="${label}"
-              data-online="${take.online}" data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${takeLabel(index + 1)}</button>
+              data-online="${take.online}" data-kind="${isVideoStream(take.src) ? 'video' : 'audio'}">${take.letter}</button>
             <button type="button" data-delta="-1" disabled aria-label="Lower score for ${name}">−</button>
             <output class="take-score" aria-label="Score for ${name}">0</output>
             <button type="button" data-delta="1" disabled aria-label="Raise score for ${name}">+</button>
@@ -95,7 +156,7 @@ async function renderPreview(album, tracks, albumKey, legacyAlbumKey) {
   );
 }
 
-export async function preview(
+async function exportPreview(
   root,
   {
     makeZip = false,
@@ -109,7 +170,7 @@ export async function preview(
   const audioRoot = path.join(albumRoot, 'audio');
   const album = await readJson(path.join(albumRoot, 'album.json'));
   const { albumKey, legacyAlbumKey } = await previewIdentity(root, album);
-  const streams = await readJson(path.join(root, '.tmp', 'album-preview-streams.json'), []);
+  const streams = await readStreams(root);
   if (!Array.isArray(streams)) throw new Error('The preview stream catalog must be a JSON array.');
 
   const inputs = new Map();
@@ -157,7 +218,7 @@ export async function preview(
       const id = createHash('sha256').update(filename).digest('hex').slice(0, 24);
       names.set(id, filename);
       if (take.online) {
-        track.takes.push({ ...take, id });
+        track.takes.push({ ...take, id, letter: parsed.letter });
         online++;
       } else {
         const folder = path.join(staging, 'audio');
@@ -165,11 +226,12 @@ export async function preview(
         const src = `audio/${id}.mp3`;
         await copyFile(path.join(audioRoot, filename), path.join(staging, src));
         files.push(src);
-        track.takes.push({ src, online: false, id });
+        track.takes.push({ src, online: false, id, letter: parsed.letter });
         offline++;
       }
     }
     if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
+    await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
     const html = await renderPreview(album, tracks, albumKey, legacyAlbumKey);
     await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
@@ -212,6 +274,23 @@ export async function preview(
   }
 }
 
+export async function preview(root, options = {}) {
+  return withPreviewWriter(root, options.streamsOnly ? 'streams' : 'files', () =>
+    exportPreview(root, options)
+  );
+}
+
+export async function recordReadyTakes(root, receipt) {
+  return withPreviewWriter(root, 'streams', async () => {
+    const album = await readJson(path.join(root, 'album/album.json'));
+    const next = mergeReadyTakes(await readStreams(root), receipt, album);
+    const directory = path.join(root, '.tmp');
+    await saveJson(path.join(directory, 'album-preview-streams.json'), next);
+    // A retry also finishes any interrupted render after the catalog was saved.
+    return exportPreview(root, { streamsOnly: true });
+  });
+}
+
 if (
   process.argv[1] &&
   existsSync(process.argv[1]) &&
@@ -219,17 +298,23 @@ if (
 ) {
   try {
     const args = process.argv.slice(2);
+    const recording = args.length === 2 && args[0] === '--record';
     if (
-      args.length > 1 ||
-      (args.length === 1 && !['--zip', '--serve', '--streams-only'].includes(args[0]))
+      !recording &&
+      (args.length > 1 ||
+        (args.length === 1 && !['--zip', '--serve', '--streams-only'].includes(args[0])))
     ) {
-      throw new Error('Usage: pnpm preview:album [--zip | --serve | --streams-only]');
+      throw new Error(
+        'Usage: pnpm preview:album [--zip | --serve | --streams-only | --record <ready-take.json>]'
+      );
     }
-    const { report } = await preview(process.cwd(), {
-      makeZip: args.includes('--zip'),
-      serve: args.includes('--serve'),
-      streamsOnly: args.includes('--streams-only'),
-    });
+    const { report } = recording
+      ? await recordReadyTakes(process.cwd(), await readJson(args[1]))
+      : await preview(process.cwd(), {
+          makeZip: args.includes('--zip'),
+          serve: args.includes('--serve'),
+          streamsOnly: args.includes('--streams-only'),
+        });
     console.log(JSON.stringify(report));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
