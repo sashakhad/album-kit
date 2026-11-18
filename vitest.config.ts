@@ -15,6 +15,10 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'jsdom',
+          env: {
+            // Fixture CDN urls are not public objects. Production omits this and embeds them.
+            ALBUM_PREVIEW_EMBED: '0',
+          },
           setupFiles: ['./vitest.setup.ts'],
           include: ['src/**/*.{test,spec}.{ts,tsx}'],
         },

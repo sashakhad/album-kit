@@ -15,6 +15,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { embedPublicAudio } from '../src/lib/album/embed-public-audio.ts';
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { previewListenBlurb, previewListenVersion } from '../src/lib/album/preview-listen.ts';
 import { isPlayableStream } from '../src/lib/album/stream-url.ts';
@@ -182,7 +183,12 @@ async function renderPreview(album, tracks, albumKey) {
       number: track.number,
       title: track.title,
       slug: track.slug,
-      takes: track.takes.map(take => ({ id: take.id, src: take.src, label: take.letter })),
+      takes: track.takes.map(take => ({
+        id: take.id,
+        src: take.src,
+        label: take.letter,
+        ...(take.embeddedAudio === undefined ? {} : { embeddedAudio: take.embeddedAudio }),
+      })),
     }))
   );
   return shell
@@ -279,6 +285,7 @@ async function exportPreview(
     }
     const previous = await priorLabels(root, albumKey);
     await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
+    await embedOnlineTakes(root, tracks);
     const html = await renderPreview(album, tracks, albumKey);
     await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
@@ -333,6 +340,43 @@ async function exportPreview(
     };
   } finally {
     await rm(staging, { recursive: true, force: true });
+  }
+}
+
+async function embedOnlineTakes(root, tracks) {
+  const urls = [];
+  const seen = new Set();
+  for (const track of tracks) {
+    for (const take of track.takes) {
+      if (take.online !== true || typeof take.src !== 'string' || seen.has(take.src)) continue;
+      seen.add(take.src);
+      urls.push(take.src);
+    }
+  }
+  if (urls.length === 0) return;
+  const cacheDir = path.join(root, '.tmp', 'album-preview-embedded');
+  const allowNetwork = process.env.ALBUM_PREVIEW_EMBED !== '0';
+  const embedded = new Map();
+  let cursor = 0;
+  async function worker() {
+    while (cursor < urls.length) {
+      const url = urls[cursor];
+      cursor += 1;
+      if (typeof url !== 'string') continue;
+      const audio = await embedPublicAudio({ url, cacheDir, allowNetwork });
+      if (audio !== null) embedded.set(url, audio);
+    }
+  }
+  const workers = [];
+  const count = Math.min(3, urls.length);
+  for (let index = 0; index < count; index += 1) workers.push(worker());
+  await Promise.all(workers);
+  for (const track of tracks) {
+    for (const take of track.takes) {
+      if (take.online !== true || typeof take.src !== 'string') continue;
+      const audio = embedded.get(take.src);
+      if (audio !== undefined) take.embeddedAudio = audio;
+    }
   }
 }
 

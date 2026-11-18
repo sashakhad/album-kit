@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { shellStamp } from '../../../scripts/build-player-shell.mjs';
 import { PLAYER_SHELL_CSP } from '@/lib/album/content-security';
+import { embedPublicAudio } from '@/lib/album/embed-public-audio';
 
 const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const previewScript = path.join(kitRoot, 'scripts', 'preview-album.mjs');
@@ -246,6 +247,54 @@ describe('album preview', () => {
     expect(html).not.toContain('other-song');
     expect(html).not.toContain('clipA.mp4');
     expect(html).toContain('oklch(0.145 0 0)');
+  });
+
+  it('inlines cached public audio and keeps the CDN url on the take', async () => {
+    const root = await writeFixture();
+    const bytes = Buffer.from('inline-audio-bytes');
+    await embedPublicAudio({
+      url: 'https://cdn1.suno.ai/clipB.mp4',
+      cacheDir: path.join(root, '.tmp', 'album-preview-embedded'),
+      allowNetwork: true,
+      ffmpegBin: null,
+      fetchImpl: () =>
+        Promise.resolve({
+          status: 200,
+          headers: {
+            get(name: string) {
+              return name.toLowerCase() === 'content-type' ? 'audio/mp4' : null;
+            },
+          },
+          arrayBuffer() {
+            return Promise.resolve(Uint8Array.from(bytes).buffer);
+          },
+        }),
+    });
+    const result = await runPreview(root, ['--streams-only']);
+    expect(result.code).toBe(0);
+    const html = await readFile(readReport(result.stdout).page, 'utf8');
+    const raw = /<script type="application\/json" id="album-data">([\s\S]*?)<\/script>/.exec(
+      html
+    )?.[1];
+    expect(raw).toBeDefined();
+    const payload = JSON.parse(raw ?? '') as {
+      version: {
+        tracks: {
+          takes: { audioUrl: string; embeddedAudio?: { mime: string; base64: string } }[];
+        }[];
+      };
+    };
+    const takes = payload.version.tracks.flatMap(track => track.takes);
+    expect(
+      takes.find(take => take.audioUrl === 'https://cdn1.suno.ai/clipB.mp4')?.embeddedAudio
+    ).toEqual({
+      mime: 'audio/mp4',
+      base64: bytes.toString('base64'),
+    });
+    expect(
+      takes.find(take => take.audioUrl === 'https://cdn1.suno.ai/clipA.mp4')?.embeddedAudio
+    ).toBeUndefined();
+    expect(html).toContain('https://cdn1.suno.ai/clipB.mp4');
   });
 
   it('hands off one standalone HTML file when the first public take is ready', async () => {

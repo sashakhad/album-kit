@@ -7,6 +7,8 @@ import path from 'node:path';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { afterEach, expect, it } from 'vitest';
 
+import { embedPublicAudio } from '@/lib/album/embed-public-audio';
+
 const roots: string[] = [];
 
 afterEach(() => {
@@ -74,6 +76,12 @@ function openPlayer(html: string) {
     pretendToBeVisual: true,
     virtualConsole,
     beforeParse(window) {
+      let nextObjectUrl = 0;
+      window.URL.createObjectURL = () => {
+        nextObjectUrl += 1;
+        return `blob:null/${String(nextObjectUrl)}`;
+      };
+      window.URL.revokeObjectURL = () => undefined;
       window.HTMLMediaElement.prototype.play = function play() {
         played.push(this);
         return Promise.resolve();
@@ -99,6 +107,75 @@ function openPlayer(html: string) {
   });
   return { dom, played, sessions, errors };
 }
+
+it('plays inlined audio from the shell when remote loads are impossible', async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'preview-player-'));
+  roots.push(root);
+  mkdirSync(path.join(root, 'album'), { recursive: true });
+  mkdirSync(path.join(root, '.tmp'));
+  writeFileSync(
+    path.join(root, 'album/album.json'),
+    JSON.stringify({
+      title: 'Inline album',
+      artist: 'Album Bot',
+      sets: [{ id: 'v1', name: 'First' }],
+      tracks: [{ number: 1, title: 'Tone Song', slug: 'tone-song' }],
+    })
+  );
+  const streamUrl = 'https://cdn1.suno.ai/toneclip.mp4';
+  writeFileSync(
+    path.join(root, '.tmp/album-preview-streams.json'),
+    JSON.stringify([
+      {
+        filename: 'v1-01-tone-song-p1-takea.mp3',
+        clipId: 'toneclip',
+        streamUrl,
+      },
+    ])
+  );
+  const bytes = Buffer.from('inline-tone');
+  await embedPublicAudio({
+    url: streamUrl,
+    cacheDir: path.join(root, '.tmp', 'album-preview-embedded'),
+    allowNetwork: true,
+    ffmpegBin: null,
+    fetchImpl: () =>
+      Promise.resolve({
+        status: 200,
+        headers: {
+          get(name: string) {
+            return name.toLowerCase() === 'content-type' ? 'audio/mp4' : null;
+          },
+        },
+        arrayBuffer() {
+          return Promise.resolve(Uint8Array.from(bytes).buffer);
+        },
+      }),
+  });
+  const report = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        path.join(process.cwd(), 'scripts/preview-album.mjs'),
+        '--streams-only',
+      ],
+      { cwd: root, encoding: 'utf8' }
+    )
+  ) as { page: string };
+  const html = readFileSync(report.page, 'utf8');
+  expect(html).toContain(bytes.toString('base64'));
+  const { dom, played, errors } = openPlayer(html);
+  const { document } = dom.window;
+  await viWait(() => document.querySelector('h1')?.textContent === 'Inline album');
+  expect(errors).toEqual([]);
+  buttonNamed(document, /tone song/i).click();
+  await viWait(() => played.length > 0);
+  expect(played[0]?.tagName).toBe('AUDIO');
+  expect(played[0]?.getAttribute('src')?.startsWith('blob:')).toBe(true);
+  expect(played[0]?.getAttribute('src')).not.toContain('cdn1.suno.ai');
+  expect(shownText(document, dom.window.HTMLElement)).not.toMatch(/could not play this track/i);
+});
 
 it('plays a track on the first tap and advances like the album page', async () => {
   const html = renderPage();

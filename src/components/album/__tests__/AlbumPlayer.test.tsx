@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { clearEmbeddedUrls } from '@/lib/album/embedded-audio';
 import type { AlbumVersion } from '@/lib/album/types';
 
 import { PASS_SLUG } from '@/lib/votes/pass';
@@ -94,6 +95,7 @@ describe('AlbumPlayer', () => {
   });
 
   afterEach(() => {
+    clearEmbeddedUrls();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     window.localStorage.clear();
@@ -235,6 +237,65 @@ describe('AlbumPlayer', () => {
     expect(alert).toHaveTextContent(safety.message);
     expect(alert).toHaveTextContent(mp4);
     expect(alert).toHaveTextContent('Failed to fetch');
+  });
+
+  it('plays inlined audio on one tap when the viewer blocks the CDN and fetch', async () => {
+    const user = userEvent.setup();
+    const mp4 = 'https://cdn1.suno.ai/clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    const safety = {
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check',
+    };
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function play(
+      this: HTMLMediaElement
+    ) {
+      const src = this.getAttribute('src') ?? '';
+      if (src.startsWith('blob:')) return Promise.resolve();
+      Object.defineProperty(this, 'error', { configurable: true, value: safety });
+      this.dispatchEvent(new Event('error'));
+      return Promise.reject(new DOMException('No supported source', 'NotSupportedError'));
+    });
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    vi.stubGlobal('fetch', fetchImpl);
+    render(
+      <AlbumPlayer
+        surface='listen'
+        version={{
+          ...sampleVersion,
+          tracks: [
+            {
+              number: 1,
+              title: 'Track One',
+              kind: 'album',
+              filename: '01-track-one.mp3',
+              audioUrl: mp4,
+              takes: [
+                {
+                  label: 'A',
+                  filename: '01-track-one.mp3',
+                  audioUrl: mp4,
+                  embeddedAudio: { mime: 'audio/mp4', base64: btoa('inline-audio') },
+                  versionSlug: 'v1',
+                  voteLabel: 'A',
+                },
+              ],
+              prompt: 'Warm and wide.',
+            },
+          ],
+        }}
+      />
+    );
+
+    const audio = document.querySelector('audio');
+    expect(audio?.getAttribute('src')?.startsWith('blob:')).toBe(true);
+    expect(audio?.getAttribute('src')).not.toContain('cdn1.suno.ai');
+    expect(screen.queryByText('Internet required')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Play album' }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it('plays a ready track when selected', async () => {
