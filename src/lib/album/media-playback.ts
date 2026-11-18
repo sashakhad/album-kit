@@ -1,5 +1,11 @@
+import {
+  isEmbeddedAudio,
+  objectUrlForEmbedded,
+  playbackUsesVideo,
+} from '@/lib/album/embedded-audio';
 import { isAbortError } from '@/lib/album/playback';
 import { isDirectSunoStream, isVideoStream } from '@/lib/album/stream-url';
+import type { EmbeddedAudio } from '@/lib/album/types';
 
 export type PlaybackFailure = {
   code: number | null;
@@ -33,6 +39,8 @@ type StartPlaybackArgs = {
   audio: HTMLAudioElement | null;
   video: HTMLVideoElement | null;
   buffered: BufferedTake | null;
+  /** Bytes inlined at export. Played first so a viewer that blocks the CDN still starts on this tap. */
+  embedded?: EmbeddedAudio | null;
   fetchImpl?: typeof fetch;
   listener: PlaybackListener;
   onBuffer: (remote: string, objectUrl: string) => void;
@@ -88,6 +96,18 @@ export function policiesAllow(
 export function startTakePlayback(args: StartPlaybackArgs): () => void {
   const controller = new AbortController();
   const signal = controller.signal;
+  const embedded = args.embedded ?? null;
+  if (embedded !== null && isEmbeddedAudio(embedded)) {
+    const local = localUrl(args.url, embedded);
+    if (local !== null) {
+      const element = claimElement(args, playbackUsesVideo(args.url, embedded) ? 'video' : 'audio');
+      if (element !== null) {
+        const pending = settlePlay(element, signal, { url: local, crossOrigin: false });
+        void finishEmbedded(args, signal, pending);
+        return () => controller.abort();
+      }
+    }
+  }
   const buffered = args.buffered;
   if (buffered !== null && buffered.remote === args.url) {
     const element = claimElement(args, isVideoStream(args.url) ? 'video' : 'audio');
@@ -112,6 +132,41 @@ export function startTakePlayback(args: StartPlaybackArgs): () => void {
   const pending = settlePlay(element, signal, { url: args.url, crossOrigin: first.crossOrigin });
   void finishAttempts(args, signal, pending, 0);
   return () => controller.abort();
+}
+
+function localUrl(remote: string, embedded: EmbeddedAudio): string | null {
+  try {
+    return objectUrlForEmbedded(remote, embedded);
+  } catch {
+    return null;
+  }
+}
+
+async function finishEmbedded(
+  args: StartPlaybackArgs,
+  signal: AbortSignal,
+  pending: Promise<Settle>
+): Promise<void> {
+  const settled = await pending;
+  if (signal.aborted || settled.kind === 'aborted') return;
+  if (settled.kind === 'played') {
+    args.listener.onPlaying();
+    return;
+  }
+  if (settled.kind === 'gesture') {
+    args.listener.onNeedsGesture(GESTURE_MESSAGE);
+    return;
+  }
+  const [first] = elementAttempts(args.url);
+  const element = first === undefined ? null : claimElement(args, first.tag);
+  if (first === undefined || element === null) {
+    args.listener.onFailure(
+      formatPlaybackFailure(args.url, { code: null, message: 'The media failed to load' })
+    );
+    return;
+  }
+  const next = settlePlay(element, signal, { url: args.url, crossOrigin: first.crossOrigin });
+  void finishAttempts(args, signal, next, 0);
 }
 
 async function finishBuffered(

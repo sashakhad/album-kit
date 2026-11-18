@@ -6,10 +6,17 @@ export type VersionMeta = {
   albumSlug?: string | null;
 };
 
+/** Audio copied from a public Suno CDN object and inlined in Open Album.html. */
+export type EmbeddedAudio = {
+  mime: string;
+  base64: string;
+};
+
 export type AlbumTake = {
   label: string;
   filename: string;
   audioUrl: string;
+  embeddedAudio?: EmbeddedAudio;
   versionSlug: string;
   voteLabel: string;
   /** Same value before and after reveal. Display letters are not stable. */

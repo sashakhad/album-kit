@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PLAYER_SHELL_CSP } from '@/lib/album/content-security';
+import { clearEmbeddedUrls } from '@/lib/album/embedded-audio';
 import {
   elementAttempts,
   formatPlaybackFailure,
@@ -16,6 +17,7 @@ const PREVIOUS_SHELL_CSP =
 
 describe('sandboxed attachment playback', () => {
   afterEach(() => {
+    clearEmbeddedUrls();
     vi.restoreAllMocks();
   });
 
@@ -44,6 +46,43 @@ describe('sandboxed attachment playback', () => {
       tag: 'audio',
       crossOrigin: false,
     });
+  });
+
+  it('plays inlined audio without a network request when the remote element is rejected', async () => {
+    const { audio, video } = mountMedia();
+    const safety = {
+      code: 4,
+      message: 'MEDIA_ELEMENT_ERROR: Media load rejected by URL safety check',
+    };
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function play(
+      this: HTMLMediaElement
+    ) {
+      if (this.getAttribute('src')?.startsWith('blob:') === true) return Promise.resolve();
+      Object.defineProperty(this, 'error', { configurable: true, value: safety });
+      this.dispatchEvent(new Event('error'));
+      return Promise.reject(new DOMException('No supported source', 'NotSupportedError'));
+    });
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const onPlaying = vi.fn();
+    const onFailure = vi.fn();
+    startTakePlayback({
+      url: STREAM,
+      embedded: { mime: 'audio/mp4', base64: btoa('inline-audio') },
+      audio,
+      video,
+      buffered: null,
+      fetchImpl,
+      listener: { onPlaying, onFailure, onNeedsGesture: vi.fn() },
+      onBuffer: vi.fn(),
+    });
+
+    await vi.waitFor(() => expect(onPlaying).toHaveBeenCalled());
+    expect(onFailure).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(audio.getAttribute('src')?.startsWith('blob:')).toBe(true);
+    expect(video.getAttribute('src')).toBeNull();
   });
 
   it('plays a fetched blob when the remote element is rejected by a URL safety check', async () => {

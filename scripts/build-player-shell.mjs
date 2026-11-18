@@ -29,6 +29,7 @@ const inputRoots = [
   'src/lib/album/slug.ts',
   'src/lib/album/content-security.ts',
   'src/lib/album/media-playback.ts',
+  'src/lib/album/embedded-audio.ts',
   'src/lib/album/stream-url.ts',
   'src/lib/album/types.ts',
   'src/lib/votes/pass-copy.ts',

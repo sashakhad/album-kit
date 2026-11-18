@@ -1,10 +1,11 @@
 import { LISTEN_MAKING_COPY, LISTEN_READY_COPY } from './listen-copy.mjs';
-import type { AlbumVersion } from './types';
+import type { AlbumVersion, EmbeddedAudio } from './types';
 
 export type PreviewListenTake = {
   id: string;
   src: string;
   label: string;
+  embeddedAudio?: EmbeddedAudio;
 };
 
 export type PreviewListenTrack = {
@@ -26,13 +27,17 @@ export function previewListenVersion(
     author: album.artist,
     blurb: '',
     tracks: tracks.map(track => {
-      const takes = track.takes.map(take => ({
-        label: take.label,
-        filename: take.id,
-        audioUrl: take.src,
-        versionSlug: 'preview',
-        voteLabel: take.label,
-      }));
+      const takes = track.takes.map(take => {
+        const row = {
+          label: take.label,
+          filename: take.id,
+          audioUrl: take.src,
+          versionSlug: 'preview',
+          voteLabel: take.label,
+        };
+        if (take.embeddedAudio === undefined) return row;
+        return { ...row, embeddedAudio: take.embeddedAudio };
+      });
       const first = takes[0];
       return {
         number: track.number,

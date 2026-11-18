@@ -39,13 +39,19 @@ import { indexForTrackNumber, listenHref, voteHref } from '@/lib/album/play-path
 import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
 import {
+  embeddedAudioForUrl,
+  objectUrlForEmbedded,
+  playbackUsesVideo,
+  takeNeedsNetwork,
+} from '@/lib/album/embedded-audio';
+import {
   formatPlaybackFailure,
   isSafetyCheck,
   readMediaError,
   startTakePlayback,
   type BufferedTake,
 } from '@/lib/album/media-playback';
-import { isDirectSunoStream, isVideoStream } from '@/lib/album/stream-url';
+import { isDirectSunoStream } from '@/lib/album/stream-url';
 import type { AlbumTake, AlbumTrack, AlbumVersion } from '@/lib/album/types';
 import type { ListenChoice } from '@/components/album/ListenChoiceControls';
 import { PassControls } from '@/components/album/PassControls';
@@ -379,48 +385,52 @@ export function AlbumPlayer({
     window.history.replaceState(window.history.state, '', nextPath);
   }, [currentTake, currentTrack, playerSurface]);
 
-  const playSource = useCallback((url: string) => {
-    cancelPlayback.current?.();
-    holdSrc.current = true;
-    handlingPlayback.current = true;
-    setPlaybackError(null);
-    setIsLoading(true);
-    cancelPlayback.current = startTakePlayback({
-      url,
-      audio: audioRef.current,
-      video: videoRef.current,
-      buffered: bufferRef.current,
-      listener: {
-        onPlaying() {
-          handlingPlayback.current = false;
-          holdSrc.current = false;
-          setIsLoading(false);
-          setPlaybackError(null);
+  const playSource = useCallback(
+    (url: string) => {
+      cancelPlayback.current?.();
+      holdSrc.current = true;
+      handlingPlayback.current = true;
+      setPlaybackError(null);
+      setIsLoading(true);
+      cancelPlayback.current = startTakePlayback({
+        url,
+        embedded: embeddedAudioForUrl(version, url),
+        audio: audioRef.current,
+        video: videoRef.current,
+        buffered: bufferRef.current,
+        listener: {
+          onPlaying() {
+            handlingPlayback.current = false;
+            holdSrc.current = false;
+            setIsLoading(false);
+            setPlaybackError(null);
+          },
+          onFailure(message) {
+            handlingPlayback.current = false;
+            holdSrc.current = false;
+            setIsPlaying(false);
+            setIsLoading(false);
+            setPlaybackError(message);
+          },
+          onNeedsGesture(message) {
+            handlingPlayback.current = false;
+            holdSrc.current = false;
+            setIsPlaying(false);
+            setIsLoading(false);
+            setPlaybackError(message);
+          },
         },
-        onFailure(message) {
-          handlingPlayback.current = false;
-          holdSrc.current = false;
-          setIsPlaying(false);
-          setIsLoading(false);
-          setPlaybackError(message);
+        onBuffer(remote, objectUrl) {
+          const previous = bufferRef.current;
+          if (previous !== null && previous.objectUrl !== objectUrl) {
+            URL.revokeObjectURL(previous.objectUrl);
+          }
+          bufferRef.current = { remote, objectUrl };
         },
-        onNeedsGesture(message) {
-          handlingPlayback.current = false;
-          holdSrc.current = false;
-          setIsPlaying(false);
-          setIsLoading(false);
-          setPlaybackError(message);
-        },
-      },
-      onBuffer(remote, objectUrl) {
-        const previous = bufferRef.current;
-        if (previous !== null && previous.objectUrl !== objectUrl) {
-          URL.revokeObjectURL(previous.objectUrl);
-        }
-        bufferRef.current = { remote, objectUrl };
-      },
-    });
-  }, []);
+      });
+    },
+    [version]
+  );
 
   const playIndex = useCallback(
     (index: number, takeLabel?: string) => {
@@ -570,17 +580,29 @@ export function AlbumPlayer({
   useEffect(() => {
     recovering.current = null;
     if (holdSrc.current || currentAudioUrl === null) return;
-    const video = isVideoStream(currentAudioUrl);
-    const active = video ? videoRef.current : audioRef.current;
-    const idle = video ? audioRef.current : videoRef.current;
+    const embedded = embeddedAudioForUrl(version, currentAudioUrl);
+    let playbackUrl = currentAudioUrl;
+    if (embedded !== null) {
+      try {
+        playbackUrl = objectUrlForEmbedded(currentAudioUrl, embedded);
+      } catch {
+        playbackUrl = currentAudioUrl;
+      }
+    }
+    const useVideo = playbackUsesVideo(
+      currentAudioUrl,
+      playbackUrl === currentAudioUrl ? null : embedded
+    );
+    const active = useVideo ? videoRef.current : audioRef.current;
+    const idle = useVideo ? audioRef.current : videoRef.current;
     if (idle !== null && idle.getAttribute('src') !== null) {
       idle.removeAttribute('src');
       idle.load();
     }
-    if (active !== null && active.getAttribute('src') !== currentAudioUrl) {
-      active.setAttribute('src', currentAudioUrl);
+    if (active !== null && active.getAttribute('src') !== playbackUrl) {
+      active.setAttribute('src', playbackUrl);
     }
-  }, [currentAudioUrl]);
+  }, [currentAudioUrl, version]);
 
   useEffect(() => {
     if (isPlaying) return;
@@ -667,12 +689,10 @@ export function AlbumPlayer({
   ]);
 
   function handleSeek(seconds: number) {
-    const media =
-      currentAudioUrl === null
-        ? null
-        : isVideoStream(currentAudioUrl)
-          ? videoRef.current
-          : audioRef.current;
+    const embedded =
+      currentAudioUrl === null ? null : embeddedAudioForUrl(version, currentAudioUrl);
+    const useVideo = currentAudioUrl !== null && playbackUsesVideo(currentAudioUrl, embedded);
+    const media = currentAudioUrl === null ? null : useVideo ? videoRef.current : audioRef.current;
     if (!seekMedia(media, seconds)) {
       return;
     }
@@ -696,9 +716,7 @@ export function AlbumPlayer({
               {padTrackNumber(currentTrack.number)}
               {currentTake !== null ? ` · Take ${currentTake.label}` : ''}
               {isParkedTake(currentTrack, currentTake) ? ' · Possible rename' : ''}
-              {currentTake !== null && isDirectSunoStream(currentTake.audioUrl)
-                ? ' · Internet required'
-                : ''}
+              {currentTake !== null && takeNeedsNetwork(currentTake) ? ' · Internet required' : ''}
             </p>
           ) : null}
           {playerSurface === 'vote' && currentTake !== null ? (
@@ -1066,7 +1084,6 @@ export function AlbumPlayer({
       ) : null}
       {currentAudioUrl !== null ? (
         <PlaybackMedia
-          url={currentAudioUrl}
           audioRef={audioRef}
           videoRef={videoRef}
           onReady={assignMedia}
@@ -1110,7 +1127,6 @@ export function AlbumPlayer({
 }
 
 function PlaybackMedia({
-  url,
   audioRef,
   videoRef,
   onReady,
@@ -1121,7 +1137,6 @@ function PlaybackMedia({
   onError,
   onEnded,
 }: {
-  url: string;
   audioRef: { current: HTMLAudioElement | null };
   videoRef: { current: HTMLVideoElement | null };
   onReady: (node: HTMLMediaElement | null) => void;
@@ -1132,16 +1147,11 @@ function PlaybackMedia({
   onError: (media: HTMLMediaElement) => void;
   onEnded: () => void;
 }) {
-  const video = isVideoStream(url);
-
   function fromActive(
     event: SyntheticEvent<HTMLMediaElement>,
     handle: (media: HTMLMediaElement) => void
   ) {
-    const fromVideo = event.currentTarget.tagName === 'VIDEO';
-    if (fromVideo !== video) {
-      return;
-    }
+    if (event.currentTarget.getAttribute('src') === null) return;
     handle(event.currentTarget);
   }
 
@@ -1450,8 +1460,7 @@ function TrackRow({
 }) {
   const ready = track.audioUrl !== null;
   const showTakePills = showTakes && track.takes.length > 0;
-  const streamOnly =
-    !showTakePills && selectedTake !== null && isDirectSunoStream(selectedTake.audioUrl);
+  const streamOnly = !showTakePills && selectedTake !== null && takeNeedsNetwork(selectedTake);
   const takes = showVotes
     ? takesInScoreOrder(track.takes, takeCounts)
     : takesInLabelOrder(track.takes);
@@ -1615,7 +1624,7 @@ function TakeScoreChips({
                 </span>
               ) : null}
             </div>
-            {isDirectSunoStream(take.audioUrl) ? (
+            {takeNeedsNetwork(take) ? (
               <span className='text-muted-foreground px-1 text-xs'>Internet required</span>
             ) : null}
             <ListenerScore
