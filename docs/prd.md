@@ -1,0 +1,116 @@
+# Album Bot product requirements
+
+Current behavior of Album Bot Lite and Full Setup. This replaces the November 17 review drafts. Those drafts use a retired spelling of Lite, warn the listener about how the audio is hosted, and ask whether to share before the album is finished.
+
+Related: [execution plan](execution-plan.md) · [decision charts](decision-charts.md) · [tester walkthrough](tester-walkthrough.md) · [portable handoff](../grokbot/PORTABLE.md) · [playbook](../grokbot/BOT.md)
+
+## Outcome
+
+A person with an album idea gets two ways to start, after the idea and before any account connection. **Album Bot Lite** plays and scores a few tracks on their computer, including with Suno Free. **Full Setup** has up to five models write one prompt each for the same song, plus a combined prompt, and the creator compares the takes blind.
+
+Both paths send a local player as soon as the first take can play. Hosting stays disconnected until the creator chooses **Share album**. Sasha never hosts Album Bot for anyone. No album is placed on Sasha’s Vercel or Neon. Each creator uses the local preview, or that creator’s own accounts.
+
+## New bot, returning bot, and commands
+
+A new bot presumes start. A brand-new conversation starts onboarding by itself. The owner does not type `/start` for that first album. An active conversation resumes the current album and does not replay the opening. Explicit `/start` starts a fresh album and preserves the existing album, takes, scores, and jobs. `/new` does the same, in a separate album folder. Remove an earlier album only when the owner asks.
+
+The first text line of a fresh album is only:
+
+> Hey, I'm Album Bot! Type /help for commands or /settings to see your setup. Let's get some music going.
+
+Then one question card, with free typing, and not repeated in the text line:
+
+> What kind of album do you want to make? Describe it in your own words, or tap an idea.
+
+The card offers three album ideas invented for this conversation, then **Surprise me**. Each idea is a short theme, sound, and mood. The three differ in style and era. None is only a genre name, and none is copied from a saved list. A typed description is the concept. The question is not asked again.
+
+`/help` and `/settings` work before sign-in. `/help` says what Album Bot does, the next step for this album, and the command list, including `/setup`, `/share`, `/refresh`, and `/upgrade`. It does not connect an account or start a round.
+
+`/settings` shows the current setup: Lite or Full, Suno plan and model, prompt writers, comparison mode, takes per track, spending limits, and sharing. It includes the credit balance when the account exposes one. Before setup, it shows the defaults and which choices are still open. It answers from available settings and does not require a connection or start a round.
+
+`/refresh <branch-or-SHA>` then `/refresh main` switches this chat’s instructions only. Report the revision that loaded. Preserve jobs, scores, and votes. Do not create a duplicate job. Do not drop a vote. `/listen` rebuilds the player from the existing takes and scores. Do not create a job or drop a vote. `/surprise` invents a concept, then names, then a small test.
+
+## The path card
+
+After the idea, and before any connector or website, one card asks “How do you want to start?” Skip it when the creator already chose.
+
+| Choice         | Exact copy                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Album Bot Lite | Play and score a few tracks on this computer. I’ll use Suno’s lighter model when available. Works with Suno Free.                           |
+| Full Setup     | Up to five different AI models each write a prompt for the same song. Compare the takes blind and hear a version that combines their ideas. |
+
+The Full Setup card does not mention Cursor, a website, or a sign-in time. Selecting it records the choice and continues the creative questions. Cursor is connected only after the brief and track names are settled and the comparison is about to start. If a sign-in is actually needed then, say that Cursor runs the models and paid Suno makes the music, and allow about 5–10 minutes.
+
+Names come next, one at a time, skipping anything already answered. The album-title card asks “What do you want to call this album?” with two or three invented titles and free typing. The track card shows a numbered list, then “What should the tracks be called?” with **Keep these**, **I'll name them myself**, and **Let Album Bot decide**. Those exact strings are written to `album/album.json` before a preview, a share, or a Suno create.
+
+## Album Bot Lite
+
+During Lite, do not connect Cursor, GitHub, or Vercel, and do not run `pnpm setup:site`. Record `node scripts/onboarding.mjs path light`. Grok Bot writes the prompts. Its label is **Grok Bot · model undisclosed**.
+
+Use the signed-in suno.com browser on Suno Free, and do not add the Suno connector. On Free or paid Suno, honor an explicit model choice, then a saved preference. Otherwise prefer `v6-mini` when that account lists it. If Mini is unavailable, use another verified eligible model within the approved cost. Full Setup keeps the account’s normal quality default.
+
+Start with two or three tracks unless the creator asked for another number. A requested small test is one or two tracks, two prompts each. Say the game plan in two or three sentences, then write and generate:
+
+> I’ll write the songs and send you a player as soon as the first take is playable. You can listen while Suno makes the rest.
+
+Give a generation estimate only when Suno supplies one for that job, and attribute it to Suno.
+
+When the account hides the credit balance, do not ask how many Suno credits are left. Send `generationCreditsAvailable: null`. Try only the batch they agreed to, inside the spending limit. On Free the daily cap is 50 Suno credits. If Suno accepts one create and refuses the next, play the accepted takes and say Suno says you're out of credits. Save the accepted job and never submit that job again.
+
+## Full Setup
+
+Record `node scripts/onboarding.mjs path full`. Finish the brief and track names before connecting Cursor. Suggest up to five distinct models that this Cursor project can run, name them, and ask “Use these five, swap a model, or pick a smaller lineup?” One model, or any two to five, is allowed. If fewer can run, show only those. If a chosen writer is unavailable, offer a replacement before generating. A requested name that did not return a prompt gets no credit. `cursor --version` is not a connection.
+
+Keep one original prompt from each selected writer and one Combined prompt. Use the same brief, lyrics, Suno model, and batch for every entry. Before audio, say how many prompts go to Suno, how many takes come back, and the Suno credit cost when cost matters. Five writers plus Combined, one Create each, two recordings per Create, is six prompts and twelve takes for that track. Two writers plus Combined with that provider is three prompts and six takes. The creator can choose fewer entries or the curated suite.
+
+Save `comparison: "originals-plus-combined"` and `writerLineup`. A Cursor round is allowed only after each selected model returns a prompt with a provider, an observed model, and an execution id. Listening is blind. Reveal shows each take’s exact prompt, the writer that ran, and the score. Combined is its own result and credits only writers whose ideas it used and who actually ran.
+
+The historical _Photosynthesupersizeme_ notes show how that album’s writers and combined prompts were chosen. They are not the lineup for a new album. Today’s lineup is whatever this Cursor project can run, and only a verified run is credited. [Historical notes](https://github.com/sashakhad/album-kit/blob/main/examples/mus1c-for-v3gans/PHOTOSYNTHESUPERSIZEME-SYNTHESIS.md)
+
+## First playable take, then the finished batch
+
+A ready media event with its stream URL can go to the player. A clip id, a guessed address, or a publish flag alone is not playback. If the URL is not yet media, one small ranged read may confirm bytes. A refusal leaves only that clip pending.
+
+When one clip is playable, write `{ "filename", "clipId", "streamUrl" }` and run `node scripts/preview-album.mjs --record <ready-take.json>` with Node 24. Attach `Open Album.html` from the printed `link` in the same chat, before checking the other takes. Aim for under ten seconds from the first playable take. The line with the first file is “Here’s your first take.” Later files reuse the same filename and name what is new, such as “Two more takes are ready.” Songs may be submitted as each sheet is ready, so the first playable song can be any track in the batch. `node scripts/preview-album.mjs --streams-only` reopens takes already recorded.
+
+The completion card waits until every requested take in the batch is playable. A pending or failed take keeps the batch open unless the creator agrees to finish with fewer. Ask once per completed batch:
+
+> Your album is ready. What’s next?
+
+The card’s choices, in order, are **Share album** and **Add more tracks**. Free typing is **Something else**. Silence, or “later,” leaves the player open. A bare “yes” needs one short clarification. Record the offer and reply with that batch’s operation ids so a resume does not ask again or generate twice. The same card returns once when a later batch of new tracks finishes.
+
+| Reply                                | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Share album, or `/share`             | Publish on the creator’s own Vercel account. Lite publishes the static HTML player and checks that it opens and a take plays. Full Setup builds the Next.js app from the selected `sashakhad/album-kit` revision (`--ref <verified-kit-SHA>`, default `main`) with this album’s songs, settings, jobs, and takes. Check `/listen` and `<site>/vote` signed out, play a take, and check `/settings` in the creator’s session before sending the URL. If deployment fails, keep the local player and say what is needed. |
+| Add more tracks                      | New songs on this same album. Keep earlier tracks, takes, scores, the current pass, and pending jobs. Deliver the first new take in the same player immediately.                                                                                                                                                                                                                                                                                                                                                       |
+| Something else, “later,” or no reply | Keep listening. Do not deploy.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `/more`                              | Alternate takes of an existing track. This is not Add more tracks.                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+
+## Connections and fallback
+
+| Situation                                    | Behavior                                                                                                                   |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Instructions cannot be fetched               | Use the last complete cached playbook, or the bundled copy. Do not label that copy with a SHA that failed to load.         |
+| Suno Free                                    | The official connector refuses the account. Use the signed-in suno.com browser. Prefer `v6-mini` when listed.              |
+| Balance hidden                               | Do not ask for a number. Continue the agreed batch inside the limit.                                                       |
+| A later create is refused                    | Keep and play the accepted takes. Report what Suno said. Resume by the saved job, and do not submit it again.              |
+| Chosen writer cannot run                     | Offer a replacement before generating. Do not credit the missing name. The creator may switch to Lite.                     |
+| The host cannot keep posting after this turn | Send what is ready, save the outstanding job ids, and say the creator can resume here. Do not promise an automatic return. |
+| Playback fails                               | Say what failed and the next step. The Listen player says “Could not play this track. Try again.”                          |
+| Share or the full app fails                  | The local player stays available. Resume the same project after the blocker is fixed.                                      |
+
+GitHub is optional and only for a backup the creator requests. A Lite creator who explicitly asks to collect ballots across browsers can use the full site on their own accounts.
+
+## Voting passes and recovery
+
+`Open Album.html` is the Listen page. The header shows the album title and **Listen**. The page names the album, says it is in the making, and offers **Play**. Under **Tracks**, each ready take is a letter button such as **A**. Tap a track and it plays. The album moves on by itself. That page does not show the pass control.
+
+Score and advance a pass on the served player, `node scripts/preview-album.mjs --serve`. It stores the ballot in `.tmp/album-preview-ballot.json`. **Next pass** drops negative scores. Positive scores carry forward. Zero and unscored takes stay. The pass number increases by one. A different album has its own pass and scores, starting at pass 1. `/listen` rebuilds the same file from the existing takes and scores and does not drop a vote.
+
+On a shared Full Setup site, `<site>/vote` opens Compare takes with no sign-in. Each browser has its own ballot, separate from the owner’s scores. Reload keeps them. The owner’s pass control cuts only negative scores. Listener ratings on a shared static player stay in that listener’s browser.
+
+An accepted Suno job is saved before any retry. Checking status or resuming reads that job. It does not create another paid generation for the same operation.
+
+## Other assistants
+
+Grok Bot with Cursor is the supported path. ChatGPT and Claude can try the same instructions with the tools their own session provides. The handoff is [grokbot/PORTABLE.md](../grokbot/PORTABLE.md), linked from [AGENTS.md](../AGENTS.md) and the [README](../README.md). Credit only a model that returned the prompt in that session. Building integrations for those hosts is outside this product pass.

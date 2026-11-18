@@ -27,4 +27,4 @@ For any new album, run `start-here` first.
 
 ## Other assistants
 
-ChatGPT and Claude can try these same instructions with the tools their own session provides. Read this file and the skills under `.cursor/skills/`. Grok Bot with Cursor is the supported path for Album Bot Lite, Full Setup, and the writer comparison. Support on other hosts will vary. This note is best-effort: those hosts are not integrated or tested here.
+ChatGPT and Claude can try these same instructions with the tools their own session provides. Read this file, the skills under `.cursor/skills/`, and the portable steps in `grokbot/PORTABLE.md`. Credit a writer only when that model actually returned the prompt in the session. Grok Bot’s own prompts stay **Grok Bot · model undisclosed**. Grok Bot with Cursor is the supported path for Album Bot Lite, Full Setup, and the writer comparison. Support on other hosts will vary. This note is best-effort: those hosts are not integrated or tested here. The current requirements, execution plan, decision charts, and tester walkthrough start at `docs/prd.md`.
