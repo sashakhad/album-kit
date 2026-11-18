@@ -157,7 +157,8 @@ describe('local preview playbook', () => {
     expect(delivery).toContain(
       'before checking other takes or running whole-round playback verification'
     );
-    expect(beforeOffer).toContain('explicitly reports ready media');
+    expect(beforeOffer).toContain('A status of `streaming` is not playable.');
+    expect(beforeOffer).toContain('node scripts/probe-stream.mjs <streamUrl>');
     expect(beforeOffer).toContain('Range: bytes=0-31');
     expect(beforeOffer).toMatch(/403[^.]+only that clip pending/i);
     // The opening also has an allowCustom card. Check the card attached to this question.
@@ -231,15 +232,20 @@ describe('local preview playbook', () => {
     'grokbot/PORTABLE.md',
     '.cursor/skills/start-here/SKILL.md',
     '.cursor/skills/suno-run/SKILL.md',
-  ])('sends the first streaming clip before the rest of the batch in %s', async file => {
+  ])('sends the first probed clip before the rest of the batch in %s', async file => {
     const body = await text(file);
     expect(body).toContain('Copy this sentence exactly');
-    expect(body).toContain('A status of streaming is ready media for that clip.');
-    expect(body).toContain('Call that tool with one clip id.');
+    expect(body).toContain('A status of `streaming` is not playable.');
+    expect(body).toContain('When `audio-create` returns clip ids');
+    expect(body).toContain('Act on the first clip id');
+    expect(body).toContain('keep polling each remaining clip id in the background');
+    expect(body).toContain('Do not pass the full id list to `audio-wait`');
     expect(body).toContain(
-      'If a tool says to pass every clip id and return when all of them have settled'
+      'Before the first Create, the selected revision’s standalone exporter is already on disk.'
     );
-    expect(body).toContain('Resume the other clips only after that attachment is sent.');
+    expect(body).not.toContain('A status of streaming is ready media for that clip.');
+    expect(body).not.toContain('Resume the other clips only after that attachment is sent.');
+    expect(body).not.toContain('Send that clip before a ranged read');
     expect(body).not.toContain('Say this game plan in two or three short sentences');
     expect(body).not.toContain("as soon as they're in");
     expect(body).not.toContain("once they're ready");

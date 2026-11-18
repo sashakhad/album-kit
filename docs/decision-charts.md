@@ -80,9 +80,9 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  clip["A Suno clip changes"] --> ready{"Is it streaming, or ready media with its stream URL?"}
-  ready -->|No| wait["Leave that clip pending. Keep watching the others"]
-  ready -->|Yes| record["Send that clip before a ranged read and before any other clip"]
+  clip["A Suno clip changes"] --> ready{"Did a ranged GET return 200 or 206 with video/mp4 or audio?"}
+  ready -->|No| wait["Leave that clip pending. Keep polling the other ids"]
+  ready -->|Yes| record["Record that clip. Do not wait for the others"]
   record --> first{"Is this the first playable take in the batch?"}
   first -->|Yes| sendFirst["Attach Open Album.html. Here’s your first take."]
   first -->|No| sendMore["Attach the same filename and name what is new"]
@@ -92,7 +92,7 @@ flowchart TD
   done -->|Yes| card["Phase ready, then offer: Your album is ready. What’s next?"]
 ```
 
-The first playable song may be any track in the batch. Aim to attach the file within ten seconds of that take becoming playable, before checking the remaining takes.
+The first playable song may be any track in the batch. A streaming status is not the gate. Aim to attach the file within ten seconds of the byte probe passing, while the other clip ids keep polling in the background. The exporter is already on disk before the first Create.
 
 ## Share album, Add more tracks, or a custom reply
 

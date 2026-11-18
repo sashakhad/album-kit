@@ -79,7 +79,11 @@ describe('product handoff', () => {
     );
     expect(requirements).toContain('`/help` and `/settings` work before sign-in.');
     expect(requirements).toContain('Copy this sentence exactly');
-    expect(requirements).toContain('A status of streaming is ready media for that clip.');
+    expect(requirements).toContain('A status of `streaming` is not playable.');
+    expect(requirements).toContain('200 or 206');
+    expect(requirements).toContain('video/mp4');
+    expect(requirements).toContain('scripts/exporter-files.mjs');
+    expect(requirements).not.toContain('A status of streaming is ready media for that clip.');
     expect(requirements).toContain('Do not run pnpm, an install, or a build');
     expect(requirements).toContain('node scripts/album-batch.mjs status');
     expect(requirements).toContain('phase is `ready`');
