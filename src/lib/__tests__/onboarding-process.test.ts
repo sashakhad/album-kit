@@ -40,8 +40,20 @@ describe('new-owner onboarding across fresh CLI processes', { timeout: 20_000 },
     await chmod(file, 0o755);
   }
 
+  it('resumes existing Light checkpoints and accepts either spelling of the Lite command', async () => {
+    const checkpoint = path.join(root, '.album-onboarding.json');
+    const original = { path: 'light', suno: { method: 'browser' } };
+    await writeFile(checkpoint, JSON.stringify(original));
+    expect(run('status')).toContain('Album Bot Lite');
+    expect(JSON.parse(await readFile(checkpoint, 'utf8'))).toEqual(original);
+    for (const spelling of ['lite', 'light']) {
+      expect(run('path', spelling)).toContain('Album Bot Lite');
+      expect(JSON.parse(await readFile(checkpoint, 'utf8'))).toEqual(original);
+    }
+  });
+
   it('resumes each synthetic setup checkpoint in a new process after interruptions', async () => {
-    expect(run('status')).toContain('Next: Choose Album Bot Light');
+    expect(run('status')).toContain('Next: Choose Album Bot Lite');
     expect(run('path', 'quick')).toContain('Onboarding 0/2');
     expect(run('path', 'studio')).toContain('Onboarding 0/3');
 

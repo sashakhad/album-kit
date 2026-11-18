@@ -5,5 +5,6 @@ Read the **Commands** section of `.cursor/skills/start-here/SKILL.md`. Answer th
 - `/start` begins a fresh album and keeps earlier albums. `/surprise` lets Album Bot choose a direction.
 - `/listen` opens the latest player. The first playable take arrives in `Open Album.html`.
 - Choose **Add more tracks** for new songs on this album. `/more` makes alternate takes of an existing track. `/pick` helps choose the winners.
-- `/share` publishes a listening link on the creator’s Vercel account.
+- `/share` publishes the Lite static player or the Full Setup album site on the creator’s Vercel account.
+- `/settings` shows the current album setup.
 - `/setup` connects a music service when requested. `/upgrade` opens the Suno plan options.

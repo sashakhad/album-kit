@@ -114,14 +114,13 @@ export function probeReadiness(
   root,
   run = commandResult,
   now = Date.now(),
-  { hosted = false, githubBackup = false } = {}
+  { hosted = false, githubBackup = false, action = 'status' } = {}
 ) {
   const state = parseJson(path.join(root, STATE_FILE)) ?? {};
-  const needsPathChoice = !['light', 'full', 'quick', 'studio'].includes(state.path);
-  const selectedPath = needsPathChoice ? 'light' : state.path;
+  const savedPath = state.path === 'lite' ? 'light' : state.path;
+  const needsPathChoice = !['light', 'full', 'quick', 'studio'].includes(savedPath);
+  const selectedPath = needsPathChoice ? 'light' : savedPath;
   const album = parseJson(path.join(root, 'album', 'album.json'));
-  const checkCursor = ['full', 'studio'].includes(selectedPath) && !hosted && !githubBackup;
-  const cursorInstalled = checkCursor && run('cursor', ['--version']).ready;
   const suno = state.suno;
   const sunoFresh = freshCheck(suno?.checkedAt, now);
   const sunoCapabilitiesVerified = Boolean(
@@ -130,21 +129,32 @@ export function probeReadiness(
     SUNO_REQUIRED_CAPABILITIES.every(capability => suno?.capabilities?.includes(capability)) &&
     (suno?.method === 'browser' || suno?.capabilities?.includes('credits'))
   );
+  const albumReady = Boolean(
+    typeof album?.title === 'string' &&
+    album.title.trim() &&
+    album.title !== 'Untitled album' &&
+    typeof album.genre === 'string' &&
+    album.genre.trim() &&
+    Array.isArray(album.tracks) &&
+    album.tracks.length > 0 &&
+    (selectedPath !== 'full' ||
+      album.tracks.every(track => typeof track?.title === 'string' && track.title.trim())) &&
+    existsSync(path.join(root, 'album', 'BRIEF.md'))
+  );
+  const comparisonReady =
+    selectedPath === 'full' && action !== 'path' && albumReady && sunoCapabilitiesVerified;
+  const checkCursor =
+    !hosted &&
+    !githubBackup &&
+    (comparisonReady || selectedPath === 'studio' || action === 'verify-cursor');
+  const cursorInstalled = checkCursor && run('cursor', ['--version']).ready;
   return {
     path: selectedPath,
     needsPathChoice,
     hostedOnly: hosted,
-    album: Boolean(
-      typeof album?.title === 'string' &&
-      album.title.trim() &&
-      album.title !== 'Untitled album' &&
-      typeof album.genre === 'string' &&
-      album.genre.trim() &&
-      Array.isArray(album.tracks) &&
-      album.tracks.length > 0 &&
-      existsSync(path.join(root, 'album', 'BRIEF.md'))
-    ),
+    album: albumReady,
     cursor: {
+      checked: checkCursor,
       installed: cursorInstalled,
       modelExecutionVerified: Boolean(
         cursorInstalled &&
@@ -188,7 +198,7 @@ export function nextStep(status) {
     return 'Open /vote signed out, check that a take plays and the score buttons are available, then share the public link.';
   }
   if (status.needsPathChoice) {
-    return 'Choose Album Bot Light for a quick local album or Full Setup to compare Cursor writers with paid Suno.';
+    return 'Choose Album Bot Lite for a quick local album. In Full Setup, up to five different AI models write prompts for the same track so you can compare their takes.';
   }
   if (!status.album) {
     return 'Collect the album name, genre, and track titles, then write album/album.json and album/BRIEF.md.';
@@ -203,16 +213,18 @@ export function nextStep(status) {
     if (!status.suno.capabilitiesVerified) {
       return 'Connect the paid Suno account and check its available models, generation tools, and credits.';
     }
+    if (!status.cursor.checked)
+      return 'Prepare the prompt comparison for the tracks in your album brief.';
     if (!status.cursor.modelExecutionVerified) {
-      return 'Connect the Cursor project and verify which prompt writers it can run.';
+      return 'Connect Cursor so the AI models can write their prompts. Check which models can run in your project.';
     }
-    return 'Choose up to five available Cursor writers. Compare each original prompt with the combined version, show the take count and Suno credit cost, and generate the tracks.';
+    return 'Choose up to five different AI models to write prompts for the same track. Include a combined version, show the take count and Suno credit cost, and generate the tracks.';
   }
   if (!status.suno.capabilitiesVerified) {
     return 'Check the signed-in Suno connector or Free browser for create, status, and models; check credits when the account exposes them. Record only capabilities observed in the account.';
   }
   if (status.path === 'studio' && !status.cursor.modelExecutionVerified) {
-    return 'Check Cursor installation and connected Project execution; record only an observed model, or use Album Bot Light.';
+    return 'Check Cursor installation and connected Project execution; record only an observed model, or use Album Bot Lite.';
   }
   return `Run the Suno preflight before generation and ask about cost only when the cost threshold requires it.${status.suno.downloadVerified ? '' : ' Verify download capability before final export.'}`;
 }
@@ -242,20 +254,20 @@ function printStatus(status) {
     ['Album brief', status.album],
     ['Suno capabilities', status.suno.capabilitiesVerified],
   ];
-  const usesCursor = status.path === 'studio' || status.path === 'full';
-  if (usesCursor) visible.push(['Cursor execution', status.cursor.modelExecutionVerified]);
+  if (status.cursor.checked)
+    visible.push(['Cursor execution', status.cursor.modelExecutionVerified]);
   const complete = visible.filter(([, ready]) => ready).length;
   const pathLabel = status.needsPathChoice
     ? 'Choose your setup'
     : status.path === 'light'
-      ? 'Album Bot Light'
+      ? 'Album Bot Lite'
       : status.path === 'full'
         ? 'Full Setup'
         : status.path === 'studio'
           ? 'Studio'
           : 'Quick start';
   console.log(`Onboarding ${complete}/${visible.length} · ${pathLabel}`);
-  if (usesCursor) {
+  if (status.cursor.checked) {
     console.log(
       `Cursor: ${status.cursor.installed ? 'installed' : 'not detected'}; connected model execution ${status.cursor.modelExecutionVerified ? 'observed' : 'unverified'}`
     );
@@ -273,10 +285,10 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), run = c
   const hostedStatus = action === 'status' && args.length === 1 && args[0] === '--hosted';
   if (
     action === 'path' &&
-    (args[0] === 'quick' || args[0] === 'studio' || args[0] === 'light' || args[0] === 'full') &&
+    ['quick', 'studio', 'lite', 'light', 'full'].includes(args[0]) &&
     args.length === 1
   ) {
-    state.path = args[0];
+    state.path = args[0] === 'lite' ? 'light' : args[0];
     saveState(root, state);
   } else if (action === 'verify-suno') {
     const [method, ...capabilities] = args;
@@ -328,13 +340,14 @@ export function main(argv = process.argv.slice(2), root = process.cwd(), run = c
     saveState(root, state);
   } else if (action !== undefined && !hostedStatus && (action !== 'status' || args.length > 0)) {
     throw new Error(
-      'Usage: pnpm onboarding [status [--hosted] | path quick|studio|light|full | verify-suno mcp create status models credits [download] | verify-suno browser create status models [credits] [download] | verify-github <account> <owner/repo> | verify-vercel <project> <site-url> | verify-cursor <observed-model> | confirm-owner-access]'
+      'Usage: pnpm onboarding [status [--hosted] | path lite|full|quick|studio | verify-suno mcp create status models credits [download] | verify-suno browser create status models [credits] [download] | verify-github <account> <owner/repo> | verify-vercel <project> <site-url> | verify-cursor <observed-model> | confirm-owner-access]'
     );
   }
   const hosted = hostedStatus || action === 'verify-vercel' || action === 'confirm-owner-access';
   const status = probeReadiness(root, run, Date.now(), {
     hosted,
     githubBackup: action === 'verify-github',
+    action,
   });
   printStatus(status);
   return status;

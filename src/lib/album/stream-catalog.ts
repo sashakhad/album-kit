@@ -1,24 +1,47 @@
 import 'server-only';
 
-import { isPlayableStream, resolvedClipId, type StreamCatalogEntry } from '@/lib/album/stream-url';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { defaultAlbumRoot } from '@/lib/album/paths';
+
+import {
+  isPlayableStream,
+  publicStreamEntries,
+  resolvedClipId,
+  type StreamCatalogEntry,
+} from '@/lib/album/stream-url';
 import { prisma } from '@/lib/prisma';
 
 export async function loadStreamCatalog(): Promise<StreamCatalogEntry[]> {
-  if (process.env.DATABASE_URL === undefined || process.env.DATABASE_URL.length === 0) {
-    return [];
+  let published: StreamCatalogEntry[];
+  try {
+    const file = await readFile(path.join(defaultAlbumRoot(), 'public-streams.json'), 'utf8');
+    published = publicStreamEntries(JSON.parse(file));
+  } catch (error) {
+    if (!(
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ))
+      throw error;
+    published = [];
   }
+  if (!process.env.DATABASE_URL) return published;
 
   const rows = await prisma.takeProvenance.findMany({
     select: { filename: true, clipId: true, outputId: true, streamUrl: true },
   });
-  const catalog: StreamCatalogEntry[] = [];
+  const catalog = new Map(published.map(take => [take.filename, take]));
   for (const row of rows) {
     const clipId = resolvedClipId(row);
-    const streamUrl = row.streamUrl;
-    // Suno CDN MP3, or the public clip MP4 at cdnN.suno.ai/<clip-id>.mp4.
-    if (clipId !== null && streamUrl !== null && isPlayableStream(streamUrl, clipId)) {
-      catalog.push({ filename: row.filename, clipId, streamUrl });
+    if (!clipId) continue;
+    if (row.streamUrl && isPlayableStream(row.streamUrl, clipId)) {
+      catalog.set(row.filename, { filename: row.filename, clipId, streamUrl: row.streamUrl });
+    } else if (catalog.get(row.filename)?.clipId !== clipId) {
+      // An existing generation record owns this filename even when its stream needs a refresh.
+      catalog.delete(row.filename);
     }
   }
-  return catalog;
+  return [...catalog.values()];
 }

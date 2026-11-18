@@ -19,6 +19,7 @@ import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { isPlayableStream, isVideoStream } from '../src/lib/album/stream-url.ts';
 
 import { servePreview } from './preview-server.mjs';
+import { previewIdentity } from './preview-identity.mjs';
 
 async function readJson(filename, fallback) {
   try {
@@ -49,19 +50,7 @@ function takeLabel(number) {
     : takeLabel(Math.floor((number - 1) / 26)) + takeLabel(((number - 1) % 26) + 1);
 }
 
-function albumKeyFor(album) {
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        title: album.title,
-        tracks: album.tracks.map(track => [track.number, track.slug]),
-      })
-    )
-    .digest('hex')
-    .slice(0, 16);
-}
-
-async function renderPreview(album, tracks, albumKey) {
+async function renderPreview(album, tracks, albumKey, legacyAlbumKey) {
   const [template, styles] = await Promise.all([
     readFile(new URL('./album-preview.html', import.meta.url), 'utf8'),
     readFile(new URL('../src/app/globals.css', import.meta.url), 'utf8'),
@@ -98,9 +87,10 @@ async function renderPreview(album, tracks, albumKey) {
     tracks: sections || '<p class="muted">No tracks yet.</p>',
     theme,
     albumKey: JSON.stringify(albumKey),
+    legacyAlbumKey: JSON.stringify(legacyAlbumKey),
   };
   return template.replace(
-    /\{\{(title|artist|tracks|theme|albumKey)\}\}/g,
+    /\{\{(title|artist|tracks|theme|albumKey|legacyAlbumKey)\}\}/g,
     (_, key) => replacements[key]
   );
 }
@@ -118,7 +108,7 @@ export async function preview(
   const albumRoot = path.join(root, 'album');
   const audioRoot = path.join(albumRoot, 'audio');
   const album = await readJson(path.join(albumRoot, 'album.json'));
-  const albumKey = albumKeyFor(album);
+  const { albumKey, legacyAlbumKey } = await previewIdentity(root, album);
   const streams = await readJson(path.join(root, '.tmp', 'album-preview-streams.json'), []);
   if (!Array.isArray(streams)) throw new Error('The preview stream catalog must be a JSON array.');
 
@@ -180,7 +170,7 @@ export async function preview(
       }
     }
     if (streamsOnly && !online) throw new Error('No public streams are ready for this album.');
-    const html = await renderPreview(album, tracks, albumKey);
+    const html = await renderPreview(album, tracks, albumKey, legacyAlbumKey);
     await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
     if (makeZip) {

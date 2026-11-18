@@ -84,6 +84,31 @@ export function isPlayableStream(
   return parseSunoStreamUrl(streamUrl)?.clipId === clipId;
 }
 
+/** Keep only the fields needed to play a public Suno take. */
+export function publicStreamEntries(raw: unknown): StreamCatalogEntry[] {
+  if (!Array.isArray(raw)) throw new Error('Expected an array of public album streams.');
+  const entries = new Map<string, StreamCatalogEntry>();
+  for (const row of raw) {
+    if (
+      !row ||
+      typeof row.filename !== 'string' ||
+      typeof row.clipId !== 'string' ||
+      typeof row.streamUrl !== 'string' ||
+      !isPlayableStream(row.streamUrl, row.clipId)
+    )
+      continue;
+    const previous = entries.get(row.filename);
+    if (previous && previous.clipId !== row.clipId)
+      throw new Error('Two different public clips claim the same album take.');
+    entries.set(row.filename, {
+      filename: row.filename,
+      clipId: row.clipId,
+      streamUrl: row.streamUrl,
+    });
+  }
+  return [...entries.values()];
+}
+
 export function resolvedClipId(take: {
   clipId?: string | null | undefined;
   outputId?: string | null | undefined;

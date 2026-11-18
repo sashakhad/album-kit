@@ -6,7 +6,7 @@ Sasha never hosts Album Bot for anyone. Make and play your album locally. If you
 
 ## Start
 
-Open Album Bot and tell it your album idea. Choose Light for a quick listen or Full Setup to compare prompt writers. Light prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send **Open Album.html** as soon as the first take plays. Listen while the rest finish.
+Open Album Bot and tell it your album idea. Choose Lite for a quick listen or Full Setup to compare prompt writers. Lite prefers v6-mini when your Suno account offers it. You can ask for another model. Both paths send **Open Album.html** as soon as the first take plays. Listen while the rest finish.
 
 In an existing Album Bot chat, type `/refresh` to load the latest instructions and keep working on the same album. To test an unmerged change, use `/refresh <branch-or-SHA>` and then `/refresh main` to return to the release. If an older chat doesn’t recognize the command, tell it to reread [the playbook on main](https://raw.githubusercontent.com/sashakhad/album-kit/main/grokbot/BOT.md) and continue the current album. Use `/listen` for existing takes, `/start` for a fresh album, or `/surprise` to let the bot pick. When configuring your own bot, use the [custom instructions](grokbot/INSTRUCTIONS.md).
 
@@ -24,12 +24,12 @@ From a checkout with Node 24, run `node scripts/preview-album.mjs --streams-only
 
 Once every requested take is playable, Album Bot asks **“Your album is ready. What’s next?”**
 
-- **Share album** publishes the listening page on your Vercel account and returns the verified link.
+- **Share album** publishes to your Vercel account. Lite shares the standalone player. Full Setup builds the Album Kit app with your tracks, Listen, Compare takes, Settings and shared voting.
 - **Add more tracks** makes new songs for this album. Tell the bot what you have in mind. The first new take appears alongside your existing tracks, with your scores and pass preserved.
 
 You can also type your own reply or keep listening. Use `/share` later to share, or `/more` for another take of an existing track.
 
-To collect your friends’ votes together, see **Advanced: hosted voting** below.
+Full Setup and creators who want shared voting can use the hosted app described below.
 
 ## Skills
 
@@ -37,7 +37,7 @@ The playbook is `.cursor/skills/`. Read a skill's `SKILL.md` before its steps. T
 
 ## Advanced: hosted voting
 
-Choose this path to collect everyone’s votes in one place. Album Bot deploys the app from your album folder directly to your Vercel project. A Neon database keeps the ballots, and Vercel Blob stores uploaded audio. No GitHub account, repository or access token is required.
+Full Setup uses the Next.js app from the public `sashakhad/album-kit` scaffold at the selected kit revision. Your album supplies the tracks and recordings. Album Bot deploys that app to your Vercel project and checks listening and voting before sharing the link. A Neon database keeps the ballots, and Vercel Blob stores uploaded audio. No GitHub account, repository or access token is required.
 
 If you're running the kit yourself, open your album folder with Node 24 and pnpm installed. Sign in to Vercel as the creator, then run:
 
@@ -60,7 +60,7 @@ Open **Settings** in the album’s header, edit a choice, and select **Save chan
 
 Settings are saved in the album’s Postgres database (`AlbumSettings`). They survive reloads and deployments, and Grok Bot uses the same record. `album/album.json` defines the title, artist, and tracks; it does not hold site settings. The bot can read with `pnpm album:settings` and send a JSON object of just the changed fields on stdin to `pnpm album:settings --patch`. These commands use the owner-only `/api/owner/settings` endpoint. Defaults and album overrides are separate fields. Imported music presets are drafts on the site until saved and preserve your current sharing choice.
 
-With Auto, Light prefers v6-mini when the account offers it. Full Setup uses the account’s supported quality model. Explicit model choices take priority. [Suno currently recommends v6](https://help.suno.com/en/articles/13924737) for eligible accounts; that version is not pinned forever. Grok Bot prompt records say **model undisclosed**. A Cursor model label is verified only from its runtime output. The site has no Cursor execution adapter yet, so selecting Cursor requires a real Cursor handoff and a verified external estimate before a paid round can begin.
+With Auto, Lite prefers v6-mini when the account offers it. Full Setup uses the account’s supported quality model. Explicit model choices take priority. [Suno currently recommends v6](https://help.suno.com/en/articles/13924737) for eligible accounts; that version is not pinned forever. Grok Bot prompt records say **model undisclosed**. A Cursor model label is verified only from its runtime output. The site has no Cursor execution adapter yet, so selecting Cursor requires a real Cursor handoff and a verified external estimate before a paid round can begin.
 
 Visible listening shows the selected take's Style prompt from its track sheet in the collapsed Prompt section below the playback controls, plus saved provenance when available. This applies to owners and listeners. Reveal after voting waits until every available take has a vote in the round. Keep hidden omits those details from voting. Blind voting saves a randomized order, uses neutral labels and opaque audio URLs, and omits filenames and prompt details from the browser payload. Deliberately opening Studio records exposure, so later votes can be interpreted correctly. New uploads strip common MP3 metadata; migrate or scrub older takes before claiming a legacy round is blind.
 

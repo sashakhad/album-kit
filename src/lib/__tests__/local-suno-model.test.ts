@@ -21,8 +21,8 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-it('passes the live eligible Mini model to a first Light generation and keeps that model after restart', () => {
-  setPath('light');
+it('passes the live eligible Mini model to a first Lite generation and keeps that model after restart', () => {
+  setPath('lite');
   const file = path.join(root, 'capabilities.json');
   writeFileSync(file, JSON.stringify(facts));
   const plan = () =>

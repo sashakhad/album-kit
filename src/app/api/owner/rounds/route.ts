@@ -19,7 +19,10 @@ class VariationUnavailableError extends Error {}
 
 const bodySchema = z.object({
   tracks: z.number().int().positive(),
-  setupPath: z.enum(['light', 'full']).optional(),
+  setupPath: z
+    .enum(['lite', 'light', 'full'])
+    .transform(path => (path === 'lite' ? 'light' : path))
+    .optional(),
   variationRequestId: z.uuid().optional(),
   sunoModelOverride: z.string().min(1).max(120).optional(),
   prompts: z

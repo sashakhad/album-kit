@@ -1,5 +1,6 @@
 // @vitest-environment-options {"url":"https://my-album.example/"}
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -36,14 +37,7 @@ function fixturePage(title: string) {
         },
       ])
     );
-    const script = path.join(process.cwd(), 'scripts/preview-album.mjs');
-    const report = JSON.parse(
-      execFileSync(process.execPath, ['--experimental-strip-types', script], {
-        cwd: root,
-        encoding: 'utf8',
-      })
-    );
-    const html = readFileSync(report.page, 'utf8');
+    const html = renderPage(root);
     pages.set(title, html);
     return html;
   } finally {
@@ -51,8 +45,19 @@ function fixturePage(title: string) {
   }
 }
 
+function renderPage(root: string) {
+  const script = path.join(process.cwd(), 'scripts/preview-album.mjs');
+  const report = JSON.parse(
+    execFileSync(process.execPath, [script], { cwd: root, encoding: 'utf8' })
+  );
+  return readFileSync(report.page, 'utf8');
+}
+
 function openPlayer(title: string, address = window.location.href) {
-  const html = fixturePage(title);
+  mountPage(fixturePage(title), address);
+}
+
+function mountPage(html: string, address = window.location.href) {
   const page = new DOMParser().parseFromString(html, 'text/html');
   const script = page.querySelector('script');
   if (!script) throw new Error('The album player has no script.');
@@ -213,4 +218,81 @@ it('sends an unselected row vote to the loopback ballot without moving playback'
   expect(document.querySelector('#take-score')).toHaveTextContent(/^0$/);
   expect(pause).not.toHaveBeenCalled();
   expect(window.localStorage.length).toBe(0);
+});
+
+it('keeps a pre-upgrade browser ballot through appended songs and isolates a fresh album of the same name', () => {
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const title = 'Night Shift';
+  const albums = [1, 2].map(() => mkdtempSync(path.join(os.tmpdir(), 'append-songs-')));
+  const [first, fresh] = albums as [string, string];
+  const tracks = [{ number: 1, title: 'First', slug: 'first' }];
+  const digest = (s: string) => createHash('sha256').update(s).digest('hex');
+  const firstTake = 'v1-01-first-p1-takea.mp3';
+  const id = digest(firstTake).slice(0, 24);
+  const oldKey = digest(JSON.stringify({ title, tracks: [[1, 'first']] })).slice(0, 16);
+  const prefix = 'album-kit-preview-ballot-';
+  const saveTracks = (root: string) =>
+    writeFileSync(
+      path.join(root, 'album/album.json'),
+      JSON.stringify({ title, sets: [{ id: 'v1' }], tracks })
+    );
+  try {
+    for (const root of albums) {
+      mkdirSync(path.join(root, 'album/audio'), { recursive: true });
+      writeFileSync(path.join(root, 'album/audio', firstTake), 'audio');
+      saveTracks(root);
+    }
+    const oldStandalone = path.join(first, '.tmp/album-preview-online');
+    mkdirSync(oldStandalone, { recursive: true });
+    writeFileSync(
+      path.join(oldStandalone, 'Open Album.html'),
+      `<script>const albumKey = "${oldKey}";</script>`
+    );
+    localStorage.setItem(
+      prefix + oldKey,
+      JSON.stringify({ albumKey: oldKey, pass: 2, selected: id, votes: { [id]: 3 }, retired: [] })
+    );
+    tracks.push({ number: 2, title: 'Encore', slug: 'encore' });
+    saveTracks(first);
+    writeFileSync(path.join(first, 'album/audio/v1-02-encore-p1-takea.mp3'), 'new song');
+    mountPage(renderPage(first));
+    expect(document.querySelector('#pass-label')).toHaveTextContent('Pass 2');
+    expect(document.querySelector('#take-score')).toHaveTextContent('+3');
+    expect(document.querySelector('[aria-label="Score for Encore, Take A"]')).toHaveTextContent(
+      /^0$/
+    );
+    mountPage(renderPage(fresh));
+    expect(document.querySelector('#pass-label')).toHaveTextContent('Pass 1');
+    expect(document.querySelector('#take-score')).toHaveTextContent(/^0$/);
+  } finally {
+    for (const root of albums) rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('recovers a matching browser-only ballot once after re-exporting an older album', () => {
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  const title = 'Browser migration';
+  const digest = (text: string) => createHash('sha256').update(text).digest('hex');
+  const oldKey = digest(JSON.stringify({ title, tracks: [[1, 'first-song']] })).slice(0, 16);
+  const id = digest('v1-01-first-song-p1-takea.mp3').slice(0, 24);
+  localStorage.setItem(
+    `album-kit-preview-ballot-${oldKey}`,
+    JSON.stringify({
+      albumKey: oldKey,
+      pass: 3,
+      selected: id,
+      votes: { [id]: 2 },
+      retired: [],
+    })
+  );
+  const original = fixturePage(title);
+  mountPage(original);
+  expect(document.querySelector('#pass-label')).toHaveTextContent('Pass 3');
+  expect(document.querySelector('#take-score')).toHaveTextContent('+2');
+  pages.delete(title);
+  openPlayer(title);
+  expect(document.querySelector('#pass-label')).toHaveTextContent('Pass 1');
+  expect(document.querySelector('#take-score')).toHaveTextContent(/^0$/);
+  mountPage(original);
+  expect(document.querySelector('#take-score')).toHaveTextContent('+2');
 });

@@ -1,7 +1,7 @@
 export function resolveSunoModel(
   policy: string,
   capabilities: { availableModels: readonly string[]; qualityDefault: string | null },
-  setupPath?: 'light' | 'full'
+  setupPath?: 'light' | 'lite' | 'full'
 ) {
   const available = new Set(capabilities.availableModels);
   const quality =
@@ -12,9 +12,9 @@ export function resolveSunoModel(
     throw new Error('Suno returned no available models');
   }
   if (policy === 'auto') {
-    const light = setupPath === 'light';
-    const model = light && available.has('v6-mini') ? 'v6-mini' : quality;
-    const needsChoice = !light && quality !== capabilities.qualityDefault && available.size > 1;
+    const lite = setupPath === 'light' || setupPath === 'lite';
+    const model = lite && available.has('v6-mini') ? 'v6-mini' : quality;
+    const needsChoice = !lite && quality !== capabilities.qualityDefault && available.size > 1;
     return { model, migration: null, needsChoice };
   }
   if (available.has(policy)) {

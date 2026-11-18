@@ -125,7 +125,9 @@
         let retired = [];
         let writes = Promise.resolve();
         const localServer = location.protocol === 'http:' && location.hostname === '127.0.0.1';
-        const storageKey = 'album-kit-preview-ballot-' + albumKey;
+        const storagePrefix = 'album-kit-preview-ballot-';
+        const storageKey = storagePrefix + albumKey;
+        const legacyAlbumKey = {{legacyAlbumKey}};
         const temporaryScores = 'Scores clear when you close or reload this page.';
 
         function renderScore(group, score) {
@@ -339,13 +341,24 @@
         };
 
         if (!localServer) {
+          let saved;
           try {
-            const saved = JSON.parse(localStorage.getItem(storageKey));
-            restore(saved ?? { selected: null, votes: {} });
+            saved = JSON.parse(localStorage.getItem(storageKey));
+            if (/^[a-f0-9]{16}$/.test(albumKey)) {
+              localStorage.setItem(storageKey + '-migrated', albumKey);
+            } else if (!saved && albumKey !== legacyAlbumKey) {
+              const old = JSON.parse(localStorage.getItem(storagePrefix + legacyAlbumKey));
+              const claim = storagePrefix + legacyAlbumKey + '-migrated';
+              if (old?.albumKey === legacyAlbumKey && !localStorage.getItem(claim)) {
+                saved = { ...old, albumKey };
+                localStorage.setItem(storageKey, JSON.stringify(saved));
+                localStorage.setItem(claim, albumKey);
+              }
+            }
           } catch {
             voteStorage.textContent = temporaryScores;
-            restore({ votes: {} });
           }
+          restore(saved ?? { selected: null, votes: {} });
         } else {
           fetch('/ballot')
             .then(response => {

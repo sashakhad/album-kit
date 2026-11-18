@@ -19,7 +19,7 @@ For any new album, run `start-here` first.
 ## Rules
 
 - Never call full mixes stems. A take is a full mix. Stems are the separate files a split makes, several per song.
-- Sasha never hosts Album Bot for anyone. In Light and Full Setup, send the local player as soon as the first take is playable. When every requested take is playable, ask “Your album is ready. What’s next?” Offer **Share album** and **Add more tracks** with a free-text reply. Sharing returns the verified listening link on the owner’s Vercel account. Adding tracks makes new songs on the same album, preserving its existing recordings, scores and pass. Ask once per completed batch.
+- Sasha never hosts Album Bot for anyone. In Lite and Full Setup, send the local player as soon as the first take is playable. When every requested take is playable, ask “Your album is ready. What’s next?” Offer **Share album** and **Add more tracks** with a free-text reply. Lite shares the standalone listening page. Full Setup builds the Next.js app from the selected revision of `sashakhad/album-kit` with the creator’s actual tracks. Verify the album and audio on the creator’s Vercel project before returning its listening link. Adding tracks makes new songs on the same album, preserving its existing recordings, scores and pass. Ask once per completed batch.
 - Never take "done" from an agent, yourself included, without seeing the files.
 - The joke stays in the title. Keep it out of the Style prompt.
 - For a kit release, check the changes and merge the upstream PR. To update a creator's existing album, run the fresh kit’s `pnpm kit:update <existing-album-directory>`. Preserve the creator’s entire `album/` directory, local scores, settings, credentials and Vercel project link. For a requested production update, publish from that album directory to its linked project and verify its public listening and voting pages.
@@ -27,4 +27,4 @@ For any new album, run `start-here` first.
 
 ## Other assistants
 
-ChatGPT and Claude can try these same instructions with the tools their own session provides. Read this file and the skills under `.cursor/skills/`. Grok Bot with Cursor is the supported path for Album Bot Light, Full Setup, and the writer comparison. Support on other hosts will vary. This note is best-effort: those hosts are not integrated or tested here.
+ChatGPT and Claude can try these same instructions with the tools their own session provides. Read this file and the skills under `.cursor/skills/`. Grok Bot with Cursor is the supported path for Album Bot Lite, Full Setup, and the writer comparison. Support on other hosts will vary. This note is best-effort: those hosts are not integrated or tested here.

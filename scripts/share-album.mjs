@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, realpathSync } from 'node:fs';
-import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -8,10 +8,27 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { preview } from './preview-album.mjs';
-import { createRunner } from './setup.mjs';
+import { createRunner, readAlbumSite, setup } from './setup.mjs';
+import { localPublicStreams } from './hosted-app.mjs';
+import { verifiedScaffold } from './hosted-source.mjs';
+import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
+import { parseSunoStreamUrl } from '../src/lib/album/stream-url.ts';
 
 const usage =
-  'Usage: pnpm share:album --project <new-album-project> --scope <owner-scope>, or pnpm share:album --prepare';
+  'Usage: pnpm share:album --project <album-project> --scope <owner-scope> [--ref <kit-ref>], or pnpm share:album --prepare (Lite only)';
+
+export async function shareMode(root) {
+  let mode;
+  try {
+    mode = JSON.parse(await readFile(path.join(root, '.album-onboarding.json'), 'utf8')).path;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  if (['full', 'studio'].includes(mode)) return 'full';
+  if (['light', 'lite', 'quick'].includes(mode)) return 'light';
+  const existing = readAlbumSite(root);
+  return existing?.project && existing?.siteUrl ? 'full' : 'light';
+}
 
 export async function prepareShare(root) {
   const directory = await mkdtemp(path.join(tmpdir(), 'album-share-'));
@@ -26,20 +43,32 @@ export async function prepareShare(root) {
   }
 }
 
-async function shareProject(root, project, scope, vercel) {
-  // Store the exact project ID locally. A name collision must never replace another album.
-  const stateDir = path.join(root, '.tmp', 'share-projects', scope);
-  const filename = path.join(stateDir, project + '.json');
+async function savedStaticProject(root, project, scope) {
+  if (
+    ![project, scope].every(
+      value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,99}$/.test(value)
+    )
+  )
+    return null;
   try {
-    const saved = JSON.parse(await readFile(filename, 'utf8'));
+    const saved = JSON.parse(
+      await readFile(path.join(root, '.tmp', 'share-projects', scope, project + '.json'), 'utf8')
+    );
     if (saved.name !== project || saved.scope !== scope || !/^prj_[\w-]+$/.test(saved.id)) {
       throw new Error('The saved share project is invalid. Choose a new album project name.');
     }
-    return saved.id;
+    return { project, scope, projectId: saved.id };
   } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
+    if (error.code === 'ENOENT') return null;
+    throw error;
   }
+}
 
+async function shareProject(root, project, scope, vercel) {
+  const saved = await savedStaticProject(root, project, scope);
+  if (saved) return saved.projectId;
+  const stateDir = path.join(root, '.tmp', 'share-projects', scope);
+  const filename = path.join(stateDir, project + '.json');
   await mkdir(stateDir, { recursive: true });
   const created = vercel([
     'api',
@@ -111,12 +140,127 @@ export async function verifyShare(url, { directory, sources }, request = fetch) 
   }
 }
 
+function escapeHtml(value) {
+  return value.replace(
+    /[&<>"']/g,
+    char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;' })[char]
+  );
+}
+
+export async function verifyFullAlbum(siteUrl, album, request = fetch, expectedStreams = []) {
+  const origin = new URL(siteUrl);
+  const [listen, vote] = await Promise.all(
+    ['/listen', '/vote'].map(async route => {
+      const page = await request(new URL(route, origin), {
+        redirect: 'error',
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!page.ok || !/^text\/html\b/i.test(page.headers.get('content-type') ?? '')) {
+        throw new Error('The signed-out album page could not open: ' + route);
+      }
+      return page.text();
+    })
+  );
+  const title = /<h1\b[^>]*>([^<]*)<\/h1>/i.exec(listen)?.[1];
+  const hasTrack = album.tracks.some(
+    track => !track.parked && vote.includes(' of ' + escapeHtml(track.title) + '"')
+  );
+  if (
+    title !== escapeHtml(album.title) ||
+    !hasTrack ||
+    !vote.includes('aria-label="Add one to take ')
+  ) {
+    throw new Error('The public pages did not show this album and its listener voting controls.');
+  }
+  const sources = [listen, vote].map(html => {
+    const src = /<(?:audio|video)\b[^>]*?\ssrc="([^"]+)"/i.exec(html)?.[1];
+    if (!src)
+      throw new Error(
+        'The public player has no playable take yet. Check its stream catalog or audio upload.'
+      );
+    const target = new URL(src, origin);
+    if (
+      !parseSunoStreamUrl(target.href) &&
+      !(target.origin === origin.origin && target.pathname.startsWith('/api/'))
+    ) {
+      throw new Error('The public player returned an unexpected media source.');
+    }
+    return target.href;
+  });
+  if (expectedStreams.length && !expectedStreams.some(entry => vote.includes(entry.streamUrl)))
+    throw new Error('The listener ballot does not include the generated album audio.');
+  const probes = await Promise.all([...new Set(sources)].map(url => verifyMedia(url, request)));
+  if (probes.includes(false))
+    throw new Error('The album is online but the signed-out player could not load its audio.');
+  return new URL('/vote', origin).href;
+}
+
+export async function shareVotingApp(root, options, runner, request) {
+  const album = JSON.parse(await readFile(path.join(root, 'album/album.json'), 'utf8'));
+  const streams = await localPublicStreams(root, album);
+  const linked = new Set(streams.map(entry => entry.filename));
+  const files = await readdir(path.join(root, 'album/audio'), { withFileTypes: true }).catch(
+    error => {
+      if (error.code === 'ENOENT') return [];
+      throw error;
+    }
+  );
+  const uploads = files
+    .filter(file => {
+      const take = parseCanonicalTake(file.name);
+      return (
+        file.isFile() &&
+        !linked.has(file.name) &&
+        take &&
+        album.sets.some(set => set.id === take.setId) &&
+        album.tracks.some(
+          track => !track.parked && track.number === take.trackNumber && track.slug === take.slug
+        )
+      );
+    })
+    .map(file => path.join(root, 'album/audio', file.name));
+  const existing = readAlbumSite(root);
+  if (!uploads.length && !streams.length && !existing?.siteUrl)
+    throw new Error('Generate a playable take before sharing this album.');
+  if (!options.scope && !existing?.siteUrl) throw new Error(usage);
+  const previousStatic = !existing
+    ? await savedStaticProject(root, options.project, options.scope)
+    : null;
+  const source = await verifiedScaffold(root, options.ref ?? 'main', request, existing);
+  try {
+    const site = await setup(
+      {
+        name: options.project,
+        scope: options.scope,
+        previousStatic,
+        source: { ...source, preferredUrl: existing?.siteUrl },
+      },
+      root,
+      runner,
+      request
+    );
+    if (uploads.length)
+      runner.must(
+        runner.run(
+          process.execPath,
+          [fileURLToPath(new URL('./takes-upload.mjs', import.meta.url)), ...uploads],
+          { cwd: root }
+        )
+      );
+    return await verifyFullAlbum(site.siteUrl, album, request, existing?.siteUrl ? [] : streams);
+  } finally {
+    await source.cleanup();
+  }
+}
+
 export async function shareAlbum(
   root,
-  { project, scope },
-  runner = createRunner({ dryRun: false }),
+  options,
+  runner = createRunner({ dryRun: false, scope: options.scope ?? '', cwd: root }),
   request = fetch
 ) {
+  if ((await shareMode(root)) === 'full') return shareVotingApp(root, options, runner, request);
+  const { project, scope } = options;
   if (
     ![project, scope].every(
       value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,99}$/.test(value)
@@ -171,10 +315,13 @@ if (
         prepare: { type: 'boolean' },
         project: { type: 'string' },
         scope: { type: 'string' },
+        ref: { type: 'string' },
       },
     });
     if (values.prepare) {
-      if (values.project || values.scope) throw new Error(usage);
+      if ((await shareMode(process.cwd())) === 'full')
+        throw new Error('Full Setup shares the voting app. Run share:album without --prepare.');
+      if (values.project || values.scope || values.ref) throw new Error(usage);
       const { directory } = await prepareShare(process.cwd());
       console.log(JSON.stringify({ directory }));
     } else {

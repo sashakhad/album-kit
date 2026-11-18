@@ -18,7 +18,7 @@ Refresh streamed takes with `node scripts/preview-album.mjs --streams-only` on N
 
 ## Advanced hosted site
 
-These steps apply only after the owner has asked for hosted voting and a site exists. Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for anyone opening the album. A specific pick is not chosen on the Compare takes card.
+Use these steps after a Full Setup share, or on an existing hosted voting app. Compare takes is where the owner listens and scores. Listen plays the highest positive owner score. Every take tied for that score plays in album order. A track with no positive score can still play as a preview for anyone opening the album. A specific pick is not chosen on the Compare takes card.
 
 ## Steps
 

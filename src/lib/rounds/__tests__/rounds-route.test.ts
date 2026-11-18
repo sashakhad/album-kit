@@ -82,7 +82,7 @@ afterEach(() => {
 });
 
 describe('round creation', () => {
-  it('records a Light round’s checked model and respects an explicit override or saved model', async () => {
+  it('records a Lite round’s checked model and respects an explicit override or saved model', async () => {
     const capabilities = {
       availableModels: ['v6', 'v6-mini'],
       qualityDefault: 'v6',
@@ -102,6 +102,8 @@ describe('round creation', () => {
       setupPath: 'light',
       resolvedSunoModel: 'v6-mini',
     });
+    const lite = await plan({ setupPath: 'lite' });
+    expect(lite.round.snapshot).toMatchObject({ setupPath: 'light', resolvedSunoModel: 'v6-mini' });
     const quality = { ...capabilities, costModel: 'v6' };
     const full = await plan({ setupPath: 'full', capabilities: quality });
     expect(full.round.snapshot.resolvedSunoModel).toBe('v6');

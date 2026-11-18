@@ -31,6 +31,34 @@ describe('local preview playbook', () => {
     }
   );
 
+  it('opens a fresh album with help and settings before the album idea', async () => {
+    const greeting =
+      "Hey, I'm Album Bot! Type /help for commands or /settings to see your setup. Let's get some music going.";
+    for (const file of [
+      'grokbot/BOT.md',
+      '.cursor/skills/start-here/SKILL.md',
+      'grokbot/PORTABLE.md',
+    ]) {
+      const body = await text(file);
+      const welcome = body.indexOf(greeting);
+      expect(welcome).toBeGreaterThan(-1);
+      expect(body.indexOf('What kind of album do you want to make?', welcome)).toBeGreaterThan(
+        welcome
+      );
+    }
+  });
+
+  it('describes the model comparison on the path card and defers connecting Cursor', async () => {
+    for (const file of ['grokbot/BOT.md', '.cursor/skills/start-here/SKILL.md']) {
+      const body = await text(file);
+      const card = body.split('\n').find(line => line.startsWith('- Full Setup —'));
+      expect(card).toContain('Up to five different AI models each write a prompt');
+      expect(card).toContain('combines their ideas');
+      expect(card).not.toContain('Cursor');
+      expect(body).toContain('Connect Cursor when the brief and track names are ready');
+    }
+  });
+
   it('routes creator slash commands to the album playbook and first HTML player', async () => {
     const start = await text('.cursor/commands/start.md');
     const setup = await text('.cursor/commands/setup.md');
@@ -103,7 +131,21 @@ describe('local preview playbook', () => {
     expect(completionCard).toMatch(/free.text|typed (?:reply|answer)/i);
     expect(completionCard).not.toMatch(/Keep it local|Want to share it with other people/i);
     expect(afterOffer).toContain('pnpm share:album');
-    expect(afterOffer).toMatch(/verified public (?:player )?URL/i);
+    const lite = afterOffer.indexOf('Album Bot Lite');
+    const full = afterOffer.indexOf('Full Setup', lite);
+    expect(lite).toBeGreaterThan(0);
+    expect(full).toBeGreaterThan(lite);
+    expect(afterOffer.slice(lite, full)).toMatch(/static HTML player/i);
+    const fullShare = afterOffer.slice(full);
+    expect(fullShare).toContain('Next.js');
+    expect(fullShare).toContain('sashakhad/album-kit');
+    expect(fullShare).toContain('--ref <verified-kit-SHA>');
+    expect(fullShare).toMatch(/(?:existing|actual) (?:album|songs|tracks)/i);
+    expect(afterOffer).toMatch(/(?:own|creator’s|creator's) Vercel/);
+    expect(fullShare).toContain('/listen');
+    expect(fullShare).toContain('/vote');
+    expect(fullShare).toMatch(/verified public (?:player )?URL/i);
+    expect(body).not.toContain('Album Bot Light');
     expect(body).not.toContain('Do not offer it in the first session.');
   });
 

@@ -27,7 +27,7 @@ export class ExitError extends Error {
   }
 }
 
-export function createRunner({ dryRun, scope = '' }) {
+export function createRunner({ dryRun, scope = '', cwd = process.cwd() }) {
   function run(command, args, options = {}) {
     const shown = [command, ...args.map((arg, index) => maskArg(args, index, arg, options))]
       .map(quote)
@@ -39,6 +39,7 @@ export function createRunner({ dryRun, scope = '' }) {
 
     console.log(`$ ${shown}`);
     const result = spawnSync(command, args, {
+      cwd: options.cwd ?? cwd,
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
       shell: process.platform === 'win32',
@@ -308,7 +309,7 @@ export async function setup(
     throw new ExitError(EXIT.notSignedIn, 'Not signed in to Vercel. Run: npx vercel login');
   const project = await hostedProject(
     root,
-    { name, scope: options.scope, site: existing, create: true },
+    { name, scope: options.scope, site: existing ?? options.previousStatic, create: true },
     runner
   );
   const keys = productionEnvKeys(runner);
@@ -360,6 +361,7 @@ export async function setup(
   const { aliases, ...identity } = project;
   let siteUrl;
   if (
+    !options.source &&
     environmentReady &&
     existing?.deploy === 'direct' &&
     existing.siteUrl &&
@@ -367,11 +369,21 @@ export async function setup(
   ) {
     siteUrl = await checkVotingApp(existing.siteUrl, request).catch(() => null);
   }
-  siteUrl ??= await deployHostedApp(root, project, runner, request);
-  const site = { ...existing, ...identity, siteUrl, deploy: 'direct' };
+  siteUrl ??= await deployHostedApp(root, project, runner, request, options.source);
+  const site = {
+    ...existing,
+    ...identity,
+    siteUrl,
+    deploy: 'direct',
+    ...(options.source
+      ? { kitSource: options.source.kitSource, deployedKitRevision: options.source.revision }
+      : {}),
+  };
   await saveJson(path.join(root, '.album-site.json'), site);
-  console.log(`Milestone: Site created. ${siteUrl}`);
-  console.log(JSON.stringify({ siteUrl, project: name, deploy: 'direct' }));
+  if (!options.source) {
+    console.log(`Milestone: Site created. ${siteUrl}`);
+    console.log(JSON.stringify({ siteUrl, project: name, deploy: 'direct' }));
+  }
   return site;
 }
 
