@@ -16,7 +16,7 @@ The bot still checks Suno generation credits, plus external prompt models when a
 
 ## Preview before sharing
 
-Album Bot opens a local preview as soon as the first take is ready. In a checkout, `pnpm preview:album` refreshes `.tmp/album-preview/Open Album.html`. Double-click it to listen and vote. Votes stay in that browser. For a loopback ballot, run `pnpm preview:album --serve` and open the returned URL. Votes and the selected take are saved in `.tmp/album-preview-ballot.json`. Restart the preview server after adding takes. Existing local MP3s work offline. Public Suno streams are labeled and require internet. The exporter does not spend download credits and does not make a private take public. For a remote session, `pnpm preview:album --zip` packages the page and its local audio. Unzip the archive before opening `Open Album.html`.
+Album Bot sends `Open Album.html` as soon as the first take's stream URL is back. From a checkout, `node --experimental-strip-types scripts/preview-album.mjs` fills `.tmp/album-preview/Open Album.html` from `.tmp/album-preview-streams.json`. Send that file. When another take arrives, run the same command and send the same Open Album.html. Do not run `pnpm preview:album` for that handoff. A fresh pnpm run installs the kit before it writes the page. Double-click the file to listen and vote. Votes stay in that browser. Existing local MP3s work offline. Public Suno streams are labeled and require internet. The exporter does not spend download credits and does not make a private take public.
 
 ## Share
 

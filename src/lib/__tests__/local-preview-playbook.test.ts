@@ -41,6 +41,23 @@ describe('local preview playbook', () => {
     expect(await text('README.md')).toContain('/share');
   });
 
+  it('sends the existing page as soon as the first stream URL exists', async () => {
+    const files = [
+      'grokbot/BOT.md',
+      '.cursor/skills/start-here/SKILL.md',
+      '.cursor/skills/suno-run/SKILL.md',
+      '.cursor/skills/finish/SKILL.md',
+      'grokbot/PORTABLE.md',
+    ];
+    for (const file of files) {
+      const body = await text(file);
+      expect(body).toContain('node --experimental-strip-types scripts/preview-album.mjs');
+      expect(body).toContain('same Open Album.html');
+      expect(body).not.toContain('pnpm preview:album --zip');
+      expect(body).not.toContain('pnpm preview:album --serve');
+    }
+  });
+
   it('keeps the hosted More takes pull path', async () => {
     const bot = await text('grokbot/BOT.md');
     const run = await text('.cursor/skills/suno-run/SKILL.md');

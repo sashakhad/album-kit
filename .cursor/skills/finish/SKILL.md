@@ -9,7 +9,7 @@ Sasha never hosts Album Bot for anyone. No shared Album Bot site, no shared data
 
 ## Default
 
-The owner listens and votes in the local preview. Refresh it with `pnpm preview:album --serve` when you can open a browser for them, or send the ZIP from `pnpm preview:album --zip`. Scores stay in that ballot. When they ask to share, follow `/share` in `start-here`. That publishes the same player on their own Vercel account, with no database.
+The owner listens and votes in `Open Album.html`. Refresh it with `node --experimental-strip-types scripts/preview-album.mjs` and send the same Open Album.html. Do not run `pnpm preview:album` on the way to that link. Scores on the file stay in the browser. When they ask to share, follow `/share` in `start-here`. That publishes the same player on their own Vercel account, with no database.
 
 ## When to use
 
