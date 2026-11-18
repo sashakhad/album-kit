@@ -217,6 +217,38 @@ describe('local preview playbook', () => {
     '.cursor/skills/start-here/SKILL.md',
     '.cursor/skills/suno-run/SKILL.md',
     '.cursor/skills/finish/SKILL.md',
+  ])('opens each album-page attachment in the owner’s default browser in %s', async file => {
+    const body = await text(file);
+    const attached = body.search(/attach(?:ed| the)?[^.\n]*Open Album\.html/i);
+    const opened = body.indexOf('CopyFromBox');
+    expect(attached).toBeGreaterThan(-1);
+    expect(opened).toBeGreaterThan(attached);
+    expect(body.slice(attached, opened)).toMatch(/directly in chat|printed `link`/i);
+    expect(body).toContain('registered computer of the owner the bot can reach');
+    expect(body).toContain('default browser');
+    expect(body).toContain('Name no app.');
+    expect(body).toContain('On Mac run `open <file>`.');
+    expect(body).toContain('On Windows run `start "" <file>`.');
+    expect(body).toContain('On Linux run `xdg-open <file>`.');
+    expect(body).toContain(
+      'The owner’s default browser may differ per person, and nothing assumes Chrome.'
+    );
+    expect(body).toContain('allowed working directory');
+    expect(body).toContain('Do not change takes, quotas, or the first-playable-take timing.');
+    expect(body).toMatch(/do not delay/i);
+    expect(body).toContain(
+      'If the owner has no reachable computer, or the open fails, say nothing extra.'
+    );
+    expect(body).toContain('The attachment stands.');
+    expect(body).not.toMatch(/google-chrome|Google Chrome|chrome --/i);
+  });
+
+  it.each([
+    'grokbot/BOT.md',
+    'grokbot/PORTABLE.md',
+    '.cursor/skills/start-here/SKILL.md',
+    '.cursor/skills/suno-run/SKILL.md',
+    '.cursor/skills/finish/SKILL.md',
   ])('refreshes the same file directly with Node in %s', async file => {
     const body = await text(file);
     expect(body).toContain('node scripts/preview-album.mjs --streams-only');
