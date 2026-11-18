@@ -295,6 +295,12 @@ const FRESH_OPENING_PHRASES = [
   'differ in style and in era',
   'not a genre name',
   'Surprise me',
+  'What do you want to call this album?',
+  'Keep these',
+  "I'll name them myself",
+  'Let Album Bot decide',
+  'before any prompt or Suno generation',
+  'Skip a step they already answered',
 ];
 
 const STALE_OPENING_OPTIONS = [
