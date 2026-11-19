@@ -76,6 +76,26 @@ export function aacBitrateFor(durationSeconds: number, maxBytes: number): number
  * Video is dropped. Audio that would blow the HTML attachment limit is re-encoded
  * to a lower AAC bitrate. Returns null when networking is disabled and this url is not cached.
  */
+/** A cached shrunk take. Never downloads and never re-encodes. */
+export async function cachedPublicAudio(args: {
+  url: string;
+  cacheDir: string;
+  maxBytes?: number;
+}): Promise<EmbeddedAudio | null> {
+  if (!isPublicSunoStream(args.url)) return null;
+  const maxBytes = args.maxBytes ?? maxEmbeddedAudioBytes(4);
+  const cached = await readCache(args.cacheDir, args.url);
+  if (
+    cached !== null &&
+    cached.mime.startsWith('audio/') &&
+    cached.bytes.length > 0 &&
+    cached.bytes.length <= maxBytes
+  ) {
+    return toEmbedded(cached);
+  }
+  return null;
+}
+
 export async function embedPublicAudio(args: EmbedPublicAudioArgs): Promise<EmbeddedAudio | null> {
   if (!isPublicSunoStream(args.url)) {
     throw new Error('Only a public Suno CDN stream can be embedded.');
