@@ -15,7 +15,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { embedPublicAudio } from '../src/lib/album/embed-public-audio.ts';
+import { embedPublicAudio, maxEmbeddedAudioBytes } from '../src/lib/album/embed-public-audio.ts';
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { previewListenBlurb, previewListenVersion } from '../src/lib/album/preview-listen.ts';
 import { albumListenUrl, takeFromStreamUrl } from '../src/lib/album/link-fragment.ts';
@@ -381,6 +381,7 @@ async function embedOnlineTakes(root, tracks) {
   if (urls.length === 0) return;
   const cacheDir = path.join(root, '.tmp', 'album-preview-embedded');
   const allowNetwork = process.env.ALBUM_PREVIEW_EMBED !== '0';
+  const maxBytes = maxEmbeddedAudioBytes(urls.length);
   const embedded = new Map();
   let cursor = 0;
   async function worker() {
@@ -388,7 +389,7 @@ async function embedOnlineTakes(root, tracks) {
       const url = urls[cursor];
       cursor += 1;
       if (typeof url !== 'string') continue;
-      const audio = await embedPublicAudio({ url, cacheDir, allowNetwork });
+      const audio = await embedPublicAudio({ url, cacheDir, allowNetwork, maxBytes });
       if (audio !== null) embedded.set(url, audio);
     }
   }

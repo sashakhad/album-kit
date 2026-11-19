@@ -138,7 +138,6 @@ it('plays inlined audio from the shell when remote loads are impossible', async 
     url: streamUrl,
     cacheDir: path.join(root, '.tmp', 'album-preview-embedded'),
     allowNetwork: true,
-    ffmpegBin: null,
     fetchImpl: () =>
       Promise.resolve({
         status: 200,

@@ -1,15 +1,11 @@
 // @vitest-environment node
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { embedPublicAudio, type EmbedFetch } from '@/lib/album/embed-public-audio';
-
-const run = promisify(execFile);
 const roots: string[] = [];
 const clipA = 'https://cdn1.suno.ai/clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
 const clipB = 'https://cdn2.suno.ai/clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
@@ -56,14 +52,12 @@ describe('public stream embedding', () => {
       url: clipA,
       cacheDir: dir,
       allowNetwork: true,
-      ffmpegBin: null,
       fetchImpl,
     });
     const second = await embedPublicAudio({
       url: clipA,
       cacheDir: dir,
       allowNetwork: true,
-      ffmpegBin: null,
       fetchImpl,
     });
     expect(first).toEqual({ mime: 'audio/mp4', base64: bytes.toString('base64') });
@@ -74,7 +68,6 @@ describe('public stream embedding', () => {
       url: clipB,
       cacheDir: dir,
       allowNetwork: true,
-      ffmpegBin: null,
       fetchImpl,
     });
     expect(calls).toBe(2);
@@ -119,58 +112,34 @@ describe('public stream embedding', () => {
     ).rejects.toThrow(/403/);
   });
 
-  it('keeps the MP4 when ffmpeg is not available', async () => {
+  it('keeps bytes that are not an MP4', async () => {
     const dir = await cacheDir();
     const bytes = Buffer.from('full-mp4');
     const embedded = await embedPublicAudio({
       url: clipA,
       cacheDir: dir,
       allowNetwork: true,
-      ffmpegBin: null,
       fetchImpl: () => Promise.resolve(responseFor(bytes, 'video/mp4')),
     });
     expect(embedded).toEqual({ mime: 'video/mp4', base64: bytes.toString('base64') });
   });
 
-  it('copies the AAC track out of a public MP4 when ffmpeg is on PATH', async () => {
-    try {
-      await run('ffmpeg', ['-version']);
-    } catch {
-      return;
-    }
+  it('drops the picture and re-encodes when four takes would not fit', async () => {
     const dir = await cacheDir();
-    const mp4 = path.join(dir, 'source.mp4');
-    await run('ffmpeg', [
-      '-nostdin',
-      '-y',
-      '-f',
-      'lavfi',
-      '-i',
-      'sine=frequency=440:duration=1',
-      '-f',
-      'lavfi',
-      '-i',
-      'color=c=black:s=16x16:d=1',
-      '-shortest',
-      '-c:v',
-      'libx264',
-      '-pix_fmt',
-      'yuv420p',
-      '-c:a',
-      'aac',
-      mp4,
-    ]);
-    const video = await readFile(mp4);
+    const video = await readFile(path.join(import.meta.dirname, 'fixtures/tone-with-picture.mp4'));
     const embedded = await embedPublicAudio({
       url: clipA,
       cacheDir: dir,
       allowNetwork: true,
+      maxBytes: 8_000,
       fetchImpl: () => Promise.resolve(responseFor(video, 'video/mp4')),
     });
     expect(embedded?.mime).toBe('audio/mp4');
+    expect(embedded?.seconds).toBeGreaterThan(0.5);
     const audio = Buffer.from(embedded?.base64 ?? '', 'base64');
     expect(audio.subarray(4, 8).toString('ascii')).toBe('ftyp');
     expect(audio.length).toBeGreaterThan(0);
     expect(audio.length).toBeLessThan(video.length);
+    expect(audio.length).toBeLessThanOrEqual(8_000);
   });
 });

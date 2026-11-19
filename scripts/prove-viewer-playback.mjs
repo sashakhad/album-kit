@@ -56,7 +56,6 @@ try {
     url: STREAM,
     cacheDir: path.join(root, '.tmp', 'album-preview-embedded'),
     allowNetwork: true,
-    ffmpegBin: null,
     fetchImpl: () =>
       Promise.resolve({
         status: 200,
@@ -87,7 +86,7 @@ try {
   const html = await readFile(report.link, 'utf8');
   const blocked = await playInBlockedViewer(report.link);
   const stripped = html.replace(
-    /,"embeddedAudio":\{"mime":"audio\/mp4","base64":"[A-Za-z0-9+/=]+"\}/g,
+    /,"embeddedAudio":\{"mime":"audio\/mp4","base64":"[A-Za-z0-9+/=]+"(?:,"seconds":[0-9.]+)?\}/g,
     ''
   );
   const controlPage = path.join(root, 'control.html');

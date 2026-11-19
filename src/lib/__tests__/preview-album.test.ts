@@ -256,7 +256,6 @@ describe('album preview', () => {
       url: 'https://cdn1.suno.ai/clipB.mp4',
       cacheDir: path.join(root, '.tmp', 'album-preview-embedded'),
       allowNetwork: true,
-      ffmpegBin: null,
       fetchImpl: () =>
         Promise.resolve({
           status: 200,
