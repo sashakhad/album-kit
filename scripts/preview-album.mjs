@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import {
   copyFile,
   mkdir,
@@ -9,13 +9,18 @@ import {
   readdir,
   readFile,
   rename,
+  stat,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { embedPublicAudio } from '../src/lib/album/embed-public-audio.ts';
+import {
+  cachedPublicAudio,
+  embedPublicAudio,
+  maxEmbeddedAudioBytes,
+} from '../src/lib/album/embed-public-audio.ts';
 import { parseCanonicalTake } from '../src/lib/album/parse-filename.ts';
 import { previewListenBlurb, previewListenVersion } from '../src/lib/album/preview-listen.ts';
 import { albumListenUrl, takeFromStreamUrl } from '../src/lib/album/link-fragment.ts';
@@ -219,6 +224,36 @@ async function renderPreview(album, tracks, albumKey) {
     .replaceAll('___ALBUM_KEY___', jsonForScript(albumKey));
 }
 
+function hashStreams(streams) {
+  const lines = [];
+  if (Array.isArray(streams)) {
+    for (const row of streams) {
+      if (
+        typeof row?.filename === 'string' &&
+        typeof row.streamUrl === 'string' &&
+        isPlayableStream(row.streamUrl, row.clipId)
+      ) {
+        lines.push(`${row.filename}\n${row.clipId}\n${row.streamUrl}`);
+      }
+    }
+  }
+  lines.sort();
+  return createHash('sha256').update(lines.join('\n')).digest('hex');
+}
+
+function pageStampPath(root) {
+  return path.join(root, '.tmp', 'album-preview-page.json');
+}
+
+async function readPageStamp(root) {
+  const stamp = await readJson(pageStampPath(root), null);
+  if (typeof stamp !== 'object' || stamp === null) return null;
+  if (stamp.ready !== true || typeof stamp.hash !== 'string' || typeof stamp.page !== 'string') {
+    return null;
+  }
+  return stamp;
+}
+
 async function exportPreview(
   root,
   {
@@ -226,6 +261,7 @@ async function exportPreview(
     serve = false,
     streamsOnly = false,
     allowEmpty = false,
+    embed = 'shrink',
     output = path.join(root, '.tmp', streamsOnly ? 'album-preview-online' : 'album-preview'),
   } = {}
 ) {
@@ -299,7 +335,8 @@ async function exportPreview(
     }
     const previous = await priorLabels(root, albumKey);
     await withPreviewWriter(root, 'labels', () => assignLabels(root, albumKey, tracks));
-    await embedOnlineTakes(root, tracks);
+    const renderedHash = hashStreams(streams);
+    const embeddedComplete = await embedOnlineTakes(root, tracks, embed);
     const html = await renderPreview(album, tracks, albumKey);
     await writeFile(path.join(staging, files[0]), html);
     const archive = path.join(parent, 'album-preview.zip');
@@ -347,9 +384,18 @@ async function exportPreview(
       await rename(pending, catalogPath);
     }
     const url = serve ? await servePreview({ output, catalogPath, albumKey }) : null;
+    const latestHash = hashStreams(await readStreams(root));
+    const networkOff = process.env.ALBUM_PREVIEW_EMBED === '0';
+    const pageIsCurrent =
+      latestHash === renderedHash && (embeddedComplete || (embed === 'shrink' && networkOff));
+    const bytes = Buffer.byteLength(html);
+    if (pageIsCurrent) {
+      await saveJson(pageStampPath(root), { ready: true, hash: renderedHash, page, bytes });
+    }
     return {
       report: {
         page,
+        pageReady: pageIsCurrent,
         link,
         ...(previewImage ? { preview: previewImage } : {}),
         say,
@@ -368,7 +414,7 @@ async function exportPreview(
   }
 }
 
-async function embedOnlineTakes(root, tracks) {
+async function embedOnlineTakes(root, tracks, embed) {
   const urls = [];
   const seen = new Set();
   for (const track of tracks) {
@@ -378,9 +424,10 @@ async function embedOnlineTakes(root, tracks) {
       urls.push(take.src);
     }
   }
-  if (urls.length === 0) return;
+  if (urls.length === 0) return true;
   const cacheDir = path.join(root, '.tmp', 'album-preview-embedded');
-  const allowNetwork = process.env.ALBUM_PREVIEW_EMBED !== '0';
+  const allowNetwork = embed === 'shrink' && process.env.ALBUM_PREVIEW_EMBED !== '0';
+  const maxBytes = maxEmbeddedAudioBytes(urls.length);
   const embedded = new Map();
   let cursor = 0;
   async function worker() {
@@ -388,7 +435,10 @@ async function embedOnlineTakes(root, tracks) {
       const url = urls[cursor];
       cursor += 1;
       if (typeof url !== 'string') continue;
-      const audio = await embedPublicAudio({ url, cacheDir, allowNetwork });
+      const audio =
+        embed === 'cache'
+          ? await cachedPublicAudio({ url, cacheDir, maxBytes })
+          : await embedPublicAudio({ url, cacheDir, allowNetwork, maxBytes });
       if (audio !== null) embedded.set(url, audio);
     }
   }
@@ -396,13 +446,57 @@ async function embedOnlineTakes(root, tracks) {
   const count = Math.min(3, urls.length);
   for (let index = 0; index < count; index += 1) workers.push(worker());
   await Promise.all(workers);
+  let complete = true;
   for (const track of tracks) {
     for (const take of track.takes) {
       if (take.online !== true || typeof take.src !== 'string') continue;
       const audio = embedded.get(take.src);
-      if (audio !== undefined) take.embeddedAudio = audio;
+      if (audio === undefined) complete = false;
+      else take.embeddedAudio = audio;
     }
   }
+  return complete;
+}
+
+function spawnShrink(root) {
+  const script = fileURLToPath(import.meta.url);
+  const args = process.execArgv.includes('--experimental-strip-types')
+    ? [...process.execArgv, script, '--shrink']
+    : ['--experimental-strip-types', script, '--shrink'];
+  const child = spawn(process.execPath, args, {
+    cwd: root,
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+}
+
+export async function ensureShrunkPage(root) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const hash = hashStreams(await readStreams(root));
+    const stamp = await readPageStamp(root);
+    if (stamp !== null && stamp.hash === hash) {
+      const info = await stat(stamp.page).catch(() => null);
+      if (info !== null && info.size > 0) {
+        return { page: stamp.page, pageReady: true, bytes: info.size, hash };
+      }
+    }
+    const built = await withPreviewWriter(root, 'files', () =>
+      exportPreview(root, { streamsOnly: true, embed: 'shrink' })
+    );
+    if (built.report.pageReady === true) {
+      return {
+        page: built.report.page,
+        pageReady: true,
+        bytes: Buffer.byteLength(await readFile(built.report.page)),
+        link: built.report.link,
+        say: built.report.say,
+        open: built.report.page,
+        shareCard: false,
+      };
+    }
+  }
+  throw new Error('The offline album page was still changing. Run --page again.');
 }
 
 export async function preview(root, options = {}) {
@@ -412,14 +506,18 @@ export async function preview(root, options = {}) {
 }
 
 export async function recordReadyTakes(root, receipt) {
-  return withPreviewWriter(root, 'streams', async () => {
+  const recorded = await withPreviewWriter(root, 'streams', async () => {
     const album = await readJson(path.join(root, 'album/album.json'));
     const next = mergeReadyTakes(await readStreams(root), receipt, album);
     const directory = path.join(root, '.tmp');
     await saveJson(path.join(directory, 'album-preview-streams.json'), next);
-    // A retry also finishes any interrupted render after the catalog was saved.
-    return exportPreview(root, { streamsOnly: true });
+    // The link does not wait on a download or a re-encode. Cache hits stay in the file.
+    return exportPreview(root, { streamsOnly: true, embed: 'cache' });
   });
+  if (recorded.report.pageReady !== true && process.env.ALBUM_PREVIEW_SHRINK !== '0') {
+    spawnShrink(root);
+  }
+  return recorded;
 }
 
 if (
@@ -430,24 +528,28 @@ if (
   try {
     const args = process.argv.slice(2);
     const recording = args.length === 2 && args[0] === '--record';
+    const paging = args.length === 1 && (args[0] === '--page' || args[0] === '--shrink');
     if (
       !recording &&
+      !paging &&
       (args.length > 1 ||
         (args.length === 1 && !['--zip', '--serve', '--streams-only', '--open'].includes(args[0])))
     ) {
       throw new Error(
-        'Usage: pnpm preview:album [--zip | --serve | --streams-only | --open | --record <ready-take.json>]'
+        'Usage: pnpm preview:album [--zip | --serve | --streams-only | --open | --page | --record <ready-take.json>]'
       );
     }
     const opening = args.includes('--open');
-    const { report } = recording
-      ? await recordReadyTakes(process.cwd(), await readJson(args[1]))
-      : await preview(process.cwd(), {
-          makeZip: args.includes('--zip'),
-          serve: args.includes('--serve'),
-          streamsOnly: args.includes('--streams-only') || opening,
-          allowEmpty: opening,
-        });
+    const { report } = paging
+      ? { report: await ensureShrunkPage(process.cwd()) }
+      : recording
+        ? await recordReadyTakes(process.cwd(), await readJson(args[1]))
+        : await preview(process.cwd(), {
+            makeZip: args.includes('--zip'),
+            serve: args.includes('--serve'),
+            streamsOnly: args.includes('--streams-only') || opening,
+            allowEmpty: opening,
+          });
     console.log(JSON.stringify(report));
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

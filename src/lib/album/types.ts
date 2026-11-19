@@ -10,6 +10,8 @@ export type VersionMeta = {
 export type EmbeddedAudio = {
   mime: string;
   base64: string;
+  /** Length in seconds, known before the media element reports it. */
+  seconds?: number;
 };
 
 export type AlbumTake = {

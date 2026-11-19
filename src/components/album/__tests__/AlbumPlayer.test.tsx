@@ -377,6 +377,62 @@ describe('AlbumPlayer', () => {
     expect(slider).toHaveAttribute('aria-valuenow', '40');
   });
 
+  it('shows the embedded length as soon as the take is selected and drops the previous length', async () => {
+    const user = userEvent.setup();
+    const first = 'https://cdn1.suno.ai/clip-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    const second = 'https://cdn1.suno.ai/clip-bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.mp4';
+    const version: AlbumVersion = {
+      ...sampleVersion,
+      tracks: [
+        {
+          number: 1,
+          title: 'Track One',
+          kind: 'album',
+          filename: '01-track-one.mp3',
+          audioUrl: first,
+          takes: [
+            {
+              label: 'A',
+              filename: '01-track-one.mp3',
+              audioUrl: first,
+              versionSlug: 'v1',
+              voteLabel: 'A',
+              embeddedAudio: { mime: 'audio/mp4', base64: btoa('inline-audio'), seconds: 80 },
+            },
+            {
+              label: 'B',
+              filename: '01-track-one-takeb.mp3',
+              audioUrl: second,
+              versionSlug: 'v1',
+              voteLabel: 'B',
+            },
+          ],
+          prompt: 'Warm and wide.',
+        },
+      ],
+    };
+    render(<AlbumPlayer version={version} />);
+    expect(screen.getByText('0:00 / 1:20')).toBeInTheDocument();
+
+    const audio = document.querySelector('audio');
+    if (audio === null) throw new Error('expected an audio element');
+    Object.defineProperty(audio, 'currentTime', { configurable: true, value: 3 });
+    Object.defineProperty(audio, 'duration', { configurable: true, value: Number.NaN });
+    fireEvent.timeUpdate(audio);
+    expect(screen.getByText('0:03 / 1:20')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Take B' }));
+    expect(screen.getByText('0:00 / —:—')).toBeInTheDocument();
+    expect(screen.queryByText('0:03 / 1:20')).not.toBeInTheDocument();
+
+    const video = document.querySelector('video');
+    if (video === null) throw new Error('expected a video element');
+    Object.defineProperty(video, 'currentTime', { configurable: true, value: 1 });
+    Object.defineProperty(video, 'duration', { configurable: true, value: 50 });
+    fireEvent.timeUpdate(video);
+    expect(screen.getByText('0:01 / 0:50')).toBeInTheDocument();
+  });
+
   it('shows an upload hint when a version has no audio', () => {
     render(<AlbumPlayer version={emptyVersion} />);
 

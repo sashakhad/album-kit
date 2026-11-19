@@ -92,7 +92,7 @@ describe('home page', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('opens a shared Compare takes link directly and accepts a score', async () => {
-    const submit = vi.fn().mockResolvedValue(
+    const submit = vi.fn(async () =>
       Response.json({
         ...EMPTY_VOTE_SNAPSHOT,
         tallies: { 1: { v1: { A: 1 } } },

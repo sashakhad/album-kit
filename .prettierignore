@@ -6,6 +6,7 @@ dist/
 build/
 coverage/
 src/generated/
+src/lib/album/vendor/
 pnpm-lock.yaml
 package-lock.json
 yarn.lock

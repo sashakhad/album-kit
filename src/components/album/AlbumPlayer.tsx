@@ -40,10 +40,12 @@ import { rankListenTakes } from '@/lib/album/listen';
 import { slugifyTrackTitle } from '@/lib/album/slug';
 import {
   embeddedAudioForUrl,
+  isEmbeddedAudio,
   objectUrlForEmbedded,
   playbackUsesVideo,
   takeNeedsNetwork,
 } from '@/lib/album/embedded-audio';
+import { knownMediaDuration, remoteMp4Duration } from '@/lib/album/media-duration';
 import {
   formatPlaybackFailure,
   isSafetyCheck,
@@ -152,6 +154,8 @@ export function AlbumPlayer({
   const handlingPlayback = useRef(false);
   const holdSrc = useRef(false);
   const recovering = useRef<string | null>(null);
+  const playbackSrcRef = useRef<string | null>(null);
+  const durationToken = useRef(0);
   const assignMedia = useCallback((node: HTMLMediaElement | null) => {
     if (node !== null) node.setAttribute('referrerpolicy', 'no-referrer');
   }, []);
@@ -390,6 +394,7 @@ export function AlbumPlayer({
       cancelPlayback.current?.();
       holdSrc.current = true;
       handlingPlayback.current = true;
+      playbackSrcRef.current = playbackUrlFor(url, embeddedAudioForUrl(version, url));
       setPlaybackError(null);
       setIsLoading(true);
       cancelPlayback.current = startTakePlayback({
@@ -464,11 +469,11 @@ export function AlbumPlayer({
 
       setCurrentIndex(index);
       setCurrentTime(0);
-      setDuration(0);
+      setDuration(hintedSeconds(embeddedAudioForUrl(version, url)) ?? 0);
       setIsPlaying(true);
       playSource(url);
     },
-    [playSource, version.tracks]
+    [playSource, version]
   );
 
   const playNextTrack = useCallback(
@@ -577,18 +582,41 @@ export function AlbumPlayer({
     if (videoRef.current !== null) videoRef.current.volume = volume;
   }, [currentAudioUrl, volume]);
 
+  const embeddedNow =
+    currentAudioUrl === null ? null : embeddedAudioForUrl(version, currentAudioUrl);
+  const durationHint = hintedSeconds(embeddedNow);
+  const [durationTrack, setDurationTrack] = useState<{ url: string | null; hint: number | null }>({
+    url: null,
+    hint: null,
+  });
+  if (durationTrack.url !== currentAudioUrl || durationTrack.hint !== durationHint) {
+    setDurationTrack({ url: currentAudioUrl, hint: durationHint });
+    setDuration(durationHint ?? 0);
+  }
+  const hasEmbeddedAudio = embeddedNow !== null;
+  useEffect(() => {
+    if (currentAudioUrl === null || durationHint !== null || hasEmbeddedAudio) return;
+    if (!isDirectSunoStream(currentAudioUrl)) return;
+    const token = durationToken.current + 1;
+    durationToken.current = token;
+    const url = currentAudioUrl;
+    void remoteMp4Duration(url)
+      .then(found => {
+        if (durationToken.current !== token || found === null) return;
+        setDuration(found);
+      })
+      .catch(() => undefined);
+    return () => {
+      durationToken.current += 1;
+    };
+  }, [currentAudioUrl, durationHint, hasEmbeddedAudio]);
+
   useEffect(() => {
     recovering.current = null;
     if (holdSrc.current || currentAudioUrl === null) return;
     const embedded = embeddedAudioForUrl(version, currentAudioUrl);
-    let playbackUrl = currentAudioUrl;
-    if (embedded !== null) {
-      try {
-        playbackUrl = objectUrlForEmbedded(currentAudioUrl, embedded);
-      } catch {
-        playbackUrl = currentAudioUrl;
-      }
-    }
+    const playbackUrl = playbackUrlFor(currentAudioUrl, embedded);
+    playbackSrcRef.current = playbackUrl;
     const useVideo = playbackUsesVideo(
       currentAudioUrl,
       playbackUrl === currentAudioUrl ? null : embedded
@@ -1086,6 +1114,7 @@ export function AlbumPlayer({
         <PlaybackMedia
           audioRef={audioRef}
           videoRef={videoRef}
+          activeSrc={playbackSrcRef}
           onReady={assignMedia}
           onTime={setCurrentTime}
           onDuration={setDuration}
@@ -1126,9 +1155,27 @@ export function AlbumPlayer({
   );
 }
 
+function hintedSeconds(audio: { seconds?: number } | null): number | null {
+  if (audio === null || audio.seconds === undefined) return null;
+  if (!Number.isFinite(audio.seconds) || audio.seconds <= 0) return null;
+  return audio.seconds;
+}
+
+function playbackUrlFor(remote: string, embedded: { mime: string; base64: string } | null): string {
+  if (embedded !== null && isEmbeddedAudio(embedded)) {
+    try {
+      return objectUrlForEmbedded(remote, embedded);
+    } catch {
+      return remote;
+    }
+  }
+  return remote;
+}
+
 function PlaybackMedia({
   audioRef,
   videoRef,
+  activeSrc,
   onReady,
   onTime,
   onDuration,
@@ -1139,6 +1186,7 @@ function PlaybackMedia({
 }: {
   audioRef: { current: HTMLAudioElement | null };
   videoRef: { current: HTMLVideoElement | null };
+  activeSrc: { current: string | null };
   onReady: (node: HTMLMediaElement | null) => void;
   onTime: (seconds: number) => void;
   onDuration: (seconds: number) => void;
@@ -1151,19 +1199,37 @@ function PlaybackMedia({
     event: SyntheticEvent<HTMLMediaElement>,
     handle: (media: HTMLMediaElement) => void
   ) {
-    if (event.currentTarget.getAttribute('src') === null) return;
+    const src = event.currentTarget.getAttribute('src');
+    if (src === null || src !== activeSrc.current) return;
     handle(event.currentTarget);
+  }
+
+  function publishDuration(media: HTMLMediaElement) {
+    const known = knownMediaDuration(media);
+    if (known !== null) onDuration(known);
   }
 
   const events = {
     onTimeUpdate: (event: SyntheticEvent<HTMLMediaElement>) => {
-      fromActive(event, media => onTime(media.currentTime));
+      fromActive(event, media => {
+        onTime(media.currentTime);
+        publishDuration(media);
+      });
     },
     onDurationChange: (event: SyntheticEvent<HTMLMediaElement>) => {
-      fromActive(event, media => onDuration(Number.isFinite(media.duration) ? media.duration : 0));
+      fromActive(event, publishDuration);
+    },
+    onLoadedMetadata: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, publishDuration);
+    },
+    onProgress: (event: SyntheticEvent<HTMLMediaElement>) => {
+      fromActive(event, publishDuration);
     },
     onPlaying: (event: SyntheticEvent<HTMLMediaElement>) => {
-      fromActive(event, () => onPlaying());
+      fromActive(event, media => {
+        publishDuration(media);
+        onPlaying();
+      });
     },
     onWaiting: (event: SyntheticEvent<HTMLMediaElement>) => {
       fromActive(event, () => onWaiting());

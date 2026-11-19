@@ -256,7 +256,6 @@ describe('album preview', () => {
       url: 'https://cdn1.suno.ai/clipB.mp4',
       cacheDir: path.join(root, '.tmp', 'album-preview-embedded'),
       allowNetwork: true,
-      ffmpegBin: null,
       fetchImpl: () =>
         Promise.resolve({
           status: 200,
@@ -452,6 +451,49 @@ describe('album preview', () => {
     const fresh = readBallot(await (await fetch(new URL('/ballot', second.url ?? ''))).json());
     expect(fresh.pass).toBe(1);
     expect(fresh.votes).toEqual({});
+  });
+
+  it('prints the record link before the offline file is shrunk', async () => {
+    const root = await writeFixture();
+    const receipt = path.join(root, 'ready.json');
+    await writeFile(
+      receipt,
+      JSON.stringify({
+        filename: streamName,
+        clipId: 'clipB',
+        streamUrl: 'https://cdn1.suno.ai/clipB.mp4',
+      })
+    );
+    const started = performance.now();
+    const recorded = await runPreview(root, ['--record', receipt]);
+    const recordMs = performance.now() - started;
+    expect(recorded.code).toBe(0);
+    const report = JSON.parse(
+      recorded.stdout
+        .trim()
+        .split('\n')
+        .find(line => line.startsWith('{')) ?? '{}'
+    ) as { link?: string; pageReady?: boolean; page?: string };
+    expect(report.pageReady).toBe(false);
+    expect(report.link).toMatch(/^https:\/\/album-bot-site\.vercel\.app\/a#/);
+    expect(recordMs).toBeLessThan(1500);
+    const html = await readFile(report.page ?? '', 'utf8');
+    const albumData = /<script type="application\/json" id="album-data">([\s\S]*?)<\/script>/.exec(
+      html
+    )?.[1];
+    expect(albumData).toContain('https://cdn1.suno.ai/clipB.mp4');
+    expect(albumData).not.toContain('embeddedAudio');
+
+    const paged = await runPreview(root, ['--page']);
+    expect(paged.code).toBe(0);
+    const ready = JSON.parse(
+      paged.stdout
+        .trim()
+        .split('\n')
+        .find(line => line.startsWith('{')) ?? '{}'
+    ) as { pageReady?: boolean; page?: string };
+    expect(ready.pageReady).toBe(true);
+    expect(ready.page).toBe(report.page);
   });
 
   it('fills Open Album.html from stream URLs without a zip or a server', async () => {

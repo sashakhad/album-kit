@@ -11,6 +11,7 @@ const eslintConfig = [
       'out/**',
       'coverage/**',
       'src/generated/**',
+      'src/lib/album/vendor/**',
       'next-env.d.ts',
     ],
   },
